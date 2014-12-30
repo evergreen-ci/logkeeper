@@ -1,0 +1,8 @@
+gopkg.in/mgo.v2                         e2e914857713db7497cca2bd7fc0b030fc9cb22d
+github.com/jacobsa/oglematchers         4fc24f97b5b74022c2a3f4ca7eed57ca29083d3e
+github.com/smartystreets/goconvey       75bc4a2dad71e5c5b51c5009b33eba766ec57051
+github.com/jessevdk/go-flags            c144b8803670469bffe9b9c6bb09c622ead4d900
+github.com/codegangsta/negroni          b70baf29f4791cc9f7aa5b5b18a64f152810880f
+github.com/evergreen-ci/render          c9e0e54c798fc15217c09d382e207644402bf004
+github.com/gorilla/mux                  0ef595e787efa95d68151570ead5c85dc2e05f91
+github.com/phyber/negroni-gzip          48f82605778a579cb8172122897f589e4023b537

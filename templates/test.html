@@ -1,0 +1,91 @@
+{{define "base"}}
+<html>
+    <head> 
+	<style>
+	input:focus { 
+		outline: none !important;
+		border: 0px !important;
+	}
+	.linenum input{
+		cursor:pointer;
+	}
+	</style>
+	<script type="text/javascript" src="//code.jquery.com/jquery-2.1.3.min.js"></script>
+      <link href="/static/logkeeper.css" rel="stylesheet" /> 
+        <script type="text/javascript">
+          var parseHash = function() {
+            var hash = window.location.hash.toString();
+            hash = (hash.length > 1 ? hash.substr(2) : hash);
+            return parseInt(hash, 10);
+          };
+          var scrollToLine = function(lineNumber) {
+            var lineHeight = parseFloat($('pre').css('lineHeight'));
+
+            $('html, body').animate( {
+                scrollTop : $('#line-' + lineNumber).offset().top - Math.floor($(window).height() / 2)
+              },
+              650);
+          };
+
+          var highlightLine = function(lineNumber) {
+            $('#line-' + lineNumber).addClass('selected-line');
+          };
+
+          var removeHighlightLine = function(lineNumber) {
+            $('#line-' + lineNumber).removeClass('selected-line');
+          };
+
+          var setLine = function(lineNumber) {
+            window.location.hash = '#L' + lineNumber;
+            highlightLine(lineNumber);
+          };
+
+          $(document).ready(function() {
+            var lineNumber = parseHash();
+
+            if (!isNaN(lineNumber) && lineNumber >= 0) {
+              setLine(lineNumber);
+              scrollToLine(lineNumber);
+            }
+
+            $('.line-link').click(function(ev) {
+              var elementId = $(ev.target).get(0).id;
+              var newLineNumber = parseInt(elementId.toString().substr('line-link-'.length), 10);
+              if (!isNaN(newLineNumber) && newLineNumber >= 0) {
+                removeHighlightLine(lineNumber);
+                lineNumber = newLineNumber;
+                setLine(lineNumber);
+              }
+              $(ev.target).blur()
+            });
+
+            $('.log-line').each(function(i, el) {
+              $(el).html(ansi_up.ansi_to_html($(el).html()));
+            });
+          });
+      </script>
+    </head>
+
+  <body>
+    <table>
+      <tbody>
+      {{ $colorSet := ColorSet }}
+      {{ $lastLine := MutableVar }}
+      {{ $lastLine.Set nil }}
+      {{range $index, $line := .LogLines}} {{$color := .Color}}
+	<tr>
+	<td class="linenum">
+	<input type="text" id="line-link-{{$index}}" class="line-link" value="{{$index}}" style="border:0px"></input> </td>
+	<td class="time">{{ if $line.OlderThanThreshold $lastLine.Get}} {{DateFormat $line.Timestamp "2006-01-02 15:04:05 -0700"}}{{end}}</td><td class="log {{if $line.Global}}global{{else}} {{$colorSet.GetColor $color}}{{end}}"><pre id="line-{{$index}}">{{.Data}}</pre></td></tr>{{ $lastLine.Set . }} {{end}}
+      </tbody>
+    </table>
+    <style>
+    {{range $colorSet.GetAllColors }}
+      .{{.Name}} {color: {{.Color}}; }
+    {{end}}
+    </style>
+  </body>
+  <style>
+  </style>
+</html>
+{{end}}

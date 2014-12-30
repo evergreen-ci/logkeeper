@@ -1,0 +1,13 @@
+{{define "base"}}
+<html>
+  <body>
+	{{$build := .Build}}
+
+    <ul>
+      {{range .Tests}}
+        <li><a href="/build/{{$build.Id.Hex}}/test/{{.Id.Hex}}/">{{.Name}}</a></li>
+      {{end}}
+    </ul>
+  </body>
+</html>
+{{end}}

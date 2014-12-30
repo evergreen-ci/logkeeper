@@ -1,0 +1,69 @@
+* {
+  font-family: "Helvetica", "Arial", sans-serif;
+}
+table,
+td,
+th {
+  border-collapse: collapse;
+}
+td {
+  font-family: "Menlo", monospace;
+  font-size: 80%;
+}
+td.log {
+  padding: 0 0 0 5px;
+  border-left: 1px solid #999;
+}
+td.time {
+  white-space: nowrap;
+  padding: 0 5px 0 0;
+}
+td.log pre {
+  margin: 0;
+  padding: 0;
+  font-family: "Menlo", monospace;
+}
+h1,
+h2 {
+  font-weight: bold;
+  font-family: "Lucida Grande", "Verdana", sans-serif;
+}
+h1 {
+  font-size: 1.25em;
+}
+h2 {
+  font-size: 1.15em;
+}
+dl.info dt {
+  width: 100px;
+  font-weight: bold;
+  float: left;
+  clear: left;
+}
+dl.info dd {
+  float: left;
+}
+dl.info + * {
+  padding-top: 1em;
+  clear: left;
+}
+.linenum a:link {
+    color: #ccc;
+    text-decoration:none;
+}
+
+.linenum a:hover {
+    color: green;
+    text-decoration:none;
+}
+
+.linenum a:active {
+    background-color: yellow;
+    text-decoration:none;
+}
+.global{
+  font-style:italic;
+}
+.selected-line{
+  background-color: rgb(255, 255, 204);
+}
