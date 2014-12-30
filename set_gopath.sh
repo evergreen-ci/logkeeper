@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TOOLS_PKG='github.com/mpobrien/logkeeper'
+TOOLS_PKG='github.com/evergreen-ci/logkeeper'
 
 setgopath() {
 	SOURCE_GOPATH=`pwd`.gopath

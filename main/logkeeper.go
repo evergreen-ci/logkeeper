@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/codegangsta/negroni"
-	"github.com/mpobrien/logkeeper"
+	"github.com/evergreen-ci/logkeeper"
 	"github.com/phyber/negroni-gzip/gzip"
 	"gopkg.in/mgo.v2"
 
