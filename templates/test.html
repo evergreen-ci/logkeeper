@@ -10,7 +10,7 @@
 		cursor:pointer;
 	}
 	</style>
-	<script type="text/javascript" src="//code.jquery.com/jquery-2.1.3.min.js"></script>
+	<script type="text/javascript" src="/static/jquery-2.1.3.min.js"></script>
       <link href="/static/logkeeper.css" rel="stylesheet" /> 
         <script type="text/javascript">
           var parseHash = function() {
@@ -21,10 +21,11 @@
           var scrollToLine = function(lineNumber) {
             var lineHeight = parseFloat($('pre').css('lineHeight'));
 
-            $('html, body').animate( {
-                scrollTop : $('#line-' + lineNumber).offset().top - Math.floor($(window).height() / 2)
-              },
-              650);
+            var scrollOffset = $('#line-' + lineNumber).offset().top
+            if (document.body && document.body.clientHeight){
+              scrollOffset -= Math.floor(document.body.clientHeight / 2)
+            }
+            $('html, body').animate( { scrollTop : scrollOffset }, 650);
           };
 
           var highlightLine = function(lineNumber) {
