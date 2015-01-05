@@ -2,6 +2,7 @@
 <html>
   <body>
 	{{$build := .Build}}
+	<a href="/build/{{$build.Id.Hex}}/all">Complete logs for all</a>
 
     <ul>
       {{range .Tests}}

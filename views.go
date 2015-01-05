@@ -204,6 +204,12 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		lines = append(lines, *NewLogLine(v))
 	}
 
+	if len(lines) == 0 {
+		// no need to insert anything, so stop here
+		lk.render.WriteJSON(w, http.StatusOK, "")
+		return
+	}
+
 	logEntry := Log{
 		BuildId: build.Id,
 		TestId:  &(test.Id),
@@ -248,6 +254,12 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	lines := make([]LogLine, 0, len(info))
 	for _, v := range info {
 		lines = append(lines, *NewLogLine(v))
+	}
+
+	if len(lines) == 0 {
+		// no need to insert anything, so stop here
+		lk.render.WriteJSON(w, http.StatusOK, "")
+		return
 	}
 
 	logEntry := Log{
@@ -300,9 +312,16 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, "seq")
 	merged := MergeLog(testLogs, globalLogs)
 
-	err = lk.render.StreamHTML(w, http.StatusOK, struct {
-		LogLines chan *LogLineItem
-	}{merged}, "base", "test.html")
+	if len(r.FormValue("raw")) > 0 {
+		for line := range merged {
+			w.Write([]byte(line.Data + "\n"))
+		}
+		return
+	} else {
+		err = lk.render.StreamHTML(w, http.StatusOK, struct {
+			LogLines chan *LogLineItem
+		}{merged}, "base", "test.html")
+	}
 }
 
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
@@ -320,32 +339,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"test not found"})
 		return
 	}
-
-	/*
-		firstLog, err := globalLogBound(lk.session, build.Id, test.Started, true)
-		if err != nil {
-			lk.render.JSON(w, http.StatusInternalServerError, apiError{err.Error()})
-			return
-		}
-		globalSeqUpper := -1
-		globalSeqLower := -1
-		if firstLog != nil {
-			globalSeqLower = firstLog.Seq
-		}
-
-		nextTest := &Test{}
-		err = session.DB(lk.opts.DB).C("tests").Find(bson.M{"build_id": test.BuildId, "started": bson.M{"$gt": test.Started}}).Sort("started").One(nextTest)
-		if err != nil {
-			if err != mgo.ErrNotFound {
-				lk.render.JSON(w, http.StatusInternalServerError, apiError{err.Error()})
-				return
-			}
-		}else{
-		}
-		if err != nil {
-			return nil, err
-		}
-	*/
 	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
 
 	if err != nil {
@@ -356,13 +349,22 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, "seq")
 
 	merged := MergeLog(testLogs, globalLogs)
-	err = lk.render.StreamHTML(w, http.StatusOK, struct {
-		LogLines chan *LogLineItem
-	}{merged}, "base", "test.html")
-	// If there was an error, it won't show up in the UI since it's being streamed, so log it here
-	// instead
-	if err != nil {
-		fmt.Println(err)
+
+	if len(r.FormValue("raw")) > 0 {
+		for line := range merged {
+			w.Write([]byte(line.Data + "\n"))
+		}
+		return
+	} else {
+		err = lk.render.StreamHTML(w, http.StatusOK, struct {
+			LogLines chan *LogLineItem
+			BuildId  string
+		}{merged, build.Id.Hex()}, "base", "test.html")
+		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
+		// instead
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
@@ -489,18 +491,18 @@ func CreateBuild(ae web.HandlerApp, r *http.Request) web.HTTPResponse {
 */
 
 func (lk *logKeeper) NewRouter() http.Handler {
-	r := mux.NewRouter()
+	r := mux.NewRouter().StrictSlash(true)
 
 	//write methods
 	r.Path("/build/").Methods("POST").HandlerFunc(lk.createBuild)
 	r.Path("/build/{build_id}/test/").Methods("POST").HandlerFunc(lk.createTest)
-	r.Path("/build/{build_id}/test/{test_id}/").Methods("POST").HandlerFunc(lk.appendLog)
+	r.Path("/build/{build_id}/test/{test_id}").Methods("POST").HandlerFunc(lk.appendLog)
 	r.Path("/build/{build_id}/").Methods("POST").HandlerFunc(lk.appendGlobalLog)
 
 	//read methods
 	r.Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuildById)
 	r.Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
-	r.Path("/build/{build_id}/test/{test_id}/").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
+	r.Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
 	//r.Path("/{builder}/builds/{buildnum:[0-9]+}/").HandlerFunc(viewBuild)
 	//r.Path("/{builder}/builds/{buildnum}/test/{test_phase}/{test_name}").HandlerFunc(app.MakeHandler(Name("view_test")))
 	return r
