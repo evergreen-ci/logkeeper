@@ -52,6 +52,10 @@ dl.info + * {
     text-decoration:none;
 }
 
+.linenum input{
+  width:50px;
+}
+
 .linenum a:hover {
     color: green;
     text-decoration:none;
