@@ -491,18 +491,22 @@ func CreateBuild(ae web.HandlerApp, r *http.Request) web.HTTPResponse {
 */
 
 func (lk *logKeeper) NewRouter() http.Handler {
-	r := mux.NewRouter().StrictSlash(true)
+	r := mux.NewRouter().StrictSlash(false)
 
 	//write methods
 	r.Path("/build/").Methods("POST").HandlerFunc(lk.createBuild)
+	r.Path("/build").Methods("POST").HandlerFunc(lk.createBuild)
 	r.Path("/build/{build_id}/test/").Methods("POST").HandlerFunc(lk.createTest)
+	r.Path("/build/{build_id}/test").Methods("POST").HandlerFunc(lk.createTest)
+	r.Path("/build/{build_id}/test/{test_id}/").Methods("POST").HandlerFunc(lk.appendLog)
 	r.Path("/build/{build_id}/test/{test_id}").Methods("POST").HandlerFunc(lk.appendLog)
 	r.Path("/build/{build_id}/").Methods("POST").HandlerFunc(lk.appendGlobalLog)
+	r.Path("/build/{build_id}").Methods("POST").HandlerFunc(lk.appendGlobalLog)
 
 	//read methods
-	r.Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuildById)
-	r.Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
-	r.Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
+	r.StrictSlash(true).Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuildById)
+	r.StrictSlash(true).Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
+	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
 	//r.Path("/{builder}/builds/{buildnum:[0-9]+}/").HandlerFunc(viewBuild)
 	//r.Path("/{builder}/builds/{buildnum}/test/{test_phase}/{test_name}").HandlerFunc(app.MakeHandler(Name("view_test")))
 	return r
