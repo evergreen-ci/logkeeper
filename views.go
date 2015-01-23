@@ -359,7 +359,10 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
 			BuildId  string
-		}{merged, build.Id.Hex()}, "base", "test.html")
+			Builder  string
+			TestId   string
+			TestName string
+		}{merged, build.Id.Hex(), build.Builder, test.Id.Hex(), test.Name}, "base", "test.html")
 		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
 		// instead
 		if err != nil {

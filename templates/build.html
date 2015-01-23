@@ -1,10 +1,12 @@
 {{define "base"}}
 <html>
   <body>
-	{{$build := .Build}}
-	<a href="/build/{{$build.Id.Hex}}/all">Complete logs for all</a>
-
+    <div>
+      <h2>{{.Build.Builder}} - {{.Build.BuildNum}}</h2>
+      <h3><a href="/build/{{.Build.Id.Hex}}/all">Complete logs for all</a></h3>
+    </div>
     <ul>
+      {{$build := .Build}}
       {{range .Tests}}
         <li><a href="/build/{{$build.Id.Hex}}/test/{{.Id.Hex}}/">{{.Name}}</a></li>
       {{end}}

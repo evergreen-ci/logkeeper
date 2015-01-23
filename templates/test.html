@@ -53,6 +53,14 @@
     </head>
 
   <body>
+    <div>
+      <h3>
+        {{.TestName}} on <a href ="/build/{{.BuildId}}">{{.Builder}}</a>
+      </h3>
+    </div>
+    <div>
+      <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
+    </div>
     <table>
 	  <tbody>
 	  {{ $colorSet := ColorSet }}
