@@ -59,7 +59,11 @@
       </h3>
     </div>
     <div>
+	  {{ if .TestId }}
       <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
+	  {{ else }}
+      <a href ="/build/{{.BuildId}}/all?raw=1">Plain Text</a>
+	  {{ end }}
     </div>
     <table>
 	  <tbody>

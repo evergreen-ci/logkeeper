@@ -320,7 +320,11 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
-		}{merged}, "base", "test.html")
+			BuildId  string
+			Builder  string
+			TestId   string
+			TestName string
+		}{merged, build.Id.Hex(), build.Builder, "", "All logs"}, "base", "test.html")
 	}
 }
 
