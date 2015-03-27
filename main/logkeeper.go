@@ -6,7 +6,9 @@ import (
 	"github.com/codegangsta/negroni"
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/phyber/negroni-gzip/gzip"
+	"github.com/tylerb/graceful"
 	"gopkg.in/mgo.v2"
+	"time"
 
 	//"net/http"
 )
@@ -31,5 +33,5 @@ func main() {
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(router)
 
-	n.Run(fmt.Sprintf(":%v", *httpPort))
+	graceful.Run(fmt.Sprintf(":%v", *httpPort), 10*time.Second, n)
 }

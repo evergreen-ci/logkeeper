@@ -6,3 +6,5 @@ github.com/codegangsta/negroni          b70baf29f4791cc9f7aa5b5b18a64f152810880f
 github.com/evergreen-ci/render          c9e0e54c798fc15217c09d382e207644402bf004
 github.com/gorilla/mux                  0ef595e787efa95d68151570ead5c85dc2e05f91
 github.com/phyber/negroni-gzip          48f82605778a579cb8172122897f589e4023b537
+github.com/tylerb/graceful              e6d063d837d9bc2313d0be35bfcdb60d63ce9e45
+golang.org/x/net                        7dbad50ab5b31073856416cdcfeb2796d682f844
