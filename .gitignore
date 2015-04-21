@@ -1,0 +1,6 @@
+logkeeper
+.gopath/
+build/
+*~
+\#*\#
+.elasticbeanstalk/*
