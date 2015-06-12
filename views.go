@@ -308,8 +308,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, "seq")
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, "seq")
+	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, "seq", nil, nil)
+	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, "seq", nil, nil)
 	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 {
@@ -350,7 +350,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, "seq")
+	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, "seq", nil, nil)
 
 	merged := MergeLog(testLogs, globalLogs)
 
@@ -375,7 +375,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (lk *logKeeper) findLogs(query bson.M, sort string) chan *LogLineItem {
+func (lk *logKeeper) findLogs(query bson.M, sort string, minTime, maxTime *time.Time) chan *LogLineItem {
 	ses := lk.db.Session.Copy()
 	outputLog := make(chan *LogLineItem)
 	logItem := &Log{}
@@ -386,6 +386,12 @@ func (lk *logKeeper) findLogs(query bson.M, sort string) chan *LogLineItem {
 		log := lk.db.With(ses).C("logs").Find(query).Sort(sort).Iter()
 		for log.Next(logItem) {
 			for _, v := range logItem.Lines {
+				if minTime != nil && v.Time().Before(*minTime) {
+					continue
+				}
+				if maxTime != nil && v.Time().After(*maxTime) {
+					continue
+				}
 				outputLog <- &LogLineItem{
 					LineNum:   lineNum,
 					Timestamp: v.Time(),
@@ -403,34 +409,67 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 	ses := lk.db.Session.Copy()
 	defer ses.Close()
 
-	globalLogRange := bson.M{}
-	//lowerBound, upperBound := -1, -1
-	// Find the first global log entry associated with the test
-	log := &Log{}
-	err := lk.db.With(ses).C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$gte": test.Started}}).Sort("seq").One(log)
+	globalSeqFirst, globalSeqLast := new(int), new(int)
+
+	minTime := &(test.Started)
+	var maxTime *time.Time
+
+	// Find the first global log entry after this test started.
+	// This may not actually contain any global log lines during the test run, if the entry returned
+	// by this query comes from after the *next* test stared.
+	firstGlobalLog := &Log{}
+	err := lk.db.With(ses).C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}).Sort("-seq").Limit(1).One(firstGlobalLog)
 	if err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, err
 		}
-		globalLogRange["$gte"] = -1
+		// There are no global entries after this test started.
+		globalSeqFirst = nil
 	} else {
-		globalLogRange["$gte"] = log.Seq
+		*globalSeqFirst = firstGlobalLog.Seq
 	}
 
-	// Find the last global log entry associated with the test
-	// First, find the test after this one.
+	lastGlobalLog := &Log{}
+	// Find the next test after this one.
 	nextTest := &Test{}
-	err = lk.db.With(ses).C("tests").Find(bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}).Sort("started").One(nextTest)
+	err = lk.db.With(ses).C("tests").Find(bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}).Sort("started").Limit(1).One(nextTest)
 	if err != nil {
 		if err != mgo.ErrNotFound {
 			return nil, err
 		}
+		// no next test exists
+		globalSeqLast = nil
 	} else {
-		globalLogRange["$lt"] = nextTest.Seq
+		maxTime = &(nextTest.Started)
+		// Find the last global log entry that covers this test. This may return a global log entry
+		// that started before the test itself.
+		err = lk.db.With(ses).C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}).Sort("-seq").Limit(1).One(lastGlobalLog)
+		if err != nil {
+			if err != mgo.ErrNotFound {
+				return nil, err
+			}
+			globalSeqLast = nil
+		} else {
+			*globalSeqLast = lastGlobalLog.Seq
+		}
 	}
 
-	//Now find the actual logs within that range.
-	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogRange}, "seq"), nil
+	if globalSeqFirst == nil {
+		return emptyChannel(), nil
+	}
+
+	globalLogsSeq := bson.M{"$gte": *globalSeqFirst}
+	if globalSeqLast != nil {
+		globalLogsSeq["$lte"] = *globalSeqLast
+	}
+
+	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, "seq", minTime, maxTime), nil
+}
+
+func emptyChannel() chan *LogLineItem {
+	ch := make(chan *LogLineItem)
+	close(ch)
+	return ch
 }
 
 /*
