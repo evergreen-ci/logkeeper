@@ -87,12 +87,14 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	info := createBuild{}
 	err := decoder.Decode(&info)
 	if err != nil {
+		fmt.Println("bad request decoding json for createBuild", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
 
 	existingBuild, err := findBuildByBuilder(lk.db, info.Builder, info.BuildNum)
 	if err != nil {
+		fmt.Println("bad request finding build for createBuild", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
@@ -142,6 +144,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	err = decoder.Decode(&info)
 	if err != nil {
+		fmt.Println("bad request decoding json for createTest", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
