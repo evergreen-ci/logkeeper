@@ -52,6 +52,7 @@ func New(session *mgo.Session, opts Options) *logKeeper {
 	if session == nil {
 		panic("session must not be nil")
 	}
+	session.SetSocketTimeout(0)
 
 	render := render.New(render.Options{
 		Directory: "templates",
