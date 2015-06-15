@@ -111,7 +111,9 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Started:  time.Now(),
 	}
 
-	err = lk.db.C("builds").Insert(newBuild)
+	ses := lk.db.Session.Copy()
+	defer ses.Close()
+	err = lk.db.C("builds").With(ses).Insert(newBuild)
 
 	if err != nil {
 		fmt.Println("Error inserting build object:", err)
@@ -157,7 +159,9 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Phase:     info.Phase,
 	}
 
-	err = lk.db.C("tests").Insert(newTest)
+	ses := lk.db.Session.Copy()
+	defer ses.Close()
+	err = lk.db.C("tests").With(ses).Insert(newTest)
 
 	if err != nil {
 		fmt.Println("Error inserting test:", err)
@@ -194,7 +198,9 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": 1}}, ReturnNew: true}
-	_, err = lk.db.C("tests").Find(bson.M{"_id": test.Id}).Apply(change, test)
+	ses := lk.db.Session.Copy()
+	defer ses.Close()
+	_, err = lk.db.C("tests").With(ses).Find(bson.M{"_id": test.Id}).Apply(change, test)
 
 	if err != nil {
 		fmt.Println("Error updating tests:", err)
@@ -220,7 +226,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		Lines:   lines,
 		Started: earliestLogTime(lines),
 	}
-	err = lk.db.C("logs").Insert(logEntry)
+	err = lk.db.C("logs").With(ses).Insert(logEntry)
 	if err != nil {
 		fmt.Println("Error inserting logs entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
@@ -249,7 +255,9 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": 1}}, ReturnNew: true}
-	_, err = lk.db.C("builds").Find(bson.M{"_id": build.Id}).Apply(change, build)
+	ses := lk.db.Session.Copy()
+	defer ses.Close()
+	_, err = lk.db.C("builds").With(ses).Find(bson.M{"_id": build.Id}).Apply(change, build)
 	if err != nil {
 		fmt.Println("Error updating builds entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
@@ -274,7 +282,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		Lines:   lines,
 		Started: earliestLogTime(lines),
 	}
-	err = lk.db.C("logs").Insert(logEntry)
+	err = lk.db.C("logs").With(ses).Insert(logEntry)
 	if err != nil {
 		fmt.Println("Error inserting logs entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
