@@ -87,14 +87,12 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	info := createBuild{}
 	err := decoder.Decode(&info)
 	if err != nil {
-		fmt.Println("bad request decoding json for createBuild", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
 
 	existingBuild, err := findBuildByBuilder(lk.db, info.Builder, info.BuildNum)
 	if err != nil {
-		fmt.Println("bad request finding build for createBuild", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
@@ -116,6 +114,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	err = lk.db.C("builds").Insert(newBuild)
 
 	if err != nil {
+		fmt.Println("Error inserting build object:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -144,7 +143,6 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	err = decoder.Decode(&info)
 	if err != nil {
-		fmt.Println("bad request decoding json for createTest", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
@@ -162,6 +160,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	err = lk.db.C("tests").Insert(newTest)
 
 	if err != nil {
+		fmt.Println("Error inserting test:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -198,6 +197,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	_, err = lk.db.C("tests").Find(bson.M{"_id": test.Id}).Apply(change, test)
 
 	if err != nil {
+		fmt.Println("Error updating tests:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -222,6 +222,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 	err = lk.db.C("logs").Insert(logEntry)
 	if err != nil {
+		fmt.Println("Error inserting logs entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -250,6 +251,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": 1}}, ReturnNew: true}
 	_, err = lk.db.C("builds").Find(bson.M{"_id": build.Id}).Apply(change, build)
 	if err != nil {
+		fmt.Println("Error updating builds entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -274,6 +276,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 	err = lk.db.C("logs").Insert(logEntry)
 	if err != nil {
+		fmt.Println("Error inserting logs entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -292,6 +295,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	}
 	tests, err := findTestsForBuild(lk.db, buildId)
 	if err != nil {
+		fmt.Println("Error finding tests for build:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
@@ -349,6 +353,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
 
 	if err != nil {
+		fmt.Println("Error finding global logs during test:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
 	}
