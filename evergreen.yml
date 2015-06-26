@@ -1,0 +1,96 @@
+functions:
+  install-docker:
+    command: shell.exec
+    params:
+      script: |
+        set -e
+
+        echo "deb http://http.debian.net/debian jessie-backports main" | sudo tee /etc/apt/sources.list.d/backports.list
+        sudo apt-get update
+        sudo apt-get -y install docker.io
+  test-build:
+    command: shell.exec
+    params:
+      working_dir: "logkeeper"
+      script: |
+        set -e
+
+        . ./set_gopath.sh
+        go build main/logkeeper.go
+
+        # cleanup so that the docker build is more isolated.
+        rm -f logkeeper
+        rm -rf .gopath/
+  build-docker-image:
+    command: shell.exec
+    params:
+      working_dir: "logkeeper"
+      script: |
+        set -e
+
+        docker build ./
+
+        imageId=`docker images -q | head -1`
+
+        rm ${build_id}-image.tar.gz
+        docker save --output=${build_id}-image.tar $imageId
+        gzip ${build_id}-image.tar.gz
+  test-image:
+    command: shell.exec
+    params:
+      script: |
+        set -e
+
+        # cleanup docker existing images.
+        docker rmi -f `docker images -q` || true
+        gnuzip ${build_id}-image.tar.gz
+        docker load --input=${build_id}-image.tar
+
+        imageId=`docker images -q | head -1`
+        docker run $imageId
+
+  put-image:
+    command: s3.put
+    params:
+       aws_key: ${aws_key}
+       aws_secret: ${aws_secret}
+       bucket: build-push-testing
+       local_file: "logkeeper/${build_id}-image.tar.gz"
+       remote_file: "logkeeper/${build_id}-image.tar.gz"
+  get-image:
+    command: s3.put
+    params:
+       aws_key: ${aws_key}
+       aws_secret: ${aws_secret}
+       bucket: build-push-testing
+       remote_file: "logkeeper/${build_id}.tar.gz"
+       local_file: "logkeeper/logkeeper-docker-image.tar.gz"
+       permissions: authenticated-read
+
+tasks:
+  - name: build
+    commands:
+      - command: git.get_project
+        params:
+          directory: "logkeeper"
+      - command: git.apply_patch
+        params:
+          directory: "logkeeper"
+
+      # install-docker will be removed when we get an image with docker running.
+      - func: install-docker
+
+      # just a clean test to make sure everything is clean.
+      - func: test-build
+
+      - func: build-docker-image
+      - func: put-image
+      - func: image-test
+
+buildvariant:
+  - name: "debian8-jessie"
+    display: "Debian 8"
+    run_on:
+      - "debian8-packer"
+    tasks:
+      - "build"
