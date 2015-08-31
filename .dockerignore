@@ -1,0 +1,10 @@
+.git/*
+\#*\*
+*~
+logkeeper
+.gitignore
+.dockerignore
+Dockerfile
+evergreen.yml
+.gopath
+.elasticbeanstalk
