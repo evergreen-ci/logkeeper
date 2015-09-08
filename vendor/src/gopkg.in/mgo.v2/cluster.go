@@ -28,14 +28,11 @@ package mgo
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"time"
 
 	"gopkg.in/mgo.v2/bson"
-	"strconv"
-	"strings"
 )
 
 // ---------------------------------------------------------------------------
@@ -57,20 +54,18 @@ type mongoCluster struct {
 	direct       bool
 	failFast     bool
 	syncCount    uint
-	setName      string
 	cachedIndex  map[string]bool
 	sync         chan bool
 	dial         dialer
 }
 
-func newCluster(userSeeds []string, direct, failFast bool, dial dialer, setName string) *mongoCluster {
+func newCluster(userSeeds []string, direct, failFast bool, dial dialer) *mongoCluster {
 	cluster := &mongoCluster{
 		userSeeds:  userSeeds,
 		references: 1,
 		direct:     direct,
 		failFast:   failFast,
 		dial:       dial,
-		setName:    setName,
 	}
 	cluster.serverSynced.L = cluster.RWMutex.RLocker()
 	cluster.sync = make(chan bool, 1)
@@ -136,8 +131,7 @@ type isMasterResult struct {
 	Passives       []string
 	Tags           bson.D
 	Msg            string
-	SetName        string `bson:"setName"`
-	MaxWireVersion int    `bson:"maxWireVersion"`
+	MaxWireVersion int `bson:"maxWireVersion"`
 }
 
 func (cluster *mongoCluster) isMaster(socket *mongoSocket, result *isMasterResult) error {
@@ -204,25 +198,19 @@ func (cluster *mongoCluster) syncServer(server *mongoServer) (info *mongoServerI
 		break
 	}
 
-	if cluster.setName != "" && result.SetName != cluster.setName {
-		logf("SYNC Server %s is not a member of replica set %q", addr, cluster.setName)
-		return nil, nil, fmt.Errorf("server %s is not a member of replica set %q", addr, cluster.setName)
-	}
-
 	if result.IsMaster {
 		debugf("SYNC %s is a master.", addr)
-		if !server.info.Master {
-			// Made an incorrect assumption above, so fix stats.
-			stats.conn(-1, false)
-			stats.conn(+1, true)
-		}
+		// Made an incorrect assumption above, so fix stats.
+		stats.conn(-1, false)
+		stats.conn(+1, true)
 	} else if result.Secondary {
 		debugf("SYNC %s is a slave.", addr)
 	} else if cluster.direct {
 		logf("SYNC %s in unknown state. Pretending it's a slave due to direct connection.", addr)
 	} else {
 		logf("SYNC %s is neither a master nor a slave.", addr)
-		// Let stats track it as whatever was known before.
+		// Made an incorrect assumption above, so fix stats.
+		stats.conn(-1, false)
 		return nil, nil, errors.New(addr + " is not a master nor slave")
 	}
 
@@ -230,7 +218,6 @@ func (cluster *mongoCluster) syncServer(server *mongoServer) (info *mongoServerI
 		Master:         result.IsMaster,
 		Mongos:         result.Msg == "isdbgrid",
 		Tags:           result.Tags,
-		SetName:        result.SetName,
 		MaxWireVersion: result.MaxWireVersion,
 	}
 
@@ -410,23 +397,8 @@ func (cluster *mongoCluster) server(addr string, tcpaddr *net.TCPAddr) *mongoSer
 }
 
 func resolveAddr(addr string) (*net.TCPAddr, error) {
-	// Simple cases that do not need actual resolution. Works with IPv4 and v6.
-	if host, port, err := net.SplitHostPort(addr); err == nil {
-		if port, _ := strconv.Atoi(port); port > 0 {
-			zone := ""
-			if i := strings.LastIndex(host, "%"); i >= 0 {
-				zone = host[i+1:]
-				host = host[:i]
-			}
-			ip := net.ParseIP(host)
-			if ip != nil {
-				return &net.TCPAddr{IP: ip, Port: port, Zone: zone}, nil
-			}
-		}
-	}
-
-	// This unfortunate hack allows having a timeout on address resolution.
-	conn, err := net.DialTimeout("udp4", addr, 10*time.Second)
+	// This hack allows having a timeout on resolution.
+	conn, err := net.DialTimeout("udp", addr, 10*time.Second)
 	if err != nil {
 		log("SYNC Failed to resolve server address: ", addr)
 		return nil, errors.New("failed to resolve server address: " + addr)

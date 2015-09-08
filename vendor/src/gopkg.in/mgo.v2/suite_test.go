@@ -66,13 +66,13 @@ type S struct {
 	frozen  []string
 }
 
-func (s *S) versionAtLeast(v ...int) (result bool) {
+func (s *S) versionAtLeast(v ...int) bool {
 	for i := range v {
 		if i == len(s.build.VersionArray) {
 			return false
 		}
-		if s.build.VersionArray[i] != v[i] {
-			return s.build.VersionArray[i] >= v[i]
+		if s.build.VersionArray[i] < v[i] {
+			return false
 		}
 	}
 	return true

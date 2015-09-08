@@ -33,7 +33,7 @@ for (var i = 0; i != 60; i++) {
 }
 
 function hasSSL() {
-    return Boolean(db1.serverBuildInfo().OpenSSLVersion)
+    return db1.serverBuildInfo().OpenSSLVersion != ""
 }
 
 rs1a.runCommand({replSetInitiate: rs1cfg})

@@ -33,7 +33,6 @@
 package bson
 
 import (
-	"bytes"
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/binary"
@@ -263,14 +262,8 @@ func (id ObjectId) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf(`"%x"`, string(id))), nil
 }
 
-var nullBytes = []byte("null")
-
 // UnmarshalJSON turns *bson.ObjectId into a json.Unmarshaller.
 func (id *ObjectId) UnmarshalJSON(data []byte) error {
-	if len(data) == 2 && data[0] == '"' && data[1] == '"' || bytes.Equal(data, nullBytes) {
-		*id = ""
-		return nil
-	}
 	if len(data) != 26 || data[0] != '"' || data[25] != '"' {
 		return errors.New(fmt.Sprintf("Invalid ObjectId in JSON: %s", string(data)))
 	}
