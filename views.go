@@ -138,7 +138,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"creating test: build not found"})
 		return
 	}
 
@@ -184,7 +184,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	buildId := vars["build_id"]
 	build, err := findBuildById(lk.db, buildId)
 	if build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"appending log: build not found"})
 		return
 	}
 
@@ -247,8 +247,13 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 	build, err := findBuildById(lk.db, buildId)
-	if err != nil && build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
+	if err != nil {
+		fmt.Println("Error finding builds entry:", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{"finding builds in append global log:" + err.Error()})
+		return
+	}
+	if build == nil {
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"append global log: build not found"})
 		return
 	}
 
@@ -310,7 +315,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"view build: build not found"})
 		return
 	}
 	tests, err := findTestsForBuild(lk.db, buildId)
@@ -331,7 +336,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	buildId := vars["build_id"]
 	build, err := findBuildById(lk.db, buildId)
 	if err != nil && build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"view all logs: build not found"})
 		return
 	}
 
@@ -360,7 +365,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	build_id := vars["build_id"]
 	build, err := findBuildById(lk.db, build_id)
 	if err != nil || build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"view test by id: build not found"})
 		return
 	}
 
