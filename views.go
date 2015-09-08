@@ -133,6 +133,10 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 	build, err := findBuildById(lk.db, buildId)
+	if err != nil {
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
+		return
+	}
 	if build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
 		return
