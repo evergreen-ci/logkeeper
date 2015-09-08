@@ -85,7 +85,7 @@ func (lk *logKeeper) getSession() (*mgo.Session, *mgo.Database) {
 }
 
 type apiError struct {
-	err string `json:"err"`
+	Err string `json:"err"`
 }
 
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
