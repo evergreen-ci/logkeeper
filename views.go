@@ -401,7 +401,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 func (lk *logKeeper) findLogs(query bson.M, sort string, minTime, maxTime *time.Time) chan *LogLineItem {
 	ses := lk.db.Session.Copy()
-	defer ses.Close()
 
 	outputLog := make(chan *LogLineItem)
 	logItem := &Log{}
