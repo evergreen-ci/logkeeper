@@ -312,7 +312,12 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	defer ses.Close()
 
 	build, err := findBuildById(db, buildId)
-	if err != nil && build == nil {
+	if err != nil {
+		fmt.Println("Error finding build:", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{"failed to find build:" + err.Error()})
+		return
+	}
+	if build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{"build not found"})
 		return
 	}
