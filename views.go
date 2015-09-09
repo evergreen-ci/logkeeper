@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const maxLogChars int = 4194304 // 4 MB
+
 type Options struct {
 	// Name of DB in mongod to use for reading/writing log data
 	DB string
@@ -198,7 +200,35 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": 1}}, ReturnNew: true}
+	if len(info) == 0 {
+		// no need to insert anything, so stop here
+		lk.render.WriteJSON(w, http.StatusOK, "")
+		return
+	}
+
+	lineSets := make([][]LogLine, 1, len(info))
+	lineSets[0] = make([]LogLine, 0, len(info))
+	log := 0
+	logChars := 0
+	for _, v := range info {
+		line := *NewLogLine(v)
+
+		if len(line.Msg()) > maxLogChars {
+			lk.render.WriteJSON(w, http.StatusBadRequest, "Log line exceeded 4MB")
+			return
+		}
+
+		if len(line.Msg()) + logChars > maxLogChars {
+			log++
+			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
+			logChars = 0
+		}
+
+		lineSets[log] = append(lineSets[log], line)
+		logChars += len(line.Msg())
+	}
+
+	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
 	ses := lk.db.Session.Copy()
 	defer ses.Close()
 	_, err = lk.db.C("tests").With(ses).Find(bson.M{"_id": test.Id}).Apply(change, test)
@@ -209,29 +239,20 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := make([]LogLine, 0, len(info))
-	for _, v := range info {
-		lines = append(lines, *NewLogLine(v))
-	}
-
-	if len(lines) == 0 {
-		// no need to insert anything, so stop here
-		lk.render.WriteJSON(w, http.StatusOK, "")
-		return
-	}
-
-	logEntry := Log{
-		BuildId: build.Id,
-		TestId:  &(test.Id),
-		Seq:     test.Seq,
-		Lines:   lines,
-		Started: earliestLogTime(lines),
-	}
-	err = lk.db.C("logs").With(ses).Insert(logEntry)
-	if err != nil {
-		fmt.Println("Error inserting logs entry:", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
-		return
+	for _, lines := range lineSets {
+		logEntry := Log{
+			BuildId: build.Id,
+			TestId:  &(test.Id),
+			Seq:     test.Seq,
+			Lines:   lines,
+			Started: earliestLogTime(lines),
+		}
+		err = lk.db.C("logs").With(ses).Insert(logEntry)
+		if err != nil {
+			fmt.Println("Error inserting logs entry:", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
+			return
+		}
 	}
 
 	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id.Hex(), test.Id.Hex())
@@ -255,7 +276,35 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": 1}}, ReturnNew: true}
+	if len(info) == 0 {
+		// no need to insert anything, so stop here
+		lk.render.WriteJSON(w, http.StatusOK, "")
+		return
+	}
+
+	lineSets := make([][]LogLine, 1, len(info))
+	lineSets[0] = make([]LogLine, 0, len(info))
+	log := 0
+	logChars := 0
+	for _, v := range info {
+		line := *NewLogLine(v)
+
+		if len(line.Msg()) > maxLogChars {
+			lk.render.WriteJSON(w, http.StatusBadRequest, "Log line exceeded 4MB")
+			return
+		}
+
+		if len(line.Msg()) + logChars > maxLogChars {
+			log++
+			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
+			logChars = 0
+		}
+
+		lineSets[log] = append(lineSets[log], line)
+		logChars += len(line.Msg())
+	}
+
+	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
 	ses := lk.db.Session.Copy()
 	defer ses.Close()
 	_, err = lk.db.C("builds").With(ses).Find(bson.M{"_id": build.Id}).Apply(change, build)
@@ -265,29 +314,20 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines := make([]LogLine, 0, len(info))
-	for _, v := range info {
-		lines = append(lines, *NewLogLine(v))
-	}
-
-	if len(lines) == 0 {
-		// no need to insert anything, so stop here
-		lk.render.WriteJSON(w, http.StatusOK, "")
-		return
-	}
-
-	logEntry := Log{
-		BuildId: build.Id,
-		TestId:  nil,
-		Seq:     build.Seq,
-		Lines:   lines,
-		Started: earliestLogTime(lines),
-	}
-	err = lk.db.C("logs").With(ses).Insert(logEntry)
-	if err != nil {
-		fmt.Println("Error inserting logs entry:", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
-		return
+	for _, lines := range lineSets {
+		logEntry := Log{
+			BuildId: build.Id,
+			TestId:  nil,
+			Seq:     build.Seq,
+			Lines:   lines,
+			Started: earliestLogTime(lines),
+		}
+		err = lk.db.C("logs").With(ses).Insert(logEntry)
+		if err != nil {
+			fmt.Println("Error inserting logs entry:", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
+			return
+		}
 	}
 
 	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, build.Id.Hex())
@@ -402,6 +442,7 @@ func (lk *logKeeper) findLogs(query bson.M, sort string, minTime, maxTime *time.
 		lineNum := 0
 		log := lk.db.With(ses).C("logs").Find(query).Sort(sort).Iter()
 		for log.Next(logItem) {
+			i++
 			for _, v := range logItem.Lines {
 				if minTime != nil && v.Time().Before(*minTime) {
 					continue
