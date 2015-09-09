@@ -139,7 +139,10 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	build, err := findBuildById(lk.db, buildId)
+	ses, db := lk.getSession()
+	defer ses.Close()
+
+	build, err := findBuildById(db, buildId)
 	if err != nil {
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
 		return
@@ -253,7 +256,10 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	build, err := findBuildById(lk.db, buildId)
+	ses, db := lk.getSession()
+	defer ses.Close()
+
+	build, err := findBuildById(db, buildId)
 	if err != nil {
 		fmt.Println("Error finding builds entry:", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{"finding builds in append global log:" + err.Error()})
