@@ -1,6 +1,7 @@
 package logkeeper
 
 import (
+	"fmt"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	// 	"regexp"
@@ -65,15 +66,18 @@ func findTestsForBuild(db *mgo.Database, buildId string) ([]Test, error) {
 
 func findBuildById(db *mgo.Database, id string) (*LogKeeperBuild, error) {
 	if !bson.IsObjectIdHex(id) {
+		fmt.Println("build not found: not object id hex")
 		return nil, nil
 	}
 	build := &LogKeeperBuild{}
 
 	err := db.C("builds").Find(bson.M{"_id": bson.ObjectIdHex(id)}).One(build)
 	if err == mgo.ErrNotFound {
+		fmt.Println("build not found: got mgo.ErrNotFound for ", id)
 		return nil, nil
 	}
 	if err != nil {
+		fmt.Println("error from find query: ", err)
 		return nil, err
 	}
 	return build, nil
