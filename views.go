@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-const maxLogChars int = 4194304 // 4 MB
+const maxLogChars int = 4 * 1024 * 1024 // 4 MB
 
 type Options struct {
 	// Name of DB in mongod to use for reading/writing log data
@@ -239,11 +239,11 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, lines := range lineSets {
+	for i, lines := range lineSets {
 		logEntry := Log{
 			BuildId: build.Id,
 			TestId:  &(test.Id),
-			Seq:     test.Seq,
+			Seq:     test.Seq - len(lineSets) + i + 1,
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
@@ -314,11 +314,11 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for _, lines := range lineSets {
+	for i, lines := range lineSets {
 		logEntry := Log{
 			BuildId: build.Id,
 			TestId:  nil,
-			Seq:     build.Seq,
+			Seq:     build.Seq - len(lineSets) + i + 1,
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
@@ -442,7 +442,6 @@ func (lk *logKeeper) findLogs(query bson.M, sort string, minTime, maxTime *time.
 		lineNum := 0
 		log := lk.db.With(ses).C("logs").Find(query).Sort(sort).Iter()
 		for log.Next(logItem) {
-			i++
 			for _, v := range logItem.Lines {
 				if minTime != nil && v.Time().Before(*minTime) {
 					continue
