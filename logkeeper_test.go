@@ -68,14 +68,21 @@ func TestLogKeeper(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
-			// Logs should have a total of three lines
-			logs := db.C("logs").Find(bson.M{"test_id": bson.ObjectIdHex(testId)}).Iter()
-			numLines := 0
+			// First log should have two lines and seq=1
+			// Second log should have one line and seq=2
+			logs := db.C("logs").Find(bson.M{"test_id": bson.ObjectIdHex(testId)}).Sort("seq").Iter()
 			log := &Log{}
+			firstLog := true
 			for logs.Next(log) {
-				numLines += len(log.Lines)
+				if firstLog {
+					So(len(log.Lines), ShouldEqual, 2)
+					So(log.Seq, ShouldEqual, 1)
+					firstLog = false
+				} else {
+					So(len(log.Lines), ShouldEqual, 1)
+					So(log.Seq, ShouldEqual, 2)
+				}
 			}
-			So(numLines, ShouldEqual, 3)
 
 			// Clear database
 			db.DropDatabase()
@@ -101,14 +108,21 @@ func TestLogKeeper(t *testing.T) {
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
-			// Logs should have a total of three lines
-			logs = db.C("logs").Find(bson.M{"build_id": bson.ObjectIdHex(buildId)}).Iter()
-			numLines = 0
+			// First log should have two lines and seq=1
+			// Second log should have one line and seq=2
+			logs = db.C("logs").Find(bson.M{"build_id": bson.ObjectIdHex(buildId)}).Sort("seq").Iter()
 			log = &Log{}
+			firstLog = true
 			for logs.Next(log) {
-				numLines += len(log.Lines)
+				if firstLog {
+					So(len(log.Lines), ShouldEqual, 2)
+					So(log.Seq, ShouldEqual, 1)
+					firstLog = false
+				} else {
+					So(len(log.Lines), ShouldEqual, 1)
+					So(log.Seq, ShouldEqual, 2)
+				}
 			}
-			So(numLines, ShouldEqual, 3)
 
 			// Inserting oversize log line fails
 			line = strings.Repeat("a", 4194305)
