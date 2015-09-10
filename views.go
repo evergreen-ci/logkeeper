@@ -359,8 +359,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, "seq", nil, nil)
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, "seq", nil, nil)
+	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, []string{"seq"}, nil, nil)
+	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
 	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 {
@@ -406,7 +406,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, "seq", nil, nil)
+	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, []string{"seq"}, nil, nil)
 
 	merged := MergeLog(testLogs, globalLogs)
 
@@ -431,7 +431,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (lk *logKeeper) findLogs(query bson.M, sort string, minTime, maxTime *time.Time) chan *LogLineItem {
+func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
 	ses, db := lk.getSession()
 
 	outputLog := make(chan *LogLineItem)
@@ -441,7 +441,7 @@ func (lk *logKeeper) findLogs(query bson.M, sort string, minTime, maxTime *time.
 		defer ses.Close()
 		defer close(outputLog)
 		lineNum := 0
-		log := db.C("logs").Find(query).Sort(sort).Iter()
+		log := db.C("logs").Find(query).Sort(sort...).Iter()
 		for log.Next(logItem) {
 			for _, v := range logItem.Lines {
 				if minTime != nil && v.Time().Before(*minTime) {
@@ -521,7 +521,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 		globalLogsSeq["$lte"] = *globalSeqLast
 	}
 
-	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, "seq", minTime, maxTime), nil
+	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, minTime, maxTime), nil
 }
 
 func emptyChannel() chan *LogLineItem {
