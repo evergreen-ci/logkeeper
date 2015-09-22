@@ -54,7 +54,7 @@ func main() {
 
 	session, err := mgo.Dial(*dbHost)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("%v: %v\n",err,*dbHost)
 		return
 	}
 
