@@ -18,6 +18,17 @@ type LogLineItem struct {
 	TestId    *bson.ObjectId
 }
 
+type TextSearchDisplayResult struct {
+	BuildName string
+	BuildId   bson.ObjectId
+	TestName  string
+	TestId    *bson.ObjectId
+	HasTestId bool
+	Count     int // Number of results for this build_id/test_id (or just build_id for global logs)
+	Time      time.Time
+	Data      string
+}
+
 // Global returns true if this log line comes from a global log, otherwise false (from a test log).
 func (lli LogLineItem) Global() bool {
 	return lli.TestId == nil
@@ -45,6 +56,18 @@ type Log struct {
 	Seq     int            `bson:"seq"`
 	Started *time.Time     `bson:"started",omitempty`
 	Lines   []LogLine      `bson:"lines"`
+}
+
+type TextSearchQueryResult struct {
+	BuildId bson.ObjectId  `bson:"build_id"`
+	TestId  *bson.ObjectId `bson:"test_id",omitempty`
+	Count   int            `bson:"count"` // Number of results for this build_id/test_id (or just build_id for global logs)
+	Line    LogLine        `bson:"lines"`
+}
+
+// Used to extract a count from an aggregation result
+type Count struct {
+	Count int `bson:"count"`
 }
 
 func globalLogBound(session *mgo.Session, buildId bson.ObjectId, started time.Time, first bool) (*Log, error) {
