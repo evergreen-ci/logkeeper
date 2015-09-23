@@ -43,3 +43,7 @@ td.log pre {
 .selected-line{
   background-color: rgb(255, 255, 204);
 }
+.highlight{
+  font-family: "Menlo", monospace;
+  background-color: #FFFF00;
+}
