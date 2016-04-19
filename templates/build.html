@@ -2,8 +2,16 @@
 <html>
   <body>
     <div>
-      <h2>{{.Build.Builder}} - {{.Build.BuildNum}}</h2>
+        <h2>
+          {{.Build.Builder}} - {{.Build.BuildNum}}       
+          {{if .Build.Info}}
+            {{if .Build.Info.task_id}}
+              (<a href="https://evergreen.mongodb.com/task/{{.Build.Info.task_id}}"> {{.Build.Info.task_id}}</a>) 
+            {{end}}
+          {{end}}
+        </h2>
       <h3><a href="/build/{{.Build.Id.Hex}}/all">Complete logs for all</a></h3>
+
     </div>
     <ul>
       {{$build := .Build}}

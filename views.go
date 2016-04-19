@@ -34,11 +34,6 @@ type createdResponse struct {
 	URI string `json:"uri"`
 }
 
-type createBuild struct {
-	Builder  string `json:"builder"`
-	BuildNum int    `json:"buildnum"`
-}
-
 func earliestLogTime(logs []LogLine) *time.Time {
 	var earliest *time.Time
 	earliest = nil
@@ -91,10 +86,15 @@ type apiError struct {
 }
 
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
 
-	info := createBuild{}
-	err := decoder.Decode(&info)
+	decoder := json.NewDecoder(r.Body)
+	buildParameters := struct {
+		Builder  string `json:"builder"`
+		BuildNum int    `json:"buildnum"`
+		TaskId   string `json:"task_id"`
+	}{}
+
+	err := decoder.Decode(&buildParameters)
 	if err != nil {
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
@@ -103,7 +103,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	ses, db := lk.getSession()
 	defer ses.Close()
 
-	existingBuild, err := findBuildByBuilder(db, info.Builder, info.BuildNum)
+	existingBuild, err := findBuildByBuilder(db, buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
@@ -115,12 +115,15 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	buildInfo := map[string]interface{}{"task_id": buildParameters.TaskId}
+
 	newBuild := LogKeeperBuild{
 		Id:       bson.NewObjectId(),
-		Builder:  info.Builder,
-		BuildNum: info.BuildNum,
-		Name:     fmt.Sprintf("%v #%v", info.Builder, info.BuildNum),
+		Builder:  buildParameters.Builder,
+		BuildNum: buildParameters.BuildNum,
+		Name:     fmt.Sprintf("%v #%v", buildParameters.Builder, buildParameters.BuildNum),
 		Started:  time.Now(),
+		Info:     buildInfo,
 	}
 
 	err = db.C("builds").Insert(newBuild)
@@ -155,26 +158,31 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	decoder := json.NewDecoder(r.Body)
-	info := struct {
+	testParams := struct {
 		TestFilename string `json:"test_filename"`
 		Command      string `json:"command"`
 		Phase        string `json:"phase"`
+		TaskId       string `json:"task_id"`
 	}{}
 
-	err = decoder.Decode(&info)
+	err = decoder.Decode(&testParams)
 	if err != nil {
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
 
+	// create info
+	testInfo := map[string]interface{}{"task_id": testParams.TaskId}
+
 	newTest := Test{
 		Id:        bson.NewObjectId(),
 		BuildId:   build.Id,
 		BuildName: build.Name,
-		Name:      info.TestFilename,
-		Command:   info.Command,
+		Name:      testParams.TestFilename,
+		Command:   testParams.Command,
 		Started:   time.Now(),
-		Phase:     info.Phase,
+		Phase:     testParams.Phase,
+		Info:      testInfo,
 	}
 
 	err = db.C("tests").Insert(newTest)
@@ -234,7 +242,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if len(line.Msg()) + logChars > maxLogChars {
+		if len(line.Msg())+logChars > maxLogChars {
 			log++
 			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
 			logChars = 0
@@ -317,7 +325,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if len(line.Msg()) + logChars > maxLogChars {
+		if len(line.Msg())+logChars > maxLogChars {
 			log++
 			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
 			logChars = 0
@@ -461,7 +469,8 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			Builder  string
 			TestId   string
 			TestName string
-		}{merged, build.Id.Hex(), build.Builder, test.Id.Hex(), test.Name}, "base", "test.html")
+			Info     map[string]interface{}
+		}{merged, build.Id.Hex(), build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
 		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
 		// instead
 		if err != nil {

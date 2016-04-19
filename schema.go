@@ -11,28 +11,28 @@ import (
 const logKeeperDB = "logkeeper"
 
 type Test struct {
-	Id        bson.ObjectId     `bson:"_id"`
-	BuildId   bson.ObjectId     `bson:"build_id"`
-	BuildName string            `bson:"build_name"`
-	Name      string            `bson:"name"`
-	Command   string            `bson:"command"`
-	Started   time.Time         `bson:"started"`
-	Ended     *time.Time        `bson:"ended"`
-	Info      map[string]string `bson:"info"`
-	Failed    bool              `bson:"failed"`
-	Phase     string            `bson:"phase"`
-	Seq       int               `bson:"seq",omitempty`
+	Id        bson.ObjectId          `bson:"_id"`
+	BuildId   bson.ObjectId          `bson:"build_id"`
+	BuildName string                 `bson:"build_name"`
+	Name      string                 `bson:"name"`
+	Command   string                 `bson:"command"`
+	Started   time.Time              `bson:"started"`
+	Ended     *time.Time             `bson:"ended"`
+	Info      map[string]interface{} `bson:"info"`
+	Failed    bool                   `bson:"failed"`
+	Phase     string                 `bson:"phase"`
+	Seq       int                    `bson:"seq",omitempty`
 }
 
 type LogKeeperBuild struct {
-	Id       bson.ObjectId `bson:"_id"`
-	Builder  string        `bson:"builder"`
-	BuildNum int           `bson:"buildnum"`
-	Started  time.Time     `bson:"started"`
-	Name     string        `bson:"name"`
-	Info     interface{}   `bson:"info"`
-	Phases   []string      `bson:"phases"`
-	Seq      int           `bson:"seq",omitempty`
+	Id       bson.ObjectId          `bson:"_id"`
+	Builder  string                 `bson:"builder"`
+	BuildNum int                    `bson:"buildnum"`
+	Started  time.Time              `bson:"started"`
+	Name     string                 `bson:"name"`
+	Info     map[string]interface{} `bson:"info"`
+	Phases   []string               `bson:"phases"`
+	Seq      int                    `bson:"seq",omitempty`
 }
 
 func findTest(db *mgo.Database, id string) (*Test, error) {

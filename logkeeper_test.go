@@ -10,10 +10,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
-	"strings"
 )
+
+func resetDatabase(db *mgo.Database) {
+	db.DropDatabase()
+
+}
 
 func TestLogKeeper(t *testing.T) {
 	Convey("LogKeeper instance running on testdatabase", t, func() {
@@ -23,7 +28,6 @@ func TestLogKeeper(t *testing.T) {
 		}
 		lk := New(session, Options{DB: "logkeeper_test"})
 		db := session.DB("logkeeper_test")
-		db.DropDatabase()
 		router := lk.NewRouter()
 
 		Convey("Call POST /build creates a build with the given builder/buildnum", func() {
@@ -39,14 +43,14 @@ func TestLogKeeper(t *testing.T) {
 			So(data["id"], ShouldEqual, originalId)
 			So(data["uri"], ShouldEqual, originalURI)
 		})
-		
+
 		Convey("Logkeeper breaks oversize log into pieces", func() {
 			// Create build and test
 			r := newTestRequest(lk, "POST", "/build", map[string]interface{}{"builder": "myBuilder", "buildnum": 123})
 			data := checkEndpointResponse(router, r, http.StatusCreated)
 			So(data["id"], ShouldNotBeNil)
 			buildId := data["id"].(string)
-			r = newTestRequest(lk, "POST", "/build/" + buildId + "/test", map[string]interface{}{"test_filename": "myTestFileName", "command": "myCommand", "phase": "myPhase"})
+			r = newTestRequest(lk, "POST", "/build/"+buildId+"/test", map[string]interface{}{"test_filename": "myTestFileName", "command": "myCommand", "phase": "myPhase"})
 			data = checkEndpointResponse(router, r, http.StatusCreated)
 			So(data["id"], ShouldNotBeNil)
 			testId := data["id"].(string)
@@ -54,7 +58,7 @@ func TestLogKeeper(t *testing.T) {
 			// Insert oversize log
 			line := strings.Repeat("a", 2097152)
 			now := time.Now().Unix()
-			r = newTestRequest(lk, "POST", "/build/" + buildId + "/test/" + testId, [][]interface{} {{now, line},{now, line},{now, line}})
+			r = newTestRequest(lk, "POST", "/build/"+buildId+"/test/"+testId, [][]interface{}{{now, line}, {now, line}, {now, line}})
 			data = checkEndpointResponse(router, r, http.StatusCreated)
 
 			// Test should have seq = 2
@@ -84,7 +88,6 @@ func TestLogKeeper(t *testing.T) {
 				}
 			}
 
-			// Clear database
 			db.DropDatabase()
 
 			// Create build
@@ -94,7 +97,7 @@ func TestLogKeeper(t *testing.T) {
 			buildId = data["id"].(string)
 
 			// Insert oversize global log
-			r = newTestRequest(lk, "POST", "/build/" + buildId, [][]interface{} {{now, line},{now, line},{now, line}})
+			r = newTestRequest(lk, "POST", "/build/"+buildId, [][]interface{}{{now, line}, {now, line}, {now, line}})
 			data = checkEndpointResponse(router, r, http.StatusCreated)
 
 			// Build should have seq = 2
@@ -126,15 +129,33 @@ func TestLogKeeper(t *testing.T) {
 
 			// Inserting oversize log line fails
 			line = strings.Repeat("a", 4194305)
-			r = newTestRequest(lk, "POST", "/build/" + buildId, [][]interface{} {{now, line}})
+			r = newTestRequest(lk, "POST", "/build/"+buildId, [][]interface{}{{now, line}})
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, r)
 			So(w.Code, ShouldEqual, http.StatusBadRequest)
 
-			// Clear database
-			db.DropDatabase()
 		})
-		
+
+		Convey("Adding the task id field will correctly insert it in the database", func() {
+			// Create build and test
+			r := newTestRequest(lk, "POST", "/build", map[string]interface{}{"builder": "myBuilder", "buildnum": 123})
+			data := checkEndpointResponse(router, r, http.StatusCreated)
+			So(data["id"], ShouldNotBeNil)
+			buildId := data["id"].(string)
+			r = newTestRequest(lk, "POST", "/build/"+buildId+"/test", map[string]interface{}{"test_filename": "myTestFileName", "command": "myCommand", "phase": "myPhase", "task_id": "abc123"})
+			data = checkEndpointResponse(router, r, http.StatusCreated)
+			So(data["id"], ShouldNotBeNil)
+			testId := data["id"].(string)
+
+			test := &Test{}
+			err := db.C("tests").Find(bson.M{"_id": bson.ObjectIdHex(testId)}).One(test)
+			So(err, ShouldBeNil)
+			So(test.Info, ShouldNotBeNil)
+			So(test.Info["task_id"], ShouldEqual, "abc123")
+		})
+
+		// Clear database
+		Reset(func() { resetDatabase(db) })
 	})
 }
 
