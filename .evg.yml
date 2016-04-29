@@ -1,0 +1,61 @@
+command_type: system
+
+buildvariants:
+  - name: ubuntu
+    display_name: Ubuntu
+    run_on:
+    - ubuntu1404-test
+    expansions:
+      mongo_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
+    tasks:
+    - "*"
+
+post:
+  - command: gotest.parse_files
+    params: 
+      files: ["src/*.suite"]
+
+tasks:
+  - name: test
+    commands:
+    - command: git.get_project
+      params:
+        directory: src
+    - command: git.apply_patch
+      params:
+        directory: src
+    - command: shell.exec
+      params:
+       script: |
+         set -o errexit
+         mkdir mongodb
+         cd mongodb
+         curl ${mongo_url} -o mongodb.tgz
+         tar xvf mongodb.tgz
+         chmod +x ./mongodb-*/bin/*
+         mv ./mongodb-*/bin/* .
+         mkdir -p db_files
+
+    - command: shell.exec
+      params:
+        background: true
+        working_dir: mongodb
+        script: |
+          ./mongod --dbpath ./db_files &
+    - command: shell.exec
+      params:
+        working_dir: mongodb
+        script: |
+          cd mongodb 
+          ./mongo --nodb --eval 'assert.soon(function(x){try{var d = new Mongo("localhost:27017"); return true}catch(e){return false}}, "timed out connecting")'
+    - command: shell.exec
+      params:
+        type: test
+        working_dir: src
+        script: |
+          . ./set_gopath.sh
+          go test -v > logkeeper.suite
+          if [ $? -ne 0 ]; then
+            export exitcode=1
+          fi
+
