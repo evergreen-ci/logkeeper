@@ -11,6 +11,9 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 const maxLogChars int = 4 * 1024 * 1024 // 4 MB
@@ -363,6 +366,63 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
+func (lk *logKeeper) search(w http.ResponseWriter, r *http.Request) {
+	text := strings.Join(r.URL.Query()["text"], " ")
+
+	isExactMatch := false
+	if len(r.URL.Query()["exact"]) == 1 {
+		isExactMatch = (r.URL.Query()["exact"][0] == "true")
+	}
+
+	var highlightTerms []string
+	if isExactMatch {
+		highlightTerms = []string{regexp.QuoteMeta(text)}
+	} else {
+		highlightTerms = strings.Fields(text)
+		for i, term := range highlightTerms {
+			highlightTerms[i] = regexp.QuoteMeta(term)
+		}
+	}
+
+	skip := 0
+	if getSkip, err := strconv.Atoi(strings.Join(r.URL.Query()["skip"], "")); err == nil {
+		skip = getSkip
+	}
+
+	limit := 20
+
+	ses, db := lk.getSession()
+	defer ses.Close()
+
+	searchResults, err := lk.getTextSearchDisplayResults(text, isExactMatch, skip, limit)
+	if err != nil {
+		fmt.Println("Error finding text search results:", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{err.Error()})
+		return
+	}
+
+	total := findTotalTextSearchResults(db, text, isExactMatch)
+
+	lk.render.WriteHTML(w, http.StatusOK, struct {
+		Text           string
+		Exact          bool
+		HighlightTerms []string
+		Results        []TextSearchDisplayResult
+		Start          int
+		End            int
+		PrevSkip       int
+		Total          int
+	}{text,
+		isExactMatch,
+		highlightTerms,
+		searchResults,
+		skip + 1,
+		skip + len(searchResults),
+		skip - limit,
+		total,
+	}, "search", "search.html")
+}
+
 func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
@@ -477,6 +537,46 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			fmt.Println(err)
 		}
 	}
+}
+
+func (lk *logKeeper) getTextSearchDisplayResults(text string, isExactMatch bool, skip int, limit int) ([]TextSearchDisplayResult, error) {
+	ses, db := lk.getSession()
+	defer ses.Close()
+
+	results, err := findTextSearchQueryResults(db, text, isExactMatch, skip, limit)
+	if err != nil {
+		return nil, err
+	}
+
+	buildIds := make([]bson.ObjectId, 0, limit)
+	testIds := make([]bson.ObjectId, 0, limit)
+	for _, item := range results {
+		buildIds = append(buildIds, item.BuildId)
+		if item.TestId != nil {
+			testIds = append(testIds, *item.TestId)
+		}
+	}
+	buildNames := findBuildNames(db, buildIds)
+	testNames := findTestNames(db, testIds)
+
+	searchResults := make([]TextSearchDisplayResult, 0, limit)
+	for _, item := range results {
+		testName := ""
+		if item.TestId != nil {
+			testName = testNames[*item.TestId]
+		}
+		searchResults = append(searchResults, TextSearchDisplayResult{
+			BuildName: buildNames[item.BuildId],
+			BuildId:   item.BuildId,
+			TestName:  testName,
+			TestId:    item.TestId,
+			HasTestId: item.TestId != nil,
+			Count:     item.Count,
+			Time:      item.Line.Time(),
+			Data:      item.Line.Msg(),
+		})
+	}
+	return searchResults, nil
 }
 
 func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
@@ -656,6 +756,7 @@ func (lk *logKeeper) NewRouter() http.Handler {
 	r.Path("/build/{build_id}").Methods("POST").HandlerFunc(lk.appendGlobalLog)
 
 	//read methods
+	r.StrictSlash(true).Path("/").Methods("GET").HandlerFunc(lk.search)
 	r.StrictSlash(true).Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuildById)
 	r.StrictSlash(true).Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
 	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)

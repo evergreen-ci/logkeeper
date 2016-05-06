@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
-	// 	"regexp"
+	"regexp"
 	"time"
+	"strings"
 )
 
 const logKeeperDB = "logkeeper"
@@ -94,4 +95,80 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 		return nil, err
 	}
 	return build, nil
+}
+
+func findBuildNames(db *mgo.Database, ids []bson.ObjectId) map[bson.ObjectId]string {
+	iter := db.C("builds").Find(bson.M{"_id": bson.M{"$in": ids}}).Iter()
+	build := &LogKeeperBuild{}
+	names := make(map[bson.ObjectId]string)
+	for iter.Next(build) {
+		names[build.Id] = build.Name
+	}
+	return names
+}
+
+func findTestNames(db *mgo.Database, ids []bson.ObjectId) map[bson.ObjectId]string {
+	iter := db.C("tests").Find(bson.M{"_id": bson.M{"$in": ids}}).Iter()
+	test := &Test{}
+	names := make(map[bson.ObjectId]string)
+	for iter.Next(test) {
+		names[test.Id] = test.Name
+	}
+	return names
+}
+
+// getRegex returns text with whitespace trimmed if isExactMatch.
+// Otherwise it returns the OR of all space-separated terms.
+func getRegex(text string, isExactMatch bool) string {
+	regex := ""
+	if isExactMatch {
+		regex = regexp.QuoteMeta(strings.TrimSpace(text))
+	} else {
+		words := strings.Fields(text)
+		for i, word := range words {
+			regex = regex + regexp.QuoteMeta(word)
+			if i < len(words) - 1 {
+				regex = regex + "|"
+			}
+		}
+	}
+	return regex
+}
+
+func findTotalTextSearchResults(db *mgo.Database, text string, isExactMatch bool) int {
+	totalHolder := &Count{}
+	db.C("logs").Pipe([]bson.M{
+			{"$match": bson.M{"$text": bson.M{"$search": text}}},
+			{"$unwind": "$lines"},
+			{"$match": bson.M{"lines.1": bson.M{"$regex": getRegex(text, isExactMatch), "$options": "i"}}},
+			{"$group": bson.M{"_id": bson.M{"build_id": "$build_id", "test_id": "$test_id"}}},
+			{"$group": bson.M{"_id": "null", "count": bson.M{"$sum": 1}}},
+			}).One(totalHolder)
+	return totalHolder.Count
+}
+
+func findTextSearchQueryResults(db *mgo.Database, text string, isExactMatch bool, skip int, limit int) ([]TextSearchQueryResult, error) {
+	results := make([]TextSearchQueryResult, 0, limit)
+	err := db.C("logs").Pipe([]bson.M{
+			{"$match": bson.M{"$text": bson.M{"$search": text}}},
+			{"$unwind": "$lines"},
+			{"$match": bson.M{"lines.1": bson.M{"$regex": getRegex(text, isExactMatch), "$options": "i"}}},
+			{"$sort": bson.M{"lines.0": 1}}, 
+			{"$group": bson.M{
+				"_id": bson.M{"build_id": "$build_id", "test_id": "$test_id"},
+				"started": bson.M{"$first": "$started"},
+				"lines": bson.M{"$first": "$lines"},
+				"count": bson.M{"$sum": 1}}},
+			{"$project": bson.M{
+				"build_id": "$_id.build_id",
+				"test_id": "$_id.test_id", 
+				"started": 1,
+				"lines": 1, 
+				"count": 1,
+				"_id":0}},
+			{"$sort": bson.M{"started": -1}},
+			{"$skip": skip},
+			{"$limit": limit},
+			}).All(&results)
+	return results, err
 }
