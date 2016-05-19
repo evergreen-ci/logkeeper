@@ -410,7 +410,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
 	merged := MergeLog(testLogs, globalLogs)
 
-	if len(r.FormValue("raw")) > 0 {
+	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range merged {
 			w.Write([]byte(line.Data + "\n"))
 		}
@@ -457,7 +457,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 	merged := MergeLog(testLogs, globalLogs)
 
-	if len(r.FormValue("raw")) > 0 {
+	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range merged {
 			w.Write([]byte(line.Data + "\n"))
 		}
