@@ -1,10 +1,12 @@
 package logkeeper
 
 import (
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"math"
 	"regexp"
 	"time"
+
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile("([ \\w]{2}\\d{1,5}\\|)")
@@ -67,8 +69,15 @@ func globalLogBound(session *mgo.Session, buildId bson.ObjectId, started time.Ti
 }
 
 func NewLogLine(data []interface{}) *LogLine {
+	// timeField is generated client-side as the output of python's time.time(), which returns
+	// seconds since epoch as a floating point number
 	timeField := data[0].(float64)
-	timeParsed := time.Unix(int64(timeField), 0)
+
+	// extract fractional seconds from the total time and convert to nanoseconds
+	fractionalPart := timeField - math.Floor(timeField)
+	nSecPart := int64(fractionalPart * float64(int64(time.Second)/int64(time.Nanosecond)))
+
+	timeParsed := time.Unix(int64(timeField), nSecPart)
 	return &LogLine{timeParsed, data[1].(string)}
 }
 
