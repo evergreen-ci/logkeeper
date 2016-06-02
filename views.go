@@ -422,7 +422,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			Builder  string
 			TestId   string
 			TestName string
-		}{merged, build.Id.Hex(), build.Builder, "", "All logs"}, "base", "test.html")
+			Info     map[string]interface{}
+		}{merged, build.Id.Hex(), build.Builder, "", "All logs", build.Info}, "base", "test.html")
 	}
 }
 

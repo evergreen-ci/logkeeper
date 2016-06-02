@@ -57,18 +57,18 @@
       <h3>
         {{.TestName}} on <a href ="/build/{{.BuildId}}">{{.Builder}}</a>
         {{ if .Info }}
-          {{if .Info.task_id }}
+          {{ if .Info.task_id }}
             (<a href ="https://evergreen.mongodb.com/task/{{.Info.task_id}}"> {{.Info.task_id}} </a>)
-          {{end}}
+          {{ end }}
         {{ end }}
       </h3>
     </div>
     <div>
-	  {{ if .TestId }}
-      <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
-	  {{ else }}
-      <a href ="/build/{{.BuildId}}/all?raw=1">Plain Text</a>
-	  {{ end }}
+  	  {{ if .TestId }}
+        <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
+  	  {{ else }}
+        <a href ="/build/{{.BuildId}}/all?raw=1">Plain Text</a>
+  	  {{ end }}
     </div>
     <table>
 	  <tbody>
