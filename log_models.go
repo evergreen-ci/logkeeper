@@ -40,7 +40,7 @@ func (lli LogLineItem) Global() bool {
 }*/
 
 type Log struct {
-	BuildId bson.ObjectId  `bson:"build_id"`
+	BuildId interface{}    `bson:"build_id"`
 	TestId  *bson.ObjectId `bson:"test_id"`
 	Seq     int            `bson:"seq"`
 	Started *time.Time     `bson:"started",omitempty`
@@ -105,6 +105,8 @@ func (self *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
 	return true
 }
 
+// MergeLog takes two channels of LogLineItem and returns a single channel that feeds
+// the result of merging the two input channels sorted by timestamp.
 func MergeLog(logger1 chan *LogLineItem, logger2 chan *LogLineItem) chan *LogLineItem {
 	outputChan := make(chan *LogLineItem)
 	go func() {

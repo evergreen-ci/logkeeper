@@ -1,6 +1,8 @@
 package logkeeper
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -55,6 +57,7 @@ func New(session *mgo.Session, opts Options) *logKeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
 		Funcs: template.FuncMap{
+			"StringifyId": stringifyId,
 			"MutableVar": func() interface{} {
 				return &MutableVar{""}
 			},
@@ -109,16 +112,20 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if existingBuild != nil {
-		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, existingBuild.Id.Hex())
-		response := createdResponse{existingBuild.Id.Hex(), existingBuildUri}
+		buildIdStr := stringifyId(existingBuild.Id)
+		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, buildIdStr)
+		response := createdResponse{buildIdStr, existingBuildUri}
 		lk.render.WriteJSON(w, http.StatusOK, response)
 		return
 	}
 
 	buildInfo := map[string]interface{}{"task_id": buildParameters.TaskId}
 
+	hasher := md5.New()
+	hasher.Write([]byte(bson.NewObjectId().Hex()))
+	newBuildId := hex.EncodeToString(hasher.Sum(nil))
 	newBuild := LogKeeperBuild{
-		Id:       bson.NewObjectId(),
+		Id:       newBuildId,
 		Builder:  buildParameters.Builder,
 		BuildNum: buildParameters.BuildNum,
 		Name:     fmt.Sprintf("%v #%v", buildParameters.Builder, buildParameters.BuildNum),
@@ -134,9 +141,9 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuild.Id.Hex())
+	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuildId)
 
-	response := createdResponse{newBuild.Id.Hex(), newBuildUri}
+	response := createdResponse{newBuildId, newBuildUri}
 	lk.render.WriteJSON(w, http.StatusCreated, response)
 }
 
@@ -193,7 +200,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id.Hex(), newTest.Id.Hex())
+	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
 }
 
@@ -277,7 +284,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id.Hex(), test.Id.Hex())
+	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -359,7 +366,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, build.Id.Hex())
+	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, stringifyId(build.Id))
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -423,7 +430,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			TestId   string
 			TestName string
 			Info     map[string]interface{}
-		}{merged, build.Id.Hex(), build.Builder, "", "All logs", build.Info}, "base", "test.html")
+		}{merged, stringifyId(build.Id), build.Builder, "", "All logs", build.Info}, "base", "test.html")
 	}
 }
 
@@ -471,7 +478,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			TestId   string
 			TestName string
 			Info     map[string]interface{}
-		}{merged, build.Id.Hex(), build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
+		}{merged, stringifyId(build.Id), build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
 		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
 		// instead
 		if err != nil {
