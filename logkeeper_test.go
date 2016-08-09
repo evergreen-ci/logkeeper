@@ -63,18 +63,18 @@ func TestLogKeeper(t *testing.T) {
 
 			// Test should have seq = 2
 			test := &Test{}
-			err := db.C("tests").Find(bson.M{"_id": bson.ObjectIdHex(testId)}).One(test)
+			err := db.C("tests").Find(bson.M{"_id": idFromString(testId)}).One(test)
 			So(err, ShouldBeNil)
 			So(test.Seq, ShouldEqual, 2)
 
 			// Test should have two logs
-			numLogs, err := db.C("logs").Find(bson.M{"test_id": bson.ObjectIdHex(testId)}).Count()
+			numLogs, err := db.C("logs").Find(bson.M{"test_id": idFromString(testId)}).Count()
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			logs := db.C("logs").Find(bson.M{"test_id": bson.ObjectIdHex(testId)}).Sort("seq").Iter()
+			logs := db.C("logs").Find(bson.M{"test_id": idFromString(testId)}).Sort("seq").Iter()
 			log := &Log{}
 			firstLog := true
 			for logs.Next(log) {
@@ -102,18 +102,18 @@ func TestLogKeeper(t *testing.T) {
 
 			// Build should have seq = 2
 			build := &LogKeeperBuild{}
-			err = db.C("builds").Find(bson.M{"_id": bson.ObjectIdHex(buildId)}).One(build)
+			err = db.C("builds").Find(bson.M{"_id": idFromString(buildId)}).One(build)
 			So(err, ShouldBeNil)
 			So(build.Seq, ShouldEqual, 2)
 
 			// Build should have two logs
-			numLogs, err = db.C("logs").Find(bson.M{"build_id": bson.ObjectIdHex(buildId)}).Count()
+			numLogs, err = db.C("logs").Find(bson.M{"build_id": idFromString(buildId)}).Count()
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			logs = db.C("logs").Find(bson.M{"build_id": bson.ObjectIdHex(buildId)}).Sort("seq").Iter()
+			logs = db.C("logs").Find(bson.M{"build_id": idFromString(buildId)}).Sort("seq").Iter()
 			log = &Log{}
 			firstLog = true
 			for logs.Next(log) {
@@ -148,7 +148,7 @@ func TestLogKeeper(t *testing.T) {
 			testId := data["id"].(string)
 
 			test := &Test{}
-			err := db.C("tests").Find(bson.M{"_id": bson.ObjectIdHex(testId)}).One(test)
+			err := db.C("tests").Find(bson.M{"_id": idFromString(testId)}).One(test)
 			So(err, ShouldBeNil)
 			So(test.Info, ShouldNotBeNil)
 			So(test.Info["task_id"], ShouldEqual, "abc123")

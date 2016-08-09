@@ -54,8 +54,6 @@ tasks:
         working_dir: src
         script: |
           . ./set_gopath.sh
+          set -e
           go test -v > logkeeper.suite
-          if [ $? -ne 0 ]; then
-            export exitcode=1
-          fi
 
