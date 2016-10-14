@@ -3,15 +3,17 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/codegangsta/negroni"
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/tylerb/graceful"
 	"gopkg.in/mgo.v2"
-	"time"
-	"log"
-	"net/http"
-	"os"
 )
 
 // Logger is a middleware handler that logs the request as it goes in and the response as it goes out.
@@ -48,14 +50,24 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 }
 
 func main() {
-	var httpPort = flag.Int("port", 8080, "port to listen on for HTTP")
-	var dbHost = flag.String("dbhost", "localhost:27017", "host/port to connect to DB server")
+	httpPort := flag.Int("port", 8080, "port to listen on for HTTP.")
+	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
+	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
+		"Leave empty for stand-alone and mongos instances.")
 	flag.Parse()
 
-	session, err := mgo.Dial(*dbHost)
+	dialInfo := mgo.DialInfo{
+		Addrs: strings.Split(*dbHost, ","),
+	}
+
+	if *rsName != "" {
+		dialInfo.ReplicaSetName = *rsName
+	}
+
+	session, err := mgo.DialWithInfo(&dialInfo)
 	if err != nil {
 		fmt.Println(err)
-		return
+		os.Exit(1)
 	}
 
 	lk := logkeeper.New(session, logkeeper.Options{
@@ -65,7 +77,7 @@ func main() {
 	router := lk.NewRouter()
 	n := negroni.New()
 	n.Use(NewLogger())
-	n.Use(negroni.NewRecovery()) // part of negroni Classic settings
+	n.Use(negroni.NewRecovery())                 // part of negroni Classic settings
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(router)
