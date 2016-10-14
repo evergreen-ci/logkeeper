@@ -650,6 +650,20 @@ func CreateBuild(ae web.HandlerApp, r *http.Request) web.HTTPResponse {
 }
 */
 
+func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
+	ses, _ := lk.getSession()
+	defer ses.Close()
+
+	if err := ses.Ping(); err != nil {
+		lk.render.WriteJSON(w, http.StatusServiceUnavailable,
+			map[string]interface{}{"db": false, "err": err.Error()})
+		return
+	}
+
+	lk.render.WriteJSON(w, http.StatusOK,
+		map[string]interface{}{"db": true, "err": nil})
+}
+
 func (lk *logKeeper) NewRouter() http.Handler {
 	r := mux.NewRouter().StrictSlash(false)
 
@@ -669,5 +683,7 @@ func (lk *logKeeper) NewRouter() http.Handler {
 	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
 	//r.Path("/{builder}/builds/{buildnum:[0-9]+}/").HandlerFunc(viewBuild)
 	//r.Path("/{builder}/builds/{buildnum}/test/{test_phase}/{test_name}").HandlerFunc(app.MakeHandler(Name("view_test")))
+	r.Path("/status").Methods("GET").HandlerFunc(lk.checkAppHealth)
+
 	return r
 }
