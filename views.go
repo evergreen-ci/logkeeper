@@ -4,8 +4,10 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -26,6 +28,34 @@ type Options struct {
 
 	//Base URL to append to relative paths
 	URL string
+}
+
+// Maximum allowed size to read from a client's request body before rejecting the request.
+const maxBodySize = 1024 * 1024 * 32 // 32 MB
+
+var ErrReadSizeLimitExceeded = errors.New("read size limit exceeded")
+
+// A LimitedReader reads from R but limits the amount of
+// data returned to just N bytes. Each call to Read
+// updates N to reflect the new amount remaining.
+// Note: this is identical to io.LimitedReader, but throws ErrReadSizeLimitExceeded
+// so it can be distinguished from a normal EOF.
+type LimitedReader struct {
+	R io.Reader // underlying reader
+	N int64     // max bytes remaining
+}
+
+// Read returns
+func (l *LimitedReader) Read(p []byte) (n int, err error) {
+	if l.N <= 0 {
+		return 0, ErrReadSizeLimitExceeded
+	}
+	if int64(len(p)) > l.N {
+		p = p[0:l.N]
+	}
+	n, err = l.R.Read(p)
+	l.N -= int64(n)
+	return
 }
 
 type logKeeper struct {
@@ -112,7 +142,8 @@ type apiError struct {
 }
 
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
-	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
+	decoder := json.NewDecoder(&LimitedReader{r.Body, maxBodySize})
 	buildParameters := struct {
 		Builder  string `json:"builder"`
 		BuildNum int    `json:"buildnum"`
@@ -121,6 +152,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	err := decoder.Decode(&buildParameters)
 	if err != nil {
+		lk.RequestLogf(r, "Bad request to createBuild: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
@@ -171,6 +203,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 }
 
 func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
@@ -191,7 +224,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(&LimitedReader{r.Body, maxBodySize})
 	testParams := struct {
 		TestFilename string `json:"test_filename"`
 		Command      string `json:"command"`
@@ -201,6 +234,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	err = decoder.Decode(&testParams)
 	if err != nil {
+		lk.RequestLogf(r, "Bad request to createTest: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
@@ -236,6 +270,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 	ses, db := lk.getSession()
@@ -255,9 +290,10 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var info [][]interface{}
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(&LimitedReader{r.Body, maxBodySize})
 	err = decoder.Decode(&info)
 	if err != nil {
+		lk.RequestLogf(r, "Bad request to appendLog: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
@@ -320,6 +356,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
@@ -338,9 +375,10 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var info [][]interface{}
-	decoder := json.NewDecoder(r.Body)
+	decoder := json.NewDecoder(&LimitedReader{r.Body, maxBodySize})
 	err = decoder.Decode(&info)
 	if err != nil {
+		lk.RequestLogf(r, "Bad request to appendGlobalLog: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{err.Error()})
 		return
 	}
