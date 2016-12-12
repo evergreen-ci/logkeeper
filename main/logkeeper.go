@@ -21,6 +21,8 @@ func main() {
 	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
 	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
 		"Leave empty for stand-alone and mongos instances.")
+	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
+		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
 	flag.Parse()
 
 	dialInfo := mgo.DialInfo{
@@ -38,8 +40,9 @@ func main() {
 	}
 
 	lk := logkeeper.New(session, logkeeper.Options{
-		DB:  "buildlogs",
-		URL: fmt.Sprintf("http://localhost:%v", *httpPort),
+		DB:             "buildlogs",
+		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
+		MaxRequestSize: *maxRequestSize,
 	})
 	router := lk.NewRouter()
 	n := negroni.New()
