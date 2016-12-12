@@ -99,6 +99,12 @@ type apiError struct {
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	if err := lk.checkContentLength(r); err != nil {
+		lk.RequestLogf(r, "content length limit exceeded for createBuild: %s", err.Err)
+		lk.render.WriteJSON(w, err.code, err)
+		return
+	}
+
 	buildParameters := struct {
 		Builder  string `json:"builder"`
 		BuildNum int    `json:"buildnum"`
@@ -158,6 +164,12 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	if err := lk.checkContentLength(r); err != nil {
+		lk.RequestLogf(r, "content length limit exceeded for createTest: %s", err.Err)
+		lk.render.WriteJSON(w, err.code, err)
+		return
+	}
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
@@ -224,6 +236,12 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	if err := lk.checkContentLength(r); err != nil {
+		lk.RequestLogf(r, "content length limit exceeded for appendLog: %s", err.Err)
+		lk.render.WriteJSON(w, err.code, err)
+		return
+	}
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
@@ -309,6 +327,12 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	if err := lk.checkContentLength(r); err != nil {
+		lk.RequestLogf(r, "content length limit exceeded for appendGlobalLog: %s", err.Err)
+		lk.render.WriteJSON(w, err.code, err)
+		return
+	}
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
@@ -686,6 +710,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 
 	ses, _ := lk.getSession()
 	defer ses.Close()
+
 	resp := struct {
 		Err            string `json:"err"`
 		MaxRequestSize int    `json:"maxRequestSize"`

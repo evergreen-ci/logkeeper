@@ -3,6 +3,7 @@ package logkeeper
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -49,6 +50,23 @@ func readJSON(body io.ReadCloser, maxSize int, out interface{}) *apiError {
 		return &apiError{
 			Err:  err.Error(),
 			code: http.StatusBadRequest,
+		}
+	}
+
+	return nil
+}
+
+// checkContentLenght returns an apiError if the content length
+// specified by the client is larger than the current maximum request
+// size. Clients are allowed to *not* specify a request size, which
+// the http library provides to us as -1.
+func (lk *logKeeper) checkContentLength(r *http.Request) *apiError {
+	if int(r.ContentLength) > lk.opts.MaxRequestSize {
+		return &apiError{
+			Err: fmt.Sprintf("content length %d over maximum",
+				r.ContentLength),
+			MaxSize: lk.opts.MaxRequestSize,
+			code:    http.StatusRequestEntityTooLarge,
 		}
 	}
 
