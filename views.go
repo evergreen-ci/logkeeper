@@ -715,7 +715,9 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		Err            string `json:"err"`
 		MaxRequestSize int    `json:"maxRequestSize"`
 		DB             bool   `json:"db"`
+		Build          string `json:"build_id"`
 	}{
+		Build:          BuildRevision,
 		MaxRequestSize: lk.opts.MaxRequestSize,
 	}
 

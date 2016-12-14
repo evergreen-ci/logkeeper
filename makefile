@@ -108,9 +108,9 @@ phony += lint lint-deps build build-race race test coverage coverage-html list-r
 $(name):$(buildDir)/$(name)
 	@[ -e $@ ] || ln -s $<
 $(buildDir)/$(name):$(srcFiles)
-	$(vendorGopath) go build -o $@ main/$(name).go
+	$(vendorGopath) go build  -ldflags "-X github.com/evergreen-ci/logkeeper.BuildRevision=`git rev-parse HEAD`" -o $@ main/$(name).go
 $(buildDir)/$(name).race:$(srcFiles)
-	$(vendorGopath) go build -race -o $@ main/$(name).go
+	$(vendorGopath) go build -race  -ldflags "-X github.com/evergreen-ci/logkeeper.BuildRevision=`git rev-parse HEAD`" -o $@ main/$(name).go
 phony += $(buildDir)/$(name)
 # end main build
 

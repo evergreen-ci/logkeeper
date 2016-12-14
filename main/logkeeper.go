@@ -52,5 +52,6 @@ func main() {
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(context.ClearHandler(router))
 
+	fmt.Println("running logkeeper:", logkeeper.BuildRevision)
 	graceful.Run(fmt.Sprintf(":%v", *httpPort), 10*time.Second, n)
 }
