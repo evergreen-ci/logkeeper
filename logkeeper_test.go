@@ -3,16 +3,16 @@ package logkeeper
 import (
 	"bytes"
 	"encoding/json"
-	//"fmt"
-	. "github.com/smartystreets/goconvey/convey"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	. "github.com/smartystreets/goconvey/convey"
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 func resetDatabase(db *mgo.Database) {
@@ -26,7 +26,7 @@ func TestLogKeeper(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		lk := New(session, Options{DB: "logkeeper_test"})
+		lk := New(session, Options{DB: "logkeeper_test", MaxRequestSize: 1024 * 1024 * 10})
 		db := session.DB("logkeeper_test")
 		router := lk.NewRouter()
 
