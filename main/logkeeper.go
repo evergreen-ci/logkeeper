@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -12,6 +11,9 @@ import (
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/gorilla/context"
 	"github.com/phyber/negroni-gzip/gzip"
+	"github.com/tychoish/grip"
+	"github.com/tychoish/grip/level"
+	"github.com/tychoish/grip/send"
 	"github.com/tylerb/graceful"
 	"gopkg.in/mgo.v2"
 )
@@ -25,6 +27,17 @@ func main() {
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
 	flag.Parse()
 
+	sendLogLevels := send.LevelInfo{
+		Default:   level.Info,
+		Threshold: level.Info,
+	}
+
+	sender, err := send.NewFileLogger("logkeeper", "logkeeperapp.log", sendLogLevels)
+	grip.CatchEmergencyFatal(err)
+	defer sender.Close()
+
+	grip.CatchEmergencyFatal(grip.SetSender(sender))
+
 	dialInfo := mgo.DialInfo{
 		Addrs: strings.Split(*dbHost, ","),
 	}
@@ -34,16 +47,14 @@ func main() {
 	}
 
 	session, err := mgo.DialWithInfo(&dialInfo)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
+	grip.CatchEmergencyFatal(err)
 
 	lk := logkeeper.New(session, logkeeper.Options{
 		DB:             "buildlogs",
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
 	})
+
 	router := lk.NewRouter()
 	n := negroni.New()
 	n.Use(lk.NewLogger())
@@ -52,6 +63,6 @@ func main() {
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(context.ClearHandler(router))
 
-	fmt.Println("running logkeeper:", logkeeper.BuildRevision)
+	grip.Noticeln("running logkeeper:", logkeeper.BuildRevision)
 	graceful.Run(fmt.Sprintf(":%v", *httpPort), 10*time.Second, n)
 }

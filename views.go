@@ -5,13 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html/template"
-	"log"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
+	"github.com/tychoish/grip"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -33,7 +32,6 @@ type logKeeper struct {
 	session *mgo.Session
 	render  *render.Render
 	opts    Options
-	logger  *log.Logger
 }
 
 type createdResponse struct {
@@ -80,8 +78,7 @@ func New(session *mgo.Session, opts Options) *logKeeper {
 		opts.DB = "logkeeper"
 	}
 
-	logger := log.New(os.Stdout, "[logkeeper] ", log.Lmicroseconds)
-	return &logKeeper{session, render, opts, logger}
+	return &logKeeper{session, render, opts}
 }
 
 func (lk *logKeeper) getSession() (*mgo.Session, *mgo.Database) {
@@ -637,73 +634,9 @@ func emptyChannel() chan *LogLineItem {
 }
 
 func (lk *logKeeper) RequestLogf(r *http.Request, format string, v ...interface{}) {
-	prefix := fmt.Sprintf("(%d) ", GetCtxRequestId(r))
-	lk.logger.Printf(prefix+format, v...)
+	base := fmt.Sprintf("[%d] %s", GetCtxRequestId(r), format)
+	grip.Errorf(base, v...)
 }
-
-/*
-func CreateBuild(ae web.HandlerApp, r *http.Request) web.HTTPResponse {
-
-	decoder := json.NewDecoder(r.Body)
-	info := make(map[string]interface{})
-	err := decoder.Decode(&info)
-	if err != nil {
-		return web.JSONResponse{map[string]string{"err": "Bad Request"}, http.StatusBadRequest}
-	}
-	builder, ok1 := info["builder"]
-	buildnum, ok2 := info["buildnum"]
-	_ = builder
-	if !ok1 || !ok2 {
-		return web.JSONResponse{map[string]string{"err": "Fields \"builder\" and \"buildnum\" are required"}, http.StatusBadRequest}
-	}
-
-	var buildnumInt int
-
-	switch buildnum.(type) {
-	case int:
-		buildnumInt = buildnum.(int)
-	case int64:
-		buildnumInt = int(buildnum.(int64))
-	case float64:
-		buildnumInt = int(buildnum.(float64))
-	default:
-		return web.JSONResponse{map[string]string{"err": "Field \"buildnum\" must be an integer"}, http.StatusBadRequest}
-	}
-
-	delete(info, "builder")
-	delete(info, "buildnum")
-
-	var buildId bson.ObjectId
-	build, err := FindBuildByBuildNum(builder.(string), buildnumInt)
-	if err != nil {
-		mci.LOGGER.Logf(slogger.ERROR, "Error occurred finding build by build num: %v", err)
-		return web.JSONResponse{map[string]string{"err": err.Error()}, http.StatusInternalServerError}
-	}
-	if build != nil {
-		buildId = build.Id
-	} else {
-		newBuild := LogKeeperBuild{Builder: builder.(string), BuildNum: int(buildnum.(float64)), Started: time.Now(), Name: fmt.Sprintf("%v #%v", builder, buildnum), Info: info, Phases: []string{}}
-		err = newBuild.Insert()
-		if err != nil {
-			if mgo.IsDup(err) {
-				return web.JSONResponse{map[string]string{"err": err.Error()}, http.StatusConflict}
-			} else {
-				mci.LOGGER.Logf(slogger.ERROR, "Error occurred inserting build: %v", err)
-				return web.JSONResponse{map[string]string{"err": err.Error()}, http.StatusInternalServerError}
-			}
-		}
-		buildId = newBuild.Id
-		mci.LOGGER.Logf(slogger.ERROR, "build is inserted,  now %v", buildId)
-	}
-
-	return web.JSONResponse{
-		map[string]interface{}{
-			"err": nil,
-			"id":  buildId.Hex(),
-			"uri": BUILDLOG_URL_ROOT + "/build/" + buildId.Hex(),
-		}, http.StatusCreated}
-}
-*/
 
 func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
