@@ -13,12 +13,33 @@ import (
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/tychoish/grip"
 	"github.com/tychoish/grip/level"
+	"github.com/tychoish/grip/message"
 	"github.com/tychoish/grip/send"
 	"github.com/tylerb/graceful"
 	"gopkg.in/mgo.v2"
 )
 
+func recoverAndLogStackTrace() {
+	if p := recover(); p != nil {
+		panicMsg, ok := p.(string)
+		if !ok {
+			panicMsg = fmt.Sprintf("%+v", panicMsg)
+		}
+		m := message.NewStackFormatted(1, "encountered panic '%s' at top level; recovering trace:", panicMsg)
+		grip.Alert(m)
+
+		r := m.Raw().(message.StackTrace)
+		for idx, f := range r.Frames {
+			grip.Criticalf("call #%d\n\t%s\n\t\t%s:%d", idx, f.Function, f.File, f.Line)
+		}
+
+		grip.EmergencyFatalf("hit panic '%s' at top level; exiting", panicMsg)
+	}
+}
+
 func main() {
+	defer recoverAndLogStackTrace()
+
 	httpPort := flag.Int("port", 8080, "port to listen on for HTTP.")
 	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
 	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
