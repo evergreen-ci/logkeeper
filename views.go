@@ -10,7 +10,7 @@ import (
 
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
-	"github.com/tychoish/grip"
+	"github.com/mongodb/grip"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )

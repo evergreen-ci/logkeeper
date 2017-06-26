@@ -53,7 +53,7 @@ func NeedsLegacy() bool {
 	// determine what kind of vendoring we can use.
 	if version[0] > 1 || version[1] >= 7 {
 		// go 2.0 and greater, or go 1.7+, do not require
-		// legacy vendoring, and can use the top-level vendor
+		// legacy verndoring, and can use the top-level vendor
 		// directory.
 		return false
 	} else if version[1] <= 4 {

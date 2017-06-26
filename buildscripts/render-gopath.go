@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	"./vendoring"
 )
@@ -23,38 +21,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if runtime.GOOS == "windows" {
-		for _, cygPath := range []string{"/cygdrive/c/data", "/data"} {
-			if strings.HasPrefix(currentGoPath, cygPath) {
-				currentGoPath = strings.Replace(currentGoPath, cygPath, "c:\\data", -1)
-				break
-			}
-		}
-		currentGoPath = strings.Replace(currentGoPath, `:\`, `:\\`, 1)
-
-		currentGoPath = strings.Replace(currentGoPath, "/", `\\`, -1)
-	}
-
-	// initialize the gopath components.
-	goPathParts := []string{currentGoPath}
-
-	// if this version of go does not support new-style vendoring,
-	// then we need to mangle the gopath so that the build can use
-	// vendored dependencies.
+	// if this version of go does not support new-style vendoring, then we need to mangle the gopath.
 	if vendoring.NeedsLegacy() {
-		goPathParts = append(goPathParts, filepath.Join(pwd, vendoring.Path))
-
-		// add any additional paths to nested vendored gopaths.
-		for _, path := range os.Args[1:] {
-			absPath, err := filepath.Abs(path)
-
-			if err == nil {
-				goPathParts = append(goPathParts, absPath)
-			} else {
-				goPathParts = append(goPathParts, path)
-			}
-		}
+		fmt.Printf("GOPATH=%s:%s", currentGoPath, filepath.Join(pwd, vendoring.Path))
+		return
 	}
 
-	fmt.Printf("GOPATH=%s", strings.Join(goPathParts, ":"))
+	// in all other cases, we can just echo the gopath here.
+	fmt.Printf("GOPATH=%s", currentGoPath)
 }

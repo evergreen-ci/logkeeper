@@ -25,6 +25,6 @@ imports:
   version: 7dbad50ab5b31073856416cdcfeb2796d682f844
 - name: github.com/jacobsa/oglematchers
   version: 4fc24f97b5b74022c2a3f4ca7eed57ca29083d3e
-- name: github.com/tychoish/grip
-  version: 6aaa3a9a021a2841132ac8d1be66b540633cc46e
+- name: github.com/mongodb/grip
+  version: 1def258f631f824077cea5400e0ea019d2f483d1
 devImports: []

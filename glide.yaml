@@ -14,4 +14,4 @@ import:
   - package: github.com/jessevdk/go-flags
   - package: golang.org/x/net
   - package: github.com/jacobsa/oglematchers
-  - package: github.com/tychoish/grip
+  - package: github.com/mongodb/grip

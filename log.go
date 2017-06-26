@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/codegangsta/negroni"
-	"github.com/tychoish/grip"
+	"github.com/mongodb/grip"
 )
 
 // Logger is a middleware handler that logs the request as it goes in and the response as it goes out.

@@ -6,20 +6,21 @@ orgPath := github.com/evergreen-ci
 projectPath := $(orgPath)/$(name)
 # end project configuration
 
+
 # start linting configuration
 #   package, testing, and linter dependencies specified
 #   separately. This is a temporary solution: eventually we should
 #   vendorize all of these dependencies.
 lintDeps := github.com/alecthomas/gometalinter
 #   include test files and give linters 40s to run to avoid timeouts
-lintArgs := --tests --deadline=20m --vendor --enable-gc
+lintArgs := --tests --deadline=1m --vendor
 #   gotype produces false positives because it reads .a files which
 #   are rarely up to date.
-lintArgs += --disable="gotype" --disable="gas"
-lintArgs += --skip="$(buildDir)" --skip="buildscripts" --skip="$(gopath)"
+lintArgs += --disable="gotype" --disable="gas" --disable="gocyclo"
+lintArgs += --disable="aligncheck" --disable="golint" --disable="goconst"
+lintArgs += --skip="$(buildDir)" --skip="buildscripts"
 #  add and configure additional linters
-lintArgs += --enable="go fmt -s" --enable="goimports" --enable="misspell"
-lintargs += --enable="lll" --enable"unused"
+lintArgs += --enable="goimports" --enable="misspell"
 lintArgs += --line-length=100 --dupl-threshold=175
 #  two similar functions triggered the duplicate warning, but they're not.
 lintArgs += --exclude="file is not goimported" # test files aren't imported
@@ -56,6 +57,10 @@ coverageHtmlOutput := $(foreach target,$(packages),$(buildDir)/output.$(target).
 $(gopath)/src/%:
 	@-[ ! -d $(gopath) ] && mkdir -p $(gopath) || true
 	go get $(subst $(gopath)/src/,,$@)
+$(buildDir)/run-linter:buildscripts/run-linter.go $(buildDir)/.lintSetup
+	$(vendorGopath) go build -o $@ $<
+$(buildDir)/.lintSetup:$(lintDeps)
+	@-$(gopath)/bin/gometalinter --install >/dev/null && touch $@
 # end dependency installation tools
 
 
@@ -83,9 +88,7 @@ $(buildDir)/dist-source.tar.gz:$(buildDir)/make-tarball $(srcFiles) $(testSrcFil
 
 
 # userfacing targets for basic build and development operations
-lint:$(lintDeps)
-	@-$(gopath)/bin/gometalinter --install >/dev/null
-	$(gopath)/bin/gometalinter $(lintArgs) ./...
+lint:$(buildDir)/output.lint
 build:$(buildDir)/$(name)
 build-race:$(buildDir)/$(name).race
 test:$(foreach target,$(packages),test-$(target))
@@ -96,10 +99,12 @@ list-tests:
 	@echo -e "test targets:" $(foreach target,$(packages),\\n\\ttest-$(target))
 list-race:
 	@echo -e "test (race detector) targets:" $(foreach target,$(packages),\\n\\trace-$(target))
-phony += lint lint-deps build build-race race test coverage coverage-html list-race list-tests
-.PRECIOUS: $(testOutput) $(raceOutput) $(coverageOutput) $(coverageHtmlOutput)
-.PRECIOUS: $(foreach target,$(packages),$(buildDir)/test.$(target))
-.PRECIOUS: $(foreach target,$(packages),$(buildDir)/race.$(target))
+phony := lint build build-race race test coverage coverage-html deps
+.PRECIOUS:$(testOutput) $(raceOutput) $(coverageOutput) $(coverageHtmlOutput)
+.PRECIOUS:$(foreach target,$(packages),$(buildDir)/test.$(target))
+.PRECIOUS:$(foreach target,$(packages),$(buildDir)/race.$(target))
+.PRECIOUS:$(foreach target,$(packages),$(buildDir)/output.$(target).lint)
+.PRECIOUS:$(buildDir)/output.lint
 # end front-ends
 
 
@@ -138,8 +143,8 @@ vendor-deps:$(vendorDeps)
 #   for go1.4, we can delete most of this.
 -include $(buildDir)/makefile.vendor
 #   nested vendoring is used to support projects that have
-nestedVendored := github.com/tychoish/grip
-# nestedVendored := $(foreach project,$(nestedVendored),$(project)/build/vendor)
+nestedVendored := github.com/mongodb/grip
+nestedVendored := $(foreach project,$(nestedVendored),$(project)/build/vendor)
 $(buildDir)/makefile.vendor:$(buildDir)/render-gopath makefile
 	@mkdir -p $(buildDir)
 	@echo "vendorGopath := \$$(shell \$$(buildDir)/render-gopath $(nestedVendored))" >| $@
@@ -151,7 +156,9 @@ change-go-version:
 	rm -rf $(buildDir)/make-vendor $(buildDir)/render-gopath
 	@$(MAKE) $(makeArgs) vendor > /dev/null 2>&1
 vendor:$(buildDir)/vendor/src
-	@$(MAKE) $(makeArgs) -C vendor/github.com/tychoish/grip $@
+	@$(MAKE) $(makeArgs) -C vendor/github.com/mongodb/grip $@
+vendor-clean:
+	rm -rf vendor/github.com/mongodb/grip/vendor/golang.org/x/net
 $(buildDir)/vendor/src:$(buildDir)/make-vendor $(buildDir)/render-gopath
 	@./$(buildDir)/make-vendor
 #   targets to build the small programs used to support vendoring.
@@ -169,20 +176,29 @@ phony += vendor vendor-deps vendor-clean vendor-sync change-go-version
 # end vendoring tooling configuration
 
 
+
 # start test and coverage artifacts
-#    This varable includes everything that the tests actually need to
-#    run. (The "build" target is intentional and makes these targetsb
-#    rerun as expected.)
-testRunDeps := $(name)
-testTimeout := --test.timeout=20m
-testArgs := -test.v $(testTimeout)
-#  targets to compile
-$(buildDir)/test.%:$(testSrcFiles) .FORCE
+#    tests have compile and runtime deps. This varable has everything
+#    that the tests actually need to run. (The "build" target is
+#    intentional and makes these targets rerun as expected.)
+testArgs := -test.v --test.timeout=5m
+ifneq (,$(RUN_TEST))
+testArgs += -test.run='$(RUN_TEST)'
+endif
+ifneq (,$(RUN_CASE))
+testArgs += -testify.m='$(RUN_CASE)'
+endif
+#    to avoid vendoring the coverage tool, install it as needed
+coverDeps := $(if $(DISABLE_COVERAGE),,golang.org/x/tools/cmd/cover)
+coverDeps := $(addprefix $(gopath)/src/,$(coverDeps))
+#    implementation for package coverage and test running,mongodb to produce
+#    and save test output.
+$(buildDir)/test.%:$(testSrcFiles) $(coverDeps)
 	$(vendorGopath) go test $(if $(DISABLE_COVERAGE),,-covermode=count) -c -o $@ ./$(subst -,/,$*)
-$(buildDir)/race.%:$(testSrcFiles) .FORCE
+$(buildDir)/race.%:$(testSrcFiles)
 	$(vendorGopath) go test -race -c -o $@ ./$(subst -,/,$*)
 #  targets to run any tests in the top-level package
-$(buildDir)/test.$(name):$(testSrcFiles)
+$(buildDir)/test.$(name):$(testSrcFiles) $(coverDeps)
 	$(vendorGopath) go test $(if $(DISABLE_COVERAGE),,-covermode=count) -c -o $@ ./
 $(buildDir)/race.$(name):$(testSrcFiles)
 	$(vendorGopath) go test -race -c -o $@ ./
@@ -191,11 +207,16 @@ $(buildDir)/output.%.test:$(buildDir)/test.% .FORCE
 	$(testRunEnv) ./$< $(testArgs) 2>&1 | tee $@
 $(buildDir)/output.%.race:$(buildDir)/race.% .FORCE
 	$(testRunEnv) ./$< $(testArgs) 2>&1 | tee $@
+#  targets to generate gotest output from the linter.
+$(buildDir)/output.%.lint:$(buildDir)/run-linter $(testSrcFiles) .FORCE
+	@./$< --output=$@ --lintArgs='$(lintArgs)' --packages='$*'
+$(buildDir)/output.lint:$(buildDir)/run-linter .FORCE
+	@./$< --output="$@" --lintArgs='$(lintArgs)' --packages="$(packages)"
 #  targets to process and generate coverage reports
-$(buildDir)/output.%.coverage:$(buildDir)/test.% .FORCE
-	$(testRunEnv) ./$< $(testTimeout) -test.coverprofile=$@ || true
+$(buildDir)/output.%.coverage:$(buildDir)/test.% .FORCE $(coverDeps)
+	$(testRunEnv) ./$< $(testArgs) -test.coverprofile=$@ | tee $(subst coverage,test,$@)
 	@-[ -f $@ ] && go tool cover -func=$@ | sed 's%$(projectPath)/%%' | column -t
-$(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage
+$(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage $(coverDeps)
 	$(vendorGopath) go tool cover -html=$< -o $@
 # end test and coverage artifacts
 
