@@ -152,9 +152,7 @@ post:
   - command: gotest.parse_files
     params:
       files:
-        - "gopath/src/github.com/evergreen-ci/logkeeper/build/test.*.out"
-        - "gopath/src/github.com/evergreen-ci/logkeeper/build/race.*.out"
-
+        - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
   - name: rhel62-gccgo
