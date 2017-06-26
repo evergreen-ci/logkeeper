@@ -143,7 +143,7 @@ vendor-deps:$(vendorDeps)
 #   for go1.4, we can delete most of this.
 -include $(buildDir)/makefile.vendor
 #   nested vendoring is used to support projects that have
-nestedVendored := github.com/mongodb/grip
+nestedVendored := vendor/github.com/mongodb/grip
 nestedVendored := $(foreach project,$(nestedVendored),$(project)/build/vendor)
 $(buildDir)/makefile.vendor:$(buildDir)/render-gopath makefile
 	@mkdir -p $(buildDir)
