@@ -10,14 +10,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
+	"github.com/smartystreets/goconvey/convey/reporting"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
 func resetDatabase(db *mgo.Database) {
-	db.DropDatabase()
+	grip.Error(db.DropDatabase())
+}
 
+func init() {
+	reporting.QuietMode()
 }
 
 func TestLogKeeper(t *testing.T) {
@@ -60,6 +65,7 @@ func TestLogKeeper(t *testing.T) {
 			now := time.Now().Unix()
 			r = newTestRequest(lk, "POST", "/build/"+buildId+"/test/"+testId, [][]interface{}{{now, line}, {now, line}, {now, line}})
 			data = checkEndpointResponse(router, r, http.StatusCreated)
+			So(len(data), ShouldBeGreaterThan, 0)
 
 			// Test should have seq = 2
 			test := &Test{}
@@ -88,7 +94,7 @@ func TestLogKeeper(t *testing.T) {
 				}
 			}
 
-			db.DropDatabase()
+			So(db.DropDatabase(), ShouldBeNil)
 
 			// Create build
 			r = newTestRequest(lk, "POST", "/build", map[string]interface{}{"builder": "myBuilder", "buildnum": 123})
@@ -99,6 +105,7 @@ func TestLogKeeper(t *testing.T) {
 			// Insert oversize global log
 			r = newTestRequest(lk, "POST", "/build/"+buildId, [][]interface{}{{now, line}, {now, line}, {now, line}})
 			data = checkEndpointResponse(router, r, http.StatusCreated)
+			So(len(data), ShouldBeGreaterThan, 0)
 
 			// Build should have seq = 2
 			build := &LogKeeperBuild{}

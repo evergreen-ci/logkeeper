@@ -8,8 +8,6 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const logKeeperDB = "logkeeper"
-
 type Test struct {
 	Id        bson.ObjectId          `bson:"_id"`
 	BuildId   interface{}            `bson:"build_id"`
@@ -21,7 +19,7 @@ type Test struct {
 	Info      map[string]interface{} `bson:"info"`
 	Failed    bool                   `bson:"failed"`
 	Phase     string                 `bson:"phase"`
-	Seq       int                    `bson:"seq",omitempty`
+	Seq       int                    `bson:"seq,omitempty"`
 }
 
 type LogKeeperBuild struct {
@@ -32,7 +30,7 @@ type LogKeeperBuild struct {
 	Name     string                 `bson:"name"`
 	Info     map[string]interface{} `bson:"info"`
 	Phases   []string               `bson:"phases"`
-	Seq      int                    `bson:"seq",omitempty`
+	Seq      int                    `bson:"seq,omitempty"`
 }
 
 // If "raw" is a bson.ObjectId, returns the string value of its .Hex() function.

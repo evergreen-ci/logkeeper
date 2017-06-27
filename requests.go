@@ -28,7 +28,7 @@ func (l *LimitedReader) Read(p []byte) (n int, err error) {
 	if l.N <= 0 {
 		return 0, ErrReadSizeLimitExceeded
 	}
-	if int(len(p)) > l.N {
+	if len(p) > l.N {
 		p = p[0:l.N]
 	}
 	n, err = l.R.Read(p)
@@ -36,7 +36,7 @@ func (l *LimitedReader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func readJSON(body io.ReadCloser, maxSize int, out interface{}) *apiError {
+func readJSON(body io.Reader, maxSize int, out interface{}) *apiError {
 	decoder := json.NewDecoder(&LimitedReader{body, maxSize})
 
 	err := decoder.Decode(out)

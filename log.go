@@ -41,7 +41,7 @@ func (lk *logKeeper) NewLogger() *Logger {
 	}()
 
 	logger := grip.NewJournaler("logkeeper")
-	logger.SetSender(grip.GetSender())
+	grip.Error(logger.SetSender(grip.GetSender()))
 
 	return &Logger{
 		grip: logger,

@@ -40,15 +40,13 @@ type createdResponse struct {
 }
 
 func earliestLogTime(logs []LogLine) *time.Time {
-	var earliest *time.Time
-	earliest = nil
+	var earliest time.Time
 	for _, v := range logs {
-		if earliest == nil || v.Time().Before(*earliest) {
-			t := v.Time()
-			earliest = &t
+		if v.Time().Before(earliest) {
+			earliest = v.Time()
 		}
 	}
-	return earliest
+	return &earliest
 }
 
 func New(session *mgo.Session, opts Options) *logKeeper {
@@ -134,7 +132,11 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	buildInfo := map[string]interface{}{"task_id": buildParameters.TaskId}
 
 	hasher := md5.New()
-	hasher.Write([]byte(bson.NewObjectId().Hex()))
+	if _, err = hasher.Write([]byte(bson.NewObjectId().Hex())); err != nil {
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
+	}
+
 	newBuildId := hex.EncodeToString(hasher.Sum(nil))
 	newBuild := LogKeeperBuild{
 		Id:       newBuildId,
@@ -246,7 +248,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	defer ses.Close()
 
 	build, err := findBuildById(db, buildId)
-	if build == nil {
+	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "appending log: build not found"})
 		return
 	}
@@ -464,7 +466,10 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range merged {
-			w.Write([]byte(line.Data + "\n"))
+			_, err = w.Write([]byte(line.Data + "\n"))
+			if err != nil {
+				return
+			}
 		}
 		return
 	} else {
@@ -476,6 +481,10 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			TestName string
 			Info     map[string]interface{}
 		}{merged, stringifyId(build.Id), build.Builder, "", "All logs", build.Info}, "base", "test.html")
+		if err != nil {
+			lk.RequestLogf(r, "Error rendering template: %v", err)
+		}
+
 	}
 }
 
@@ -514,7 +523,12 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range merged {
-			w.Write([]byte(line.Data + "\n"))
+			_, err = w.Write([]byte(line.Data + "\n"))
+			if err != nil {
+				lk.render.WriteJSON(w, http.StatusInternalServerError,
+					apiError{Err: err.Error()})
+				return
+			}
 		}
 		return
 	} else {

@@ -5,11 +5,10 @@ import (
 	"regexp"
 	"time"
 
-	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
-var colorRegex *regexp.Regexp = regexp.MustCompile("([ \\w]{2}\\d{1,5}\\|)")
+var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 
 type LogLine []interface{}
 
@@ -45,27 +44,8 @@ type Log struct {
 	BuildId interface{}    `bson:"build_id"`
 	TestId  *bson.ObjectId `bson:"test_id"`
 	Seq     int            `bson:"seq"`
-	Started *time.Time     `bson:"started",omitempty`
+	Started *time.Time     `bson:"started,omitempty"`
 	Lines   []LogLine      `bson:"lines"`
-}
-
-func globalLogBound(session *mgo.Session, buildId bson.ObjectId, started time.Time, first bool) (*Log, error) {
-	log := &Log{}
-	sort := "started"
-	selector := bson.M{"build_id": buildId, "test_id": nil, "started": bson.M{"$gte": started}}
-	if !first {
-		selector = bson.M{"build_id": buildId, "test_id": nil, "started": bson.M{"$lt": started}}
-		sort = "-started"
-	}
-
-	err := session.DB(logKeeperDB).C("logs").Find(selector).Sort(sort).One(log)
-	if err == mgo.ErrNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return log, nil
 }
 
 func NewLogLine(data []interface{}) *LogLine {
