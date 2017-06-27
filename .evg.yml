@@ -155,17 +155,6 @@ post:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
-  - name: rhel62-gccgo
-    display_name: RHEL 6.2 (gccgo)
-    expansions:
-      build_env: "PATH=/opt/mongodbtoolchain/v2/bin:$PATH DISABLE_COVERAGE=yes"
-      mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
-    run_on:
-      - rhel62-small
-    tasks:
-      - ".dist"
-      - ".test"
-
   - name: rhel70
     display_name: RHEL 7.0
     expansions:
