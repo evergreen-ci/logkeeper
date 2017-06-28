@@ -178,13 +178,13 @@ buildvariants:
       - ".race"
       - ".report"
 
-  - name: osx
-    display_name: OS X 10.10
+  - name: macos
+    display_name: macOS 10.12
     expansions:
       build_env: "PATH=/usr/local/go/bin:$PATH"
       mongodb_url: http://fastdl.mongodb.org/osx/mongodb-osx-x86_64-3.2.6.tgz
     run_on:
-      - osx-1010
+      - macos-1012
     tasks:
       - ".dist"
       - ".test"
