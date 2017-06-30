@@ -102,7 +102,7 @@ tasks:
           aws_key: ${aws_key}
           aws_secret: ${aws_secret}
           local_file: gopath/src/github.com/evergreen-ci/logkeeper/build/${task_name}.tar.gz
-          remote_file: logkeeeper/${build_id}-${build_variant}/logkeeper-${task_name}-${revision}.tar.gz
+          remote_file: logkeeper/${build_id}-${build_variant}/logkeeper-${task_name}-${revision}.tar.gz
           bucket: mciuploads
           content_type: application/x-gzip
           permissions: public-read
