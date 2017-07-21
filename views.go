@@ -679,6 +679,21 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	lk.render.WriteJSON(w, http.StatusOK, &resp)
 }
 
+func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
+	ses := lk.db.Session.Copy()
+	defer ses.Close()
+
+	err := ses.Ping()
+	if err == nil {
+		lk.render.WriteJSON(w, http.StatusOK,
+			map[string]interface{}{"db": true, "err": nil})
+	} else {
+		lk.render.WriteJSON(w, http.StatusServiceUnavailable,
+			map[string]interface{}{"db": false, "err": err.Error()})
+	}
+
+}
+
 func (lk *logKeeper) NewRouter() http.Handler {
 	r := mux.NewRouter().StrictSlash(false)
 
