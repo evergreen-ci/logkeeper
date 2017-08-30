@@ -159,6 +159,9 @@ vendor:$(buildDir)/vendor/src
 	@$(MAKE) $(makeArgs) -C vendor/github.com/mongodb/grip $@
 vendor-clean:
 	rm -rf vendor/github.com/mongodb/grip/vendor/golang.org/x/net
+	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/davecgh/go-spew/
+	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/stretchr/testify
+
 $(buildDir)/vendor/src:$(buildDir)/make-vendor $(buildDir)/render-gopath
 	@./$(buildDir)/make-vendor
 #   targets to build the small programs used to support vendoring.

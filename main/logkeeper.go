@@ -58,6 +58,16 @@ func main() {
 	grip.CatchEmergencyFatal(err)
 	defer sender.Close()
 
+	splunkInfo := send.GetSplunkConnectionInfo()
+	if splunkInfo.Populated() {
+		var splunk send.Sender
+		splunk, err = send.NewSplunkLogger("logkeeper", splunkInfo, sendLogLevels)
+		if err == nil {
+			sender = send.NewConfiguredMultiSender(sender, send.NewBufferedLogSender(splunk, 20*time.Second, 100))
+		}
+		grip.Warning(err)
+	}
+
 	grip.CatchEmergencyFatal(grip.SetSender(sender))
 
 	dialInfo := mgo.DialInfo{
