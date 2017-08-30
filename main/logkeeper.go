@@ -63,7 +63,7 @@ func main() {
 		var splunk send.Sender
 		splunk, err = send.NewSplunkLogger("logkeeper", splunkInfo, sendLogLevels)
 		if err == nil {
-			sender = send.NewConfiguredMultiSender(sender, send.NewBufferedLogSender(splunk, 20*time.Second, 100))
+			sender = send.NewConfiguredMultiSender(sender, send.NewBufferedSender(splunk, 20*time.Second, 100))
 		}
 		grip.Warning(err)
 	}
@@ -89,7 +89,7 @@ func main() {
 
 	router := lk.NewRouter()
 	n := negroni.New()
-	n.Use(lk.NewLogger())
+	n.Use(logkeeper.NewLogger())
 	n.Use(negroni.NewRecovery())                 // part of negroni Classic settings
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
