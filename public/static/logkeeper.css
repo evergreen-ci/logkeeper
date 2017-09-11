@@ -37,8 +37,7 @@ td.log pre {
   border-right:1px solid #ccc;
   cursor:pointer;
 }
-.global{
-  font-style:italic;
+.global{ // placeholder for global styles
 }
 .selected-line{
   background-color: rgb(255, 255, 204);
