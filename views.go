@@ -548,6 +548,14 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
+	err := lk.render.StreamHTML(w, http.StatusOK, nil, "base", "lobster/build/index.html")
+	if err != nil {
+		lk.RequestLogf(r, "Error rendering template: %v", err)
+	}
+	return
+}
+
 func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
 	ses, db := lk.getSession()
 
@@ -696,6 +704,7 @@ func (lk *logKeeper) NewRouter() http.Handler {
 	r.StrictSlash(true).Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuildById)
 	r.StrictSlash(true).Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
 	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
+	r.StrictSlash(true).Path("/lobster/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewInLobster)
 	//r.Path("/{builder}/builds/{buildnum:[0-9]+}/").HandlerFunc(viewBuild)
 	//r.Path("/{builder}/builds/{buildnum}/test/{test_phase}/{test_name}").HandlerFunc(app.MakeHandler(Name("view_test")))
 	r.Path("/status").Methods("GET").HandlerFunc(lk.checkAppHealth)
