@@ -40,13 +40,14 @@ type createdResponse struct {
 }
 
 func earliestLogTime(logs []LogLine) *time.Time {
-	var earliest time.Time
+	var earliest *time.Time
 	for _, v := range logs {
-		if v.Time().Before(earliest) {
-			earliest = v.Time()
+		if earliest == nil || v.Time().Before(*earliest) {
+			t := v.Time()
+			earliest = &t
 		}
 	}
-	return &earliest
+	return earliest
 }
 
 func New(session *mgo.Session, opts Options) *logKeeper {

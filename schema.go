@@ -19,7 +19,7 @@ type Test struct {
 	Info      map[string]interface{} `bson:"info"`
 	Failed    bool                   `bson:"failed"`
 	Phase     string                 `bson:"phase"`
-	Seq       int                    `bson:"seq,omitempty"`
+	Seq       int                    `bson:"seq"`
 }
 
 type LogKeeperBuild struct {
@@ -30,7 +30,7 @@ type LogKeeperBuild struct {
 	Name     string                 `bson:"name"`
 	Info     map[string]interface{} `bson:"info"`
 	Phases   []string               `bson:"phases"`
-	Seq      int                    `bson:"seq,omitempty"`
+	Seq      int                    `bson:"seq"`
 }
 
 // If "raw" is a bson.ObjectId, returns the string value of its .Hex() function.

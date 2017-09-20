@@ -44,7 +44,7 @@ type Log struct {
 	BuildId interface{}    `bson:"build_id"`
 	TestId  *bson.ObjectId `bson:"test_id"`
 	Seq     int            `bson:"seq"`
-	Started *time.Time     `bson:"started,omitempty"`
+	Started *time.Time     `bson:"started"`
 	Lines   []LogLine      `bson:"lines"`
 }
 
