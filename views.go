@@ -523,7 +523,9 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
+		emptyLog := true
 		for line := range merged {
+			emptyLog = false
 			_, err = w.Write([]byte(line.Data + "\n"))
 			if err != nil {
 				lk.render.WriteJSON(w, http.StatusInternalServerError,
@@ -531,7 +533,9 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 				return
 			}
 		}
-		return
+		if emptyLog {
+			lk.render.WriteJSON(w, http.StatusOK, nil)
+		}
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
@@ -554,7 +558,6 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		lk.RequestLogf(r, "Error rendering template: %v", err)
 	}
-	return
 }
 
 func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
