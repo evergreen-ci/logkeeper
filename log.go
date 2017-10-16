@@ -33,27 +33,21 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	start := time.Now()
 	reqID := <-l.ids
 
-	grip.Info(message.Fields{
-		"action":  "started",
-		"method":  r.Method,
-		"remote":  r.RemoteAddr,
-		"request": reqID,
-		"path":    r.URL.Path,
-	})
-
 	next(rw, r)
 
 	res := rw.(negroni.ResponseWriter)
 
-	grip.Info(message.Fields{
-		"method":   r.Method,
-		"remote":   r.RemoteAddr,
-		"request":  reqID,
-		"path":     r.URL.Path,
-		"duration": time.Since(start),
-		"action":   "completed",
-		"status":   res.Status(),
-		"outcome":  http.StatusText(res.Status()),
-		"span":     time.Since(start).String(),
-	})
+	if res.Status() > 299 {
+		grip.Warning(message.Fields{
+			"method":   r.Method,
+			"remote":   r.RemoteAddr,
+			"request":  reqID,
+			"path":     r.URL.Path,
+			"duration": time.Since(start),
+			"action":   "completed",
+			"status":   res.Status(),
+			"outcome":  http.StatusText(res.Status()),
+			"span":     time.Since(start).String(),
+		})
+	}
 }
