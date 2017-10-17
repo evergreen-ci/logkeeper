@@ -37,7 +37,7 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 
 	res := rw.(negroni.ResponseWriter)
 
-	if res.Status() > 299 {
+	if res.Status() >= 400 {
 		grip.Warning(message.Fields{
 			"method":   r.Method,
 			"remote":   r.RemoteAddr,
