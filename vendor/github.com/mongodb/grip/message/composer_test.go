@@ -40,6 +40,7 @@ func TestPopulatedMessageComposerConstructors(t *testing.T) {
 		NewFields(level.Error, Fields{"test": testMsg}):                        fmt.Sprintf("[test='%s']", testMsg),
 		MakeFieldsMessage(testMsg, Fields{}):                                   fmt.Sprintf("[message='%s']", testMsg),
 		MakeFields(Fields{"test": testMsg}):                                    fmt.Sprintf("[test='%s']", testMsg),
+		NewErrorWrappedComposer(errors.New("hello"), NewString("world")):       "world: hello",
 	}
 
 	for msg, output := range cases {
@@ -66,7 +67,7 @@ func TestPopulatedMessageComposerConstructors(t *testing.T) {
 }
 
 func TestUnpopulatedMessageComposers(t *testing.T) {
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	// map objects to output
 	cases := []Composer{
 		&stringMessage{},
@@ -98,7 +99,7 @@ func TestUnpopulatedMessageComposers(t *testing.T) {
 
 func TestDataCollecterComposerConstructors(t *testing.T) {
 	const testMsg = "hello"
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	// map objects to output (prefix)
 	cases := map[Composer]string{
 		NewProcessInfo(level.Error, int32(os.Getpid()), testMsg): "",
@@ -121,6 +122,7 @@ func TestDataCollecterComposerConstructors(t *testing.T) {
 	multiCases := [][]Composer{
 		CollectProcessInfoSelfWithChildren(),
 		CollectProcessInfoWithChildren(int32(1)),
+		CollectAllProcesses(),
 	}
 
 	for _, group := range multiCases {
@@ -142,7 +144,7 @@ func TestStackMessages(t *testing.T) {
 		stackMsg = strings.Replace(stackMsg, "/", "\\", 1)
 	}
 
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	// map objects to output (prefix)
 	cases := map[Composer]string{
 		NewStack(1, testMsg):                                       testMsg,
@@ -175,7 +177,7 @@ func TestStackMessages(t *testing.T) {
 
 func TestComposerConverter(t *testing.T) {
 	const testMsg = "hello world"
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 
 	cases := []interface{}{
 		NewLine(testMsg),
@@ -226,7 +228,7 @@ func TestComposerConverter(t *testing.T) {
 
 func TestJiraMessageComposerConstructor(t *testing.T) {
 	const testMsg = "hello"
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	reporterField := JiraField{Key: "Reporter", Value: "Annie"}
 	assigneeField := JiraField{Key: "Assignee", Value: "Sejin"}
 	typeField := JiraField{Key: "Type", Value: "Bug"}
@@ -245,7 +247,7 @@ func TestJiraMessageComposerConstructor(t *testing.T) {
 }
 
 func TestProcessTreeDoesNotHaveDuplicates(t *testing.T) {
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 
 	procs := CollectProcessInfoWithChildren(1)
 	seen := make(map[int32]struct{})

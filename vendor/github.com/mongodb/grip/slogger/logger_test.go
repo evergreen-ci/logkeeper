@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/mongodb/grip/level"
 	"github.com/mongodb/grip/send"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLoggerLogf(t *testing.T) {
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	sink, err := send.NewInternalLogger("sink", send.LevelInfo{Default: level.Info, Threshold: level.Info})
 	assert.NoError(err)
 	defer sink.Close()
@@ -26,7 +26,7 @@ func TestLoggerLogf(t *testing.T) {
 }
 
 func TestLoggerErrorf(t *testing.T) {
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	sink, err := send.NewInternalLogger("sink", send.LevelInfo{Default: level.Info, Threshold: level.Info})
 	assert.NoError(err)
 	defer sink.Close()
@@ -39,7 +39,7 @@ func TestLoggerErrorf(t *testing.T) {
 }
 
 func TestLoggerStackf(t *testing.T) {
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 	sink, err := send.NewInternalLogger("sink", send.LevelInfo{Default: level.Info, Threshold: level.Info})
 	assert.NoError(err)
 	defer sink.Close()

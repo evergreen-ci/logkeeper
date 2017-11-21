@@ -59,7 +59,8 @@ $(gopath)/src/%:
 	go get $(subst $(gopath)/src/,,$@)
 $(buildDir)/run-linter:buildscripts/run-linter.go $(buildDir)/.lintSetup
 	$(vendorGopath) go build -o $@ $<
-$(buildDir)/.lintSetup:$(lintDeps)
+$(builddir)/.lintsetup:$(lintdeps) $(builddir)
+	@mkdir -p $(builddir)
 	@-$(gopath)/bin/gometalinter --install >/dev/null && touch $@
 # end dependency installation tools
 

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 	"sync"
+	"unicode"
 
 	"github.com/mongodb/grip/level"
 	"github.com/mongodb/grip/message"
@@ -59,7 +60,7 @@ func (s *WriterSender) Write(p []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	s.writer.Flush()
+	_ = s.writer.Flush()
 
 	if s.buffer.Len() > 80 {
 		err = s.doSend()
@@ -76,12 +77,15 @@ func (s *WriterSender) doSend() error {
 			return nil
 		}
 
+		lncp := make([]byte, len(line))
+		copy(lncp, line)
+
 		if err == nil {
-			s.Send(message.NewBytesMessage(s.priority, bytes.Trim(line, "\n\t ")))
+			s.Send(message.NewBytesMessage(s.priority, bytes.TrimRightFunc(lncp, unicode.IsSpace)))
 			continue
 		}
 
-		s.Send(message.NewBytesMessage(s.priority, bytes.Trim(line, "\n\t ")))
+		s.Send(message.NewBytesMessage(s.priority, bytes.TrimRightFunc(lncp, unicode.IsSpace)))
 		return err
 	}
 }
@@ -91,7 +95,13 @@ func (s *WriterSender) doSend() error {
 func (s *WriterSender) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.writer.Flush()
-	s.Send(message.NewBytesMessage(s.priority, bytes.Trim(s.buffer.Bytes(), "\n\t ")))
+
+	if err := s.writer.Flush(); err != nil {
+		return err
+	}
+
+	s.Send(message.NewBytesMessage(s.priority, bytes.TrimRightFunc(s.buffer.Bytes(), unicode.IsSpace)))
+	s.buffer.Reset()
+	s.writer.Reset(s.buffer)
 	return nil
 }

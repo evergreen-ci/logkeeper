@@ -133,7 +133,7 @@ func GetSender(fn string) (send.Sender, error) {
 	} else if fn == "NONE" || fn == "SKIP" {
 		// pass
 	} else if fn == "LOCAL" || fn == "--" || fn == "stdout" {
-		sender, err = NewNativeLogger(name, baseLevel)
+		sender, err = send.NewNativeLogger(name, baseLevel)
 		if err != nil {
 			return nil, errors.Wrap(err, "problem creating a native console logger")
 		}
