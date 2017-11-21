@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/mongodb/grip/level"
 	"github.com/mongodb/grip/message"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLogType(t *testing.T) {
@@ -62,7 +62,7 @@ func TestLogType(t *testing.T) {
 }
 
 func TestStripDirectories(t *testing.T) {
-	assert := assert.New(t)
+	assert := assert.New(t) // nolint
 
 	paths := []string{"foo", "bar", "./foo", "./bar", "foo/bar", "bar/foo"}
 	for _, path := range paths {

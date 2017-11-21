@@ -100,6 +100,7 @@ func MakeErrorLogger() Sender {
 	s.reset = func() {
 		prefix := fmt.Sprintf("[%s] ", s.Name())
 		s.logger = log.New(os.Stderr, prefix, log.LstdFlags)
+		_ = s.SetErrorHandler(ErrorHandlerFromLogger(s.logger))
 	}
 
 	return s
@@ -112,11 +113,10 @@ func NewErrorLogger(name string, l LevelInfo) (Sender, error) {
 }
 
 func (s *nativeLogger) Send(m message.Composer) {
-	if s.level.ShouldLog(m) {
+	if s.Level().ShouldLog(m) {
 		out, err := s.formatter(m)
-
 		if err != nil {
-			s.errHandler(err, m)
+			s.ErrorHandler(err, m)
 			return
 		}
 

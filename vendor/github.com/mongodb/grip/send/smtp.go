@@ -73,9 +73,9 @@ func MakeSMTPLogger(opts *SMTPOptions) (Sender, error) {
 }
 
 func (s *smtpLogger) Send(m message.Composer) {
-	if s.level.ShouldLog(m) {
+	if s.Level().ShouldLog(m) {
 		if err := s.opts.sendMail(m); err != nil {
-			s.errHandler(err, m)
+			s.ErrorHandler(err, m)
 		}
 	}
 }
@@ -98,7 +98,7 @@ func (s *smtpLogger) Send(m message.Composer) {
 // options. You must also set at least one recipient address using the
 // AddRecipient or AddRecipients functions. You can add or reset the
 // recipients after configuring the options or the sender.
-type SMTPOptions struct {
+type SMTPOptions struct { // nolint
 	// Name controls both the name of the logger, and the name on
 	// the from header field.
 	Name string
