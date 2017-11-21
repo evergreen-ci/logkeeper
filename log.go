@@ -37,13 +37,25 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	start := time.Now()
 	reqID := <-l.ids
 
-	grip.Info(message.Fields{
-		"action":  "started",
-		"method":  r.Method,
-		"remote":  r.RemoteAddr,
-		"request": reqID,
-		"path":    r.URL.Path,
-	})
+	defer func() {
+		if err := recover(); err != nil {
+			if rw.Header().Get("Content-Type") == "" {
+				rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			}
+
+			rw.WriteHeader(http.StatusInternalServerError)
+
+			grip.Critical(message.Fields{
+				"stack":    message.NewStack(2, "").Raw(),
+				"panic":    err,
+				"action":   "aborted",
+				"request":  reqID,
+				"duration": time.Since(start),
+				"path":     r.URL.Path,
+				"span":     time.Since(start).String(),
+			})
+		}
+	}()
 
 	next(rw, r)
 

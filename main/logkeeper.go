@@ -53,7 +53,6 @@ func main() {
 	router := lk.NewRouter()
 	n := negroni.New()
 	n.Use(logkeeper.NewLogger())
-	n.Use(negroni.NewRecovery())                 // part of negroni Classic settings
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(context.ClearHandler(router))
