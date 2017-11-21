@@ -117,9 +117,14 @@ func GetSender(fn string) (send.Sender, error) {
 	// configure slack logger for alerts and panics
 
 	if token := os.Getenv("GRIP_SLACK_CLIENT_TOKEN"); token != "" {
+		channel := os.Getenv("GRIP_SLACK_CHANNEL")
+		if channel == "" {
+			channel = "#evergreen-ops-alerts"
+		}
+
 		opts := &send.SlackOptions{
 			Name:          name,
-			Channel:       "#evergreen-ops-alerts",
+			Channel:       channel,
 			AllFields:     true,
 			BasicMetadata: true,
 		}
