@@ -142,8 +142,6 @@ func GetSender(fn string) (send.Sender, error) {
 		}
 
 		senders = append(senders, sender)
-	} else if fn == "NONE" || fn == "SKIP" {
-		// pass
 	} else if fn == "LOCAL" || fn == "--" || fn == "stdout" {
 		sender, err = send.NewNativeLogger(name, baseLevel)
 		if err != nil {
@@ -151,7 +149,7 @@ func GetSender(fn string) (send.Sender, error) {
 		}
 
 		senders = append(senders, sender)
-	} else {
+	} else if fn != "NONE" || fn != "SKIP" {
 		sender, err = send.NewFileLogger("logkeeper", fn, baseLevel)
 		if err != nil {
 			return nil, errors.Wrap(err, "problem creating a file logger")
