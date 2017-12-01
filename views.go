@@ -708,6 +708,8 @@ func (lk *logKeeper) NewRouter() http.Handler {
 	r.StrictSlash(true).Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuildById)
 	r.StrictSlash(true).Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
 	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestByBuildIdTestId)
+	r.StrictSlash(true).Path("/lobster").Methods("GET").HandlerFunc(lk.viewInLobster)
+	r.StrictSlash(true).Path("/lobster/about").Methods("GET").HandlerFunc(lk.viewInLobster)
 	r.StrictSlash(true).Path("/lobster/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewInLobster)
 	//r.Path("/{builder}/builds/{buildnum:[0-9]+}/").HandlerFunc(viewBuild)
 	//r.Path("/{builder}/builds/{buildnum}/test/{test_phase}/{test_name}").HandlerFunc(app.MakeHandler(Name("view_test")))
