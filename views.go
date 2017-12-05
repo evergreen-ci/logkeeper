@@ -510,6 +510,12 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
 	}
+
+	if len(r.FormValue("lobster")) > 0 {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
+		return
+	}
+
 	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
 
 	if err != nil {
