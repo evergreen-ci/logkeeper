@@ -511,11 +511,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	if len(r.FormValue("lobster")) > 0 {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
-		return
-	}
-
 	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
 
 	if err != nil {
@@ -542,6 +537,9 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		if emptyLog {
 			lk.render.WriteJSON(w, http.StatusOK, nil)
 		}
+	} else if len(r.FormValue("html")) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
+		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
