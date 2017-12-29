@@ -88,7 +88,7 @@ func (lk *logKeeper) getSession() (*mgo.Session, *mgo.Database) {
 
 type apiError struct {
 	Err     string `json:"err"`
-	MaxSize int    `json:"max_size_mb,omitempty"`
+	MaxSize int    `json:"max_size,omitempty"`
 	code    int
 }
 
