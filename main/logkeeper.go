@@ -11,6 +11,7 @@ import (
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/gorilla/context"
 	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/tylerb/graceful"
@@ -57,6 +58,9 @@ func main() {
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(context.ClearHandler(router))
 
-	grip.Noticeln("running logkeeper:", logkeeper.BuildRevision)
+	grip.Info(message.Fields{
+		"message":  "starting logkeeper",
+		"revision": logkeeper.BuildRevision,
+	})
 	graceful.Run(fmt.Sprintf(":%v", *httpPort), 10*time.Second, n)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/message"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -96,7 +97,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.RequestLogf(r, "content length limit exceeded for createBuild: %s", err.Err)
+		lk.logErrorf(r, "content length limit exceeded for createBuild: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -108,7 +109,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	}{}
 
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &buildParameters); err != nil {
-		lk.RequestLogf(r, "Bad request to createBuild: %s", err.Err)
+		lk.logErrorf(r, "Bad request to createBuild: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -118,7 +119,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	existingBuild, err := findBuildByBuilder(db, buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
-		lk.RequestLogf(r, "Error finding build by builder: %v", err)
+		lk.logErrorf(r, "Error finding build by builder: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -151,7 +152,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	err = db.C("builds").Insert(newBuild)
 
 	if err != nil {
-		lk.RequestLogf(r, "Error inserting build object: %v", err)
+		lk.logErrorf(r, "Error inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -166,7 +167,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.RequestLogf(r, "content length limit exceeded for createTest: %s", err.Err)
+		lk.logErrorf(r, "content length limit exceeded for createTest: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -180,9 +181,9 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	s1 := time.Now()
 	build, err := findBuildById(db, buildId)
 	s2 := time.Now()
-	lk.RequestLogf(r, "finding build with id %v took %v", buildId, s2.Sub(s1))
+	lk.logErrorf(r, "finding build with id %v took %v", buildId, s2.Sub(s1))
 	if err != nil {
-		lk.RequestLogf(r, "error finding build: %v", err)
+		lk.logErrorf(r, "error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -199,7 +200,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	}{}
 
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &testParams); err != nil {
-		lk.RequestLogf(r, "Bad request to createTest: %s", err.Err)
+		lk.logErrorf(r, "Bad request to createTest: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -223,12 +224,12 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	s2 = time.Now()
 
 	if err != nil {
-		lk.RequestLogf(r, "Error inserting test: %v", err)
+		lk.logErrorf(r, "Error inserting test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	lk.RequestLogf(r, "inserting test with id %v took %v", newTest.Id, s2.Sub(s1))
+	lk.logErrorf(r, "inserting test with id %v took %v", newTest.Id, s2.Sub(s1))
 
 	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
@@ -238,7 +239,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.RequestLogf(r, "content length limit exceeded for appendLog: %s", err.Err)
+		lk.logErrorf(r, "content length limit exceeded for appendLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -263,7 +264,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	var info [][]interface{}
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &info); err != nil {
-		lk.RequestLogf(r, "Bad request to appendLog: %s", err.Err)
+		lk.logErrorf(r, "Bad request to appendLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -300,7 +301,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	_, err = db.C("tests").With(ses).Find(bson.M{"_id": test.Id}).Apply(change, test)
 
 	if err != nil {
-		lk.RequestLogf(r, "Error updating tests: %v", err)
+		lk.logErrorf(r, "Error updating tests: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -315,7 +316,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		}
 		err = db.C("logs").With(ses).Insert(logEntry)
 		if err != nil {
-			lk.RequestLogf(r, "Error inserting logs entry: %v", err)
+			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}
@@ -329,7 +330,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.RequestLogf(r, "content length limit exceeded for appendGlobalLog: %s", err.Err)
+		lk.logErrorf(r, "content length limit exceeded for appendGlobalLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -342,7 +343,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	build, err := findBuildById(db, buildId)
 	if err != nil {
-		lk.RequestLogf(r, "Error finding builds entry: %v", err)
+		lk.logErrorf(r, "Error finding builds entry: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding builds in append global log:" + err.Error()})
 		return
 	}
@@ -353,7 +354,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	var info [][]interface{}
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &info); err != nil {
-		lk.RequestLogf(r, "Bad request to appendGlobalLog: %s", err.Err)
+		lk.logErrorf(r, "Bad request to appendGlobalLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -389,7 +390,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
 	_, err = db.C("builds").With(ses).Find(bson.M{"_id": build.Id}).Apply(change, build)
 	if err != nil {
-		lk.RequestLogf(r, "Error updating builds entry: %v", err)
+		lk.logErrorf(r, "Error updating builds entry: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -404,7 +405,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		}
 		err = db.C("logs").With(ses).Insert(logEntry)
 		if err != nil {
-			lk.RequestLogf(r, "Error inserting logs entry: %v", err)
+			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}
@@ -425,7 +426,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 
 	build, err := findBuildById(db, buildId)
 	if err != nil {
-		lk.RequestLogf(r, "Error finding build: %v", err)
+		lk.logErrorf(r, "Error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "failed to find build:" + err.Error()})
 		return
 	}
@@ -435,7 +436,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	}
 	tests, err := findTestsForBuild(db, buildId)
 	if err != nil {
-		lk.RequestLogf(r, "Error finding tests for build: %v", err)
+		lk.logErrorf(r, "Error finding tests for build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -483,7 +484,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			Info     map[string]interface{}
 		}{merged, stringifyId(build.Id), build.Builder, "", "All logs", build.Info}, "base", "test.html")
 		if err != nil {
-			lk.RequestLogf(r, "Error rendering template: %v", err)
+			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
 
 	}
@@ -514,7 +515,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
 
 	if err != nil {
-		lk.RequestLogf(r, "Error finding global logs during test: %v", err)
+		lk.logErrorf(r, "Error finding global logs during test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -552,7 +553,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
 		// instead
 		if err != nil {
-			lk.RequestLogf(r, "Error rendering template: %v", err)
+			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
 	}
 }
@@ -560,7 +561,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	err := lk.render.StreamHTML(w, http.StatusOK, nil, "base", "lobster/build/index.html")
 	if err != nil {
-		lk.RequestLogf(r, "Error rendering template: %v", err)
+		lk.logErrorf(r, "Error rendering template: %v", err)
 	}
 }
 
@@ -663,9 +664,12 @@ func emptyChannel() chan *LogLineItem {
 	return ch
 }
 
-func (lk *logKeeper) RequestLogf(r *http.Request, format string, v ...interface{}) {
-	base := fmt.Sprintf("[%d] %s", GetCtxRequestId(r), format)
-	grip.Errorf(base, v...)
+func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
+	err := fmt.Sprintf(format, v...)
+	grip.Error(message.Fields{
+		"requestID": GetCtxRequestId(r),
+		"error":     err,
+	})
 }
 
 func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
