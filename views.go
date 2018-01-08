@@ -474,6 +474,9 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return
+	} else if len(r.FormValue("html")) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildId), http.StatusFound)
+		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
