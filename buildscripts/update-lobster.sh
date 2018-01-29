@@ -25,7 +25,8 @@ git clone $LOBSTER_REPO $LOBSTER_DIR
 pushd $LOBSTER_DIR
 npm install
 npm run build
-popd && popd
+popd
+popd
 
 # replace existing js/css/html files in logkeeper with the updated ones
 rm -rf $LOGKEEPER_STATIC_DIR/$LOGKEEPER_JS_DIR
