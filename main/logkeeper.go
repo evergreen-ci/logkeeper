@@ -34,6 +34,8 @@ func main() {
 	grip.CatchEmergencyFatal(err)
 	defer sender.Close()
 
+	grip.CatchEmergencyFatal(grip.SetSender(sender))
+
 	dialInfo := mgo.DialInfo{
 		Addrs: strings.Split(*dbHost, ","),
 	}
