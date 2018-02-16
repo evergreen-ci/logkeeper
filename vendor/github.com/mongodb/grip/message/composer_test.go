@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"os"
 	"runtime"
-	"testing"
-
 	"strings"
+	"testing"
 
 	"github.com/mongodb/grip/level"
 	"github.com/stretchr/testify/assert"
@@ -28,6 +27,8 @@ func TestPopulatedMessageComposerConstructors(t *testing.T) {
 		NewErrorWrapMessage(level.Error, errors.New(testMsg), ""):              testMsg,
 		NewFormatted(string(testMsg[0])+"%s", testMsg[1:]):                     testMsg,
 		NewFormattedMessage(level.Error, string(testMsg[0])+"%s", testMsg[1:]): testMsg,
+		WrapError(errors.New(testMsg), ""):                                     testMsg,
+		WrapErrorf(errors.New(testMsg), ""):                                    testMsg,
 		NewLine(testMsg, ""):                                                   testMsg,
 		NewLineMessage(level.Error, testMsg, ""):                               testMsg,
 		NewLine(testMsg):                                                       testMsg,
@@ -41,6 +42,9 @@ func TestPopulatedMessageComposerConstructors(t *testing.T) {
 		MakeFieldsMessage(testMsg, Fields{}):                                   fmt.Sprintf("[message='%s']", testMsg),
 		MakeFields(Fields{"test": testMsg}):                                    fmt.Sprintf("[test='%s']", testMsg),
 		NewErrorWrappedComposer(errors.New("hello"), NewString("world")):       "world: hello",
+		When(true, testMsg):                                                    testMsg,
+		Whenf(true, testMsg):                                                   testMsg,
+		Whenln(true, testMsg):                                                  testMsg,
 	}
 
 	for msg, output := range cases {
@@ -56,8 +60,8 @@ func TestPopulatedMessageComposerConstructors(t *testing.T) {
 
 		} else {
 			// run the string test to make sure it doesn't change:
-			assert.Equal(msg.String(), output)
-			assert.Equal(msg.String(), output)
+			assert.Equal(msg.String(), output, "%T", msg)
+			assert.Equal(msg.String(), output, "%T", msg)
 		}
 
 		if msg.Priority() != level.Invalid {
@@ -84,16 +88,18 @@ func TestUnpopulatedMessageComposers(t *testing.T) {
 		&formatMessenger{},
 		NewFormatted(""),
 		NewFormattedMessage(level.Error, ""),
-		&stackMessage{},
 		NewStack(1, ""),
 		NewStackLines(1),
 		NewStackFormatted(1, ""),
 		MakeGroupComposer(),
 		&GroupComposer{},
+		When(false, ""),
+		Whenf(false, "", ""),
+		Whenln(false, "", ""),
 	}
 
-	for _, msg := range cases {
-		assert.False(msg.Loggable())
+	for idx, msg := range cases {
+		assert.False(msg.Loggable(), "%d:%T", idx, msg)
 	}
 }
 
@@ -116,7 +122,7 @@ func TestDataCollecterComposerConstructors(t *testing.T) {
 		assert.NotNil(msg.Raw())
 		assert.Implements((*Composer)(nil), msg)
 		assert.True(msg.Loggable())
-		assert.True(strings.HasPrefix(msg.String(), prefix), fmt.Sprintf("%T: %s", msg, msg))
+		assert.True(strings.HasPrefix(msg.String(), prefix), "%T: %s", msg, msg)
 	}
 
 	multiCases := [][]Composer{
@@ -192,7 +198,7 @@ func TestComposerConverter(t *testing.T) {
 	for _, msg := range cases {
 		comp := ConvertToComposer(level.Error, msg)
 		assert.True(comp.Loggable())
-		assert.Equal(testMsg, comp.String(), fmt.Sprintf("%T", msg))
+		assert.Equal(testMsg, comp.String(), "%T", msg)
 	}
 
 	cases = []interface{}{
@@ -208,7 +214,7 @@ func TestComposerConverter(t *testing.T) {
 	for _, msg := range cases {
 		comp := ConvertToComposer(level.Error, msg)
 		assert.False(comp.Loggable())
-		assert.Equal("", comp.String(), fmt.Sprintf("%T", msg))
+		assert.Equal("", comp.String(), "%T", msg)
 	}
 
 	outputCases := map[string]interface{}{
