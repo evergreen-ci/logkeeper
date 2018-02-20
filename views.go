@@ -457,7 +457,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	defer ses.Close()
 
 	build, err := findBuildById(db, buildId)
-	if err != nil && build == nil {
+	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view all logs: build not found"})
 		return
 	}
