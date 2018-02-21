@@ -13,7 +13,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Logger is a middleware handler that logs the request as it goes in and the response as it goes out.
+const remoteAddrHeaderName = "X-Cluster-Client-Ip"
+
+//  is a middleware handler that logs the request as it goes in and the response as it goes out.
 type Logger struct {
 	// ids is a channel producing unique, autoincrementing request ids that are included in logs.
 	ids chan int
@@ -37,6 +39,13 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	start := time.Now()
 	reqID := <-l.ids
 
+	SetCtxRequestId(reqID, r)
+
+	remote := r.Header.Get(remoteAddrHeaderName)
+	if remote == "" {
+		remote = r.RemoteAddr
+	}
+
 	defer func() {
 		if err := recover(); err != nil {
 			if rw.Header().Get("Content-Type") == "" {
@@ -51,6 +60,7 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 				"action":   "aborted",
 				"request":  reqID,
 				"duration": time.Since(start),
+				"remote":   remote,
 				"path":     r.URL.Path,
 				"span":     time.Since(start).String(),
 			})
@@ -64,12 +74,12 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	if res.Status() >= 400 {
 		grip.Warning(message.Fields{
 			"method":   r.Method,
-			"remote":   r.RemoteAddr,
 			"request":  reqID,
 			"path":     r.URL.Path,
 			"duration": time.Since(start),
 			"action":   "completed",
 			"status":   res.Status(),
+			"remote":   remote,
 			"outcome":  http.StatusText(res.Status()),
 			"span":     time.Since(start).String(),
 		})
