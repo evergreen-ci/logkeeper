@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -9,7 +10,7 @@ import (
 
 	"github.com/codegangsta/negroni"
 	"github.com/evergreen-ci/logkeeper"
-	"github.com/gorilla/context"
+	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
@@ -29,6 +30,9 @@ func main() {
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
 	flag.Parse()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	sender, err := logkeeper.GetSender(*logPath)
 	grip.CatchEmergencyFatal(err)
@@ -55,14 +59,17 @@ func main() {
 
 	router := lk.NewRouter()
 	n := negroni.New()
-	n.Use(logkeeper.NewLogger())
+	n.Use(logkeeper.NewLogger())                 // includes recovery and logging
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
-	n.UseHandler(context.ClearHandler(router))
+	n.UseHandler(gorillaCtx.ClearHandler(router))
 
 	grip.Info(message.Fields{
 		"message":  "starting logkeeper",
 		"revision": logkeeper.BuildRevision,
 	})
+
+	logkeeper.StartBackgroundLogging(ctx)
+
 	graceful.Run(fmt.Sprintf(":%v", *httpPort), 10*time.Second, n)
 }
