@@ -9,15 +9,19 @@ import (
 )
 
 func StartBackgroundLogging(ctx context.Context) {
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			grip.Info(message.CollectSystemInfo())
-			grip.Info(message.CollectGoStats())
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		grip.Debug("starting stats collector")
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				grip.Info(message.CollectSystemInfo())
+				grip.Info(message.CollectGoStats())
+			}
 		}
-	}
+	}()
 }
