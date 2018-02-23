@@ -38,8 +38,7 @@ func NewLogger() *Logger {
 func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
 	reqID := <-l.ids
-
-	SetCtxRequestId(reqID, r)
+	r = SetCtxRequestId(reqID, r)
 
 	remote := r.Header.Get(remoteAddrHeaderName)
 	if remote == "" {

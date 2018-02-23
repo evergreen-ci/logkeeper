@@ -1,7 +1,6 @@
 package: github.com/evergreen-ci/evergreen
 import:
   - package: github.com/evergreen-ci/render
-  - package: github.com/gorilla/context
   - package: github.com/gorilla/mux
   - package: github.com/codegangsta/negroni
   - package: github.com/evergreen-ci/render
