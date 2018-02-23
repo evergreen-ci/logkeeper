@@ -1,13 +1,12 @@
 package logkeeper
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-
-	"github.com/gorilla/context"
 )
 
 var ErrReadSizeLimitExceeded = errors.New("read size limit exceeded")
@@ -75,18 +74,18 @@ func (lk *logKeeper) checkContentLength(r *http.Request) *apiError {
 
 type ctxKey int
 
-const (
-	requestCtxKey ctxKey = iota
-)
+const requestCtxKey ctxKey = iota
 
-func SetCtxRequestId(reqId int, req *http.Request) {
-	context.Set(req, requestCtxKey, reqId)
+func SetCtxRequestId(reqID int, r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), requestCtxKey, reqID))
 }
 
-func GetCtxRequestId(req *http.Request) int {
-	val, ok := context.GetOk(req, requestCtxKey)
-	if !ok {
-		return 0
+func GetCtxRequestId(r *http.Request) int {
+	if val := r.Context().Value(requestCtxKey); val != nil {
+		if id, ok := val.(int); ok {
+			return id
+		}
 	}
-	return val.(int)
+
+	return 0
 }
