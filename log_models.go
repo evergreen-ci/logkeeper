@@ -5,6 +5,8 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/message"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -51,7 +53,14 @@ type Log struct {
 func NewLogLine(data []interface{}) *LogLine {
 	// timeField is generated client-side as the output of python's time.time(), which returns
 	// seconds since epoch as a floating point number
-	timeField := data[0].(float64)
+	timeField, ok := data[0].(float64)
+	if !ok {
+		grip.Critical(message.Fields{
+			"message": "unable to convert time field",
+			"value":   data[0],
+		})
+		timeField = float64(time.Now().Unix())
+	}
 
 	// extract fractional seconds from the total time and convert to nanoseconds
 	fractionalPart := timeField - math.Floor(timeField)
