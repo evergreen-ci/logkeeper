@@ -2,7 +2,7 @@ hash: 9c2e7db2961d9a1f03f1125ed4452400c9613d0c4245b64613fb2cd43b7bb1c0
 updated: 2016-12-14T12:20:00.432410436-05:00
 imports:
 - name: github.com/evergreen-ci/render
-  version: efb1df5f8dc1036d747e92e7b875ebb7557f0173
+  version: 3c404f59c89e3280ae2502e2afe6c1e3f2e3c3e1
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: gopkg.in/mgo.v2
