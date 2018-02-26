@@ -178,10 +178,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	ses, db := lk.getSession()
 	defer ses.Close()
 
-	s1 := time.Now()
 	build, err := findBuildById(db, buildId)
-	s2 := time.Now()
-	lk.logErrorf(r, "finding build with id %v took %v", buildId, s2.Sub(s1))
 	if err != nil {
 		lk.logErrorf(r, "error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -219,9 +216,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Info:      testInfo,
 	}
 
-	s1 = time.Now()
 	err = db.C("tests").Insert(newTest)
-	s2 = time.Now()
 
 	if err != nil {
 		lk.logErrorf(r, "Error inserting test: %v", err)
