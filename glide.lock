@@ -29,5 +29,7 @@ imports:
   version: ffba6116c87ed19483c0bba0cb127aa5a9cdc81e
 - name: github.com/pkg/errors
   version: ff09b135c25aae272398c51a07235b90a75aa4f0
+- name: github.com/stretchr/testify
+  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
 
 devImports: []
