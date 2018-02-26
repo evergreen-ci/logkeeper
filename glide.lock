@@ -3,6 +3,8 @@ updated: 2016-12-14T12:20:00.432410436-05:00
 imports:
 - name: github.com/evergreen-ci/render
   version: efb1df5f8dc1036d747e92e7b875ebb7557f0173
+- name: github.com/gorilla/context
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: gopkg.in/mgo.v2
   version: 22287bab4379e1fbf6002fb4eb769888f3fb224c
 - name: github.com/smartystreets/goconvey
