@@ -663,8 +663,8 @@ func emptyChannel() chan *LogLineItem {
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
 	err := fmt.Sprintf(format, v...)
 	grip.Error(message.Fields{
-		"requestID": GetCtxRequestId(r),
-		"error":     err,
+		"request": GetCtxRequestId(r),
+		"error":   err,
 	})
 }
 
