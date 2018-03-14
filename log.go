@@ -35,6 +35,14 @@ func NewLogger() *Logger {
 	return &Logger{ids}
 }
 
+func getLevel(l int) level.Priority {
+	if l == 200 {
+		return level.Info
+	}
+
+	return level.Warning
+}
+
 func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
 	reqID := <-l.ids
@@ -70,13 +78,15 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 
 	res := rw.(negroni.ResponseWriter)
 
-	grip.Info(message.Fields{
+	code := res.Status()
+
+	grip.Log(getLevel(code), message.Fields{
 		"method":   r.Method,
 		"request":  reqID,
 		"path":     r.URL.Path,
 		"duration": time.Since(start),
 		"action":   "completed",
-		"status":   res.Status(),
+		"status":   code,
 		"remote":   remote,
 		"outcome":  http.StatusText(res.Status()),
 		"span":     time.Since(start).String(),
