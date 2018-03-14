@@ -59,9 +59,9 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 				"action":   "aborted",
 				"request":  reqID,
 				"duration": time.Since(start),
+				"span":     time.Since(start).String(),
 				"remote":   remote,
 				"path":     r.URL.Path,
-				"span":     time.Since(start).String(),
 			})
 		}
 	}()
@@ -70,19 +70,17 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 
 	res := rw.(negroni.ResponseWriter)
 
-	if res.Status() != 200 {
-		grip.Info(message.Fields{
-			"method":   r.Method,
-			"request":  reqID,
-			"path":     r.URL.Path,
-			"duration": time.Since(start),
-			"action":   "completed",
-			"status":   res.Status(),
-			"remote":   remote,
-			"outcome":  http.StatusText(res.Status()),
-			"span":     time.Since(start).String(),
-		})
-	}
+	grip.Info(message.Fields{
+		"method":   r.Method,
+		"request":  reqID,
+		"path":     r.URL.Path,
+		"duration": time.Since(start),
+		"action":   "completed",
+		"status":   res.Status(),
+		"remote":   remote,
+		"outcome":  http.StatusText(res.Status()),
+		"span":     time.Since(start).String(),
+	})
 }
 
 func GetSender(fn string) (send.Sender, error) {
