@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
+
+	"github.com/urfave/negroni"
 )
 
 const (
@@ -76,6 +79,27 @@ func Test_ServeHTTP_CompressionWithNoGzipHeader(t *testing.T) {
 	}
 }
 
+func Test_ServeHTTP_CompressionWithPrecompressedResponse(t *testing.T) {
+	gzipHandler := Gzip(DefaultCompression)
+	w := httptest.NewRecorder()
+
+	req, err := http.NewRequest("GET", "http://localhost/foobar", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set(headerAcceptEncoding, encodingGzip)
+
+	gzipHandler.ServeHTTP(w, req, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(headerContentEncoding, "deflate")
+		testHTTPContent(w, r)
+	})
+
+	if w.Body.String() != gzipTestString {
+		t.Fail()
+	}
+}
+
 func Test_ServeHTTP_InvalidCompressionLevel(t *testing.T) {
 	gzipHandler := Gzip(gzipInvalidCompressionLevel)
 	w := httptest.NewRecorder()
@@ -86,11 +110,21 @@ func Test_ServeHTTP_InvalidCompressionLevel(t *testing.T) {
 	}
 	req.Header.Set(headerAcceptEncoding, encodingGzip)
 
+	stop := make(chan struct{})
+	defer func() {
+		if r := recover(); r != nil {
+			close(stop)
+		}
+	}()
+
 	gzipHandler.ServeHTTP(w, req, testHTTPContent)
 
-	if w.Body.String() != gzipTestString {
+	select {
+	case <-stop:
+	case <-time.After(50 * time.Millisecond):
 		t.Fail()
 	}
+
 }
 
 func Test_ServeHTTP_WebSocketConnection(t *testing.T) {
@@ -109,4 +143,55 @@ func Test_ServeHTTP_WebSocketConnection(t *testing.T) {
 	if w.Body.String() != gzipTestString {
 		t.Fail()
 	}
+}
+
+func Test_ServeHTTP_CloseNotifier(t *testing.T) {
+	ok := false
+
+	n := negroni.New()
+	n.Use(Gzip(DefaultCompression))
+	n.UseHandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		_ = rw.(*gzipResponseWriterCloseNotifier)
+		_ = rw.(http.CloseNotifier)
+		ok = true
+	})
+
+	s := httptest.NewServer(n)
+
+	defer s.Close()
+
+	req, err := http.NewRequest("GET", s.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set(headerAcceptEncoding, encodingGzip)
+
+	if _, err := http.DefaultClient.Do(req); err != nil {
+		t.Fatal(err)
+	}
+
+	if !ok {
+		t.Fail()
+	}
+}
+
+func Benchmark_ServeHTTP(b *testing.B) {
+
+	b.StopTimer()
+	b.ReportAllocs()
+
+	gzipHandler := Gzip(DefaultCompression)
+	req, err := http.NewRequest("GET", "http://localhost/foobar", nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	req.Header.Set(headerAcceptEncoding, encodingGzip)
+
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		w := httptest.NewRecorder()
+		gzipHandler.ServeHTTP(w, req, testHTTPContent)
+	}
+
 }

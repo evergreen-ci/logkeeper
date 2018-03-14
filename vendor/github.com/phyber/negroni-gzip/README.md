@@ -1,10 +1,11 @@
 # gzip
 
-Gzip middleware for [Negroni](https://github.com/codegangsta/negroni).
+Gzip middleware for [Negroni](https://github.com/urfave/negroni).
 
 Mostly a copy of the Martini gzip module with small changes to make it function
 under Negroni. Support for setting the compression level has also been added
-and tests have been written. Test coverage is 100% according to 'git cover'.
+and tests have been written. Test coverage is 100% according to `go cover`.
+
 
 ## Usage
 
@@ -15,7 +16,7 @@ import (
     "fmt"
     "net/http"
 
-    "github.com/codegangsta/negroni"
+    "github.com/urfave/negroni"
     "github.com/phyber/negroni-gzip/gzip"
 )
 
@@ -35,7 +36,31 @@ func main() {
 Make sure to include the Gzip middleware above any other middleware that alter
 the response body.
 
+## Tips
+
+As noted above, any middleware that alters response body will need to be below
+the Gzip middleware. If you wish to gzip static files served by the default
+negroni Static middleware you will need to include `negroni.Static()` after
+`gzip.Gzip()`.
+
+~~~go
+    n := negroni.New()
+    n.Use(negroni.NewRecovery())
+    n.Use(negroni.NewLogger())
+    n.Use(gzip.Gzip(gzip.DefaultCompression))
+    n.Use(negroni.NewStatic(http.Dir("public")))
+~~~
+
+## Warning
+
+Compressing TLS traffic may leak the page contents to an attacker if the page
+contains user input. See the [BREACH](https://en.wikipedia.org/wiki/BREACH)
+article on Wikipedia for more information.
+
 ## Authors
 * [Jeremy Saenz](http://github.com/codegangsta)
 * [Shane Logsdon](http://github.com/slogsdon)
 * [David O'Rourke](https://github.com/phyber)
+* [Tyler Bunnell](https://github.com/tylerb)
+
+And many others. Check the commit log for a complete list.
