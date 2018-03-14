@@ -1,16 +1,11 @@
 package: github.com/evergreen-ci/evergreen
 import:
   - package: github.com/evergreen-ci/render
-  - package: github.com/gorilla/mux
-  - package: github.com/codegangsta/negroni
-  - package: github.com/evergreen-ci/render
+  - package: github.com/urfave/negroni
   - package: github.com/gorilla/mux
   - package: github.com/phyber/negroni-gzip
-  - package: github.com/tylerb/graceful
-  - package: github.com/urfave/negroni
   - package: gopkg.in/mgo.v2
   - package: github.com/smartystreets/goconvey
-  - package: github.com/jessevdk/go-flags
   - package: golang.org/x/net
   - package: github.com/jacobsa/oglematchers
   - package: github.com/mongodb/grip

@@ -16,9 +16,7 @@ imports:
 - name: github.com/gorilla/mux
   version: 0ef595e787efa95d68151570ead5c85dc2e05f91
 - name: github.com/phyber/negroni-gzip
-  version: 48f82605778a579cb8172122897f589e4023b537
-- name: github.com/tylerb/graceful
-  version: e6d063d837d9bc2313d0be35bfcdb60d63ce9e45
+  version: ef6356a5d02936b65ca8e60b604ed6b078aac8d3
 - name: golang.org/x/net
   version: 7dbad50ab5b31073856416cdcfeb2796d682f844
 - name: github.com/jacobsa/oglematchers

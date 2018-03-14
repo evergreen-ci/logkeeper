@@ -5,12 +5,12 @@ import (
 	"os"
 	"time"
 
-	"github.com/codegangsta/negroni"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/level"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/send"
 	"github.com/pkg/errors"
+	"github.com/urfave/negroni"
 )
 
 const remoteAddrHeaderName = "X-Cluster-Client-Ip"
