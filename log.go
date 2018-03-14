@@ -36,7 +36,7 @@ func NewLogger() *Logger {
 }
 
 func getLevel(l int) level.Priority {
-	if l == 200 {
+	if l == http.StatusOK {
 		return level.Info
 	}
 
@@ -88,7 +88,7 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 		"action":   "completed",
 		"status":   code,
 		"remote":   remote,
-		"outcome":  http.StatusText(res.Status()),
+		"outcome":  http.StatusText(code),
 		"span":     time.Since(start).String(),
 	})
 }
