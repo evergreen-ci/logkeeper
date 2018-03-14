@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/codegangsta/negroni"
 	"github.com/evergreen-ci/logkeeper"
 	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/phyber/negroni-gzip/gzip"
+	"github.com/urfave/negroni"
 	"gopkg.in/mgo.v2"
 )
 

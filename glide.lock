@@ -9,10 +9,8 @@ imports:
   version: 22287bab4379e1fbf6002fb4eb769888f3fb224c
 - name: github.com/smartystreets/goconvey
   version: 75bc4a2dad71e5c5b51c5009b33eba766ec57051
-- name: github.com/jessevdk/go-flags
-  version: c144b8803670469bffe9b9c6bb09c622ead4d900
-- name: github.com/codegangsta/negroni
-  version: b70baf29f4791cc9f7aa5b5b18a64f152810880f
+- name: github.com/urfave/negroni
+  version: c262547a5086067ebe455c81db5cc52eb298ac3c
 - name: github.com/evergreen-ci/render
   version: c9e0e54c798fc15217c09d382e207644402bf004
 - name: github.com/gorilla/mux
