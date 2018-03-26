@@ -9,6 +9,7 @@ variables:
     name: test
     commands:
       - command: git.get_project
+        type: system
         params:
           directory: gopath/src/github.com/evergreen-ci/logkeeper
       - func: run-make
@@ -19,6 +20,7 @@ variables:
     name: test
     commands:
       - command: git.get_project
+        type: system
         params:
           directory: gopath/src/github.com/evergreen-ci/logkeeper
       - func: set-up-mongodb
@@ -49,6 +51,7 @@ functions:
          ${build_env} make ${make_args|} vendor ${target}
   set-up-mongodb:
     - command: shell.exec
+      type: setup
       params:
         script: |
           set -o errexit
@@ -67,6 +70,7 @@ functions:
           mkdir db_files
           mkdir db_logs
     - command: shell.exec
+      type: setup
       params:
         background: true
         script: |
@@ -78,6 +82,7 @@ functions:
           ./mongod${extension|} --dbpath ./db_files &
           echo "waiting for mongod to start up"
     - command: shell.exec
+      type: setup
       params:
         script: |
           set -o errexit
@@ -93,11 +98,13 @@ tasks:
     tags: ["dist"]
     commands:
       - command: git.get_project
+        type: system
         params:
           directory: gopath/src/github.com/evergreen-ci/logkeeper
       - func: run-make
         vars: { target: "dist" }
       - command: s3.put
+        type: system
         params:
           aws_key: ${aws_key}
           aws_secret: ${aws_secret}
@@ -111,6 +118,7 @@ tasks:
     tags: [ "report" ]
     commands:
       - command: git.get_project
+        type: system
         params:
           directory: gopath/src/github.com/evergreen-ci/logkeeper
       - func: set-up-mongodb
@@ -119,6 +127,7 @@ tasks:
           target: "coverage-html"
           make_args: "-k"
       - command: s3.put
+        type: system
         params:
           aws_key: ${aws_key}
           aws_secret: ${aws_secret}
@@ -129,6 +138,7 @@ tasks:
           permissions: public-read
           display_name: "(html) coverage:"
       - command: s3.put
+        type: system
         params:
           aws_key: ${aws_key}
           aws_secret: ${aws_secret}
@@ -150,6 +160,7 @@ tasks:
 
 post:
   - command: gotest.parse_files
+    type: setup
     params:
       files:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
@@ -162,7 +173,6 @@ buildvariants:
       mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
     run_on:
       - rhel70-small
-      - rhel70
     tasks:
       - ".dist"
       - ".test"
@@ -173,7 +183,6 @@ buildvariants:
       mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
     run_on:
       - archlinux-test
-      - archlinux-build
     tasks:
       - ".race"
       - ".report"
