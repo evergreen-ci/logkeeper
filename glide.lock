@@ -10,7 +10,7 @@ imports:
 - name: github.com/smartystreets/goconvey
   version: 75bc4a2dad71e5c5b51c5009b33eba766ec57051
 - name: github.com/urfave/negroni
-  version: c262547a5086067ebe455c81db5cc52eb298ac3c
+  version: 22c5532ea862c34fdad414e90f8cc00b4f6f4cab
 - name: github.com/evergreen-ci/render
   version: c9e0e54c798fc15217c09d382e207644402bf004
 - name: github.com/gorilla/mux
