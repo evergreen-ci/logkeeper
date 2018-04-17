@@ -16,7 +16,6 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
-	"github.com/phyber/negroni-gzip/gzip"
 	"github.com/urfave/negroni"
 	"gopkg.in/mgo.v2"
 )
@@ -66,13 +65,12 @@ func main() {
 	n := negroni.New()
 	n.Use(logkeeper.NewLogger())                 // includes recovery and logging
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
-	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(gorillaCtx.ClearHandler(router))
 
 	serviceWait := make(chan struct{})
 	service := getService(fmt.Sprintf(":%v", *httpPort), n)
 	go func() {
-		defer recovery.LogStackTraceAndContinue("lk service")
+		defer recovery.LogStackTraceAndContinue("logkeeper service")
 		catcher.Add(service.ListenAndServe())
 		close(serviceWait)
 	}()
@@ -99,7 +97,7 @@ func main() {
 
 func getService(addr string, n http.Handler) *http.Server {
 	grip.Info(message.Fields{
-		"message":  "starting logkeeper",
+		"message":  "starting service",
 		"revision": logkeeper.BuildRevision,
 		"addr":     addr,
 	})
