@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -67,32 +69,45 @@ func main() {
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
 	n.UseHandler(gorillaCtx.ClearHandler(router))
 
-	serviceWait := make(chan struct{})
-	service := getService(fmt.Sprintf(":%v", *httpPort), n)
+	serviceWait := &sync.WaitGroup{}
+	lkService := getService(fmt.Sprintf(":%v", *httpPort), n)
+	serviceWait.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("logkeeper service")
-		catcher.Add(service.ListenAndServe())
-		close(serviceWait)
+		defer serviceWait.Done()
+		catcher.Add(listenServeAndHandleErrs(lkService))
 	}()
 
-	pprofWait := make(chan struct{})
 	pprofService := getService("127.0.0.1:2285", logkeeper.GetHandlerPprof())
+	serviceWait.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("pprof service")
-		catcher.Add(pprofService.ListenAndServe())
-		close(pprofWait)
+		defer serviceWait.Done()
+		catcher.Add(listenServeAndHandleErrs(pprofService))
 	}()
 
-	gracefulWait := make(chan struct{})
-	go gracefulShutdownForSIGTERM(ctx, []*http.Server{service, pprofService}, gracefulWait, catcher)
+	gracefulWait := &sync.WaitGroup{}
+	gracefulWait.Add(1)
+	go gracefulShutdownForSIGTERM(ctx, []*http.Server{lkService, pprofService}, gracefulWait, catcher)
 
-	<-serviceWait
-	<-pprofWait
+	serviceWait.Wait()
 
 	grip.Notice("waiting for web services to terminate gracefully")
-	<-gracefulWait
+	gracefulWait.Wait()
 
 	grip.CatchEmergencyFatal(catcher.Resolve())
+}
+
+func listenServeAndHandleErrs(s *http.Server) error {
+	if s == nil {
+		return errors.New("no server defined")
+	}
+	err := s.ListenAndServe()
+	if err == http.ErrServerClosed {
+		grip.Noticef("server '%s' closed, no longer serving HTTP requests", s.Addr)
+		return nil
+	}
+	return err
 }
 
 func getService(addr string, n http.Handler) *http.Server {
@@ -112,37 +127,25 @@ func getService(addr string, n http.Handler) *http.Server {
 
 }
 
-func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, wait chan struct{}, catcher grip.Catcher) {
+func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gracefulWait *sync.WaitGroup, catcher grip.Catcher) {
 	defer recovery.LogStackTraceAndContinue("graceful shutdown")
+	defer gracefulWait.Done()
 	sigChan := make(chan os.Signal, len(servers))
-	signal.Notify(sigChan, syscall.SIGTERM)
-
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
-	waiters := make([]chan struct{}, 0)
 
 	grip.Info("received SIGTERM, terminating web service")
+	wg := sync.WaitGroup{}
 	for _, s := range servers {
 		if s == nil {
 			continue
 		}
-
-		waiter := make(chan struct{})
+		wg.Add(1)
 		go func(server *http.Server) {
 			defer recovery.LogStackTraceAndContinue("server shutdown")
-
+			defer wg.Done()
 			catcher.Add(server.Shutdown(ctx))
-			close(waiter)
 		}(s)
-		waiters = append(waiters, waiter)
 	}
-
-	for _, waiter := range waiters {
-		if waiter == nil {
-			continue
-		}
-
-		<-waiter
-	}
-
-	close(wait)
+	wg.Wait()
 }
