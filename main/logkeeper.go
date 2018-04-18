@@ -71,7 +71,7 @@ func main() {
 	n.Use(gzip.Gzip(gzip.DefaultCompression))
 	n.UseHandler(gorillaCtx.ClearHandler(router))
 
-	serviceWait := sync.WaitGroup{}
+	serviceWait := &sync.WaitGroup{}
 	lkService := getService(fmt.Sprintf(":%v", *httpPort), n)
 	serviceWait.Add(1)
 	go func() {
