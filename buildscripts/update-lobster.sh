@@ -9,7 +9,7 @@ set -o xtrace
 SCRIPTS_DIR=buildscripts
 LOBSTER_REPO=https://github.com/evergreen-ci/lobster.git
 LOBSTER_DIR=.lobster-temp
-LOBSTER_ASSETS_DIR=build/lobster
+LOBSTER_ASSETS_DIR=build
 LOBSTER_STATIC_DIR=static
 LOBSTER_HTML=index.html
 LOGKEEPER_STATIC_DIR=public/static
@@ -18,21 +18,30 @@ LOGKEEPER_CSS_DIR=css
 LOGKEEPER_TEMPLATES_DIR=templates/lobster/build
 
 # clone lobster repo
-pushd $SCRIPTS_DIR
-rm -rf $LOBSTER_DIR
-git clone $LOBSTER_REPO $LOBSTER_DIR
-# build lobster
-pushd $LOBSTER_DIR
-npm install
-npm run build
-popd
-popd
+if [ "$1" = "update" ] && [ "$2" != "" ]; then
+    echo "Using local directory at: $2"
+    LOBSTER_DIR="$2"
+    pushd "$2"
+    npm run build
+    popd
+else
+    pushd $SCRIPTS_DIR
+    rm -rf $LOBSTER_DIR
+    git clone $LOBSTER_REPO $LOBSTER_DIR
+    # build lobster
+    pushd $LOBSTER_DIR
+    npm install
+    npm run build
+    popd
+    popd
+    LOBSTER_DIR="$SCRIPTS_DIR/$LOBSTER_DIR"
+fi
 
 # replace existing js/css/html files in logkeeper with the updated ones
 rm -rf $LOGKEEPER_STATIC_DIR/$LOGKEEPER_JS_DIR
 rm -rf $LOGKEEPER_STATIC_DIR/$LOGKEEPER_CSS_DIR
-cp -R $SCRIPTS_DIR/$LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_STATIC_DIR/ $LOGKEEPER_STATIC_DIR/
-cp $SCRIPTS_DIR/$LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_HTML $LOGKEEPER_TEMPLATES_DIR/
+cp -R $LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_STATIC_DIR/ $LOGKEEPER_STATIC_DIR/
+cp $LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_HTML $LOGKEEPER_TEMPLATES_DIR/
 
 # surround the html with go template tags
 pushd $LOGKEEPER_TEMPLATES_DIR
@@ -40,6 +49,8 @@ echo -e "{{define \"base\"}}\n$(cat index.html)" > index.html
 echo "{{end}}" >> index.html
 popd
 
-# clean up temporary lobster directory
-rm -rf $SCRIPTS_DIR/$LOBSTER_DIR/
+if [ "$1" != "update" ]; then
+    # clean up temporary lobster directory
+    rm -rf $LOBSTER_DIR/
+fi
 echo "finished updating lobster"
