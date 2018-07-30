@@ -16,7 +16,10 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const maxLogChars int = 4 * 1024 * 1024 // 4 MB
+const (
+	maxLogChars          = 4 * 1024 * 1024 // 4 MB
+	defaultSocketTimeout = 90 * time.Second
+)
 
 type Options struct {
 	// Name of DB in mongod to use for reading/writing log data
@@ -55,7 +58,8 @@ func New(session *mgo.Session, opts Options) *logKeeper {
 	if session == nil {
 		panic("session must not be nil")
 	}
-	session.SetSocketTimeout(0)
+
+	session.SetSocketTimeout(defaultSocketTimeout)
 
 	render := render.New(render.Options{
 		Directory: "templates",
