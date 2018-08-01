@@ -17,7 +17,6 @@ LOGKEEPER_JS_DIR=js
 LOGKEEPER_CSS_DIR=css
 LOGKEEPER_TEMPLATES_DIR=templates/lobster/build
 
-# clone lobster repo
 if [ "$1" = "update" ] && [ "$2" != "" ]; then
     echo "Using local directory at: $2"
     LOBSTER_DIR="$2"
@@ -25,11 +24,15 @@ if [ "$1" = "update" ] && [ "$2" != "" ]; then
     npm run build
     popd
 else
+    # clone lobster repo
     pushd $SCRIPTS_DIR
     rm -rf $LOBSTER_DIR
     git clone $LOBSTER_REPO $LOBSTER_DIR
     # build lobster
     pushd $LOBSTER_DIR
+    if [ "$1" != "" ] && [ "$2" == "" ]; then
+        git checkout $1
+    fi
     npm install
     npm run build
     popd
@@ -42,13 +45,6 @@ rm -rf $LOGKEEPER_STATIC_DIR/$LOGKEEPER_JS_DIR
 rm -rf $LOGKEEPER_STATIC_DIR/$LOGKEEPER_CSS_DIR
 cp -R $LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_STATIC_DIR/ $LOGKEEPER_STATIC_DIR/
 cp $LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_HTML $LOGKEEPER_TEMPLATES_DIR/
-rm -rf public/static/favicon.ico
-
-# surround the html with go template tags
-pushd $LOGKEEPER_TEMPLATES_DIR
-echo -e "{{define \"base\"}}\n$(cat index.html)" > index.html
-echo "{{end}}" >> index.html
-popd
 
 if [ "$1" != "update" ]; then
     # clean up temporary lobster directory
