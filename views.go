@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/render"
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 )
 
 const (

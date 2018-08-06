@@ -5,8 +5,6 @@ imports:
   version: 3c404f59c89e3280ae2502e2afe6c1e3f2e3c3e1
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
-- name: gopkg.in/mgo.v2
-  version: 22287bab4379e1fbf6002fb4eb769888f3fb224c
 - name: github.com/smartystreets/goconvey
   version: 75bc4a2dad71e5c5b51c5009b33eba766ec57051
 - name: github.com/urfave/negroni
@@ -27,5 +25,7 @@ imports:
   version: ff09b135c25aae272398c51a07235b90a75aa4f0
 - name: github.com/stretchr/testify
   version: 890a5c3458b43e6104ff5da8dfa139d013d77544
+- name: github.com/globalsign/mgo
+  version: 113d3961e7311526535a1ef7042196563d442761
 
 devImports: []

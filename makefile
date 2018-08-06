@@ -162,7 +162,13 @@ vendor-clean:
 	rm -rf vendor/github.com/mongodb/grip/vendor/golang.org/x/net
 	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/davecgh/go-spew/
 	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/stretchr/testify
-
+	rm -rf vendor/github.com/globalsign/mgo/harness/
+	rm -rf vendor/github.com/globalsign/mgo/testdb/
+	rm -rf vendor/github.com/globalsign/mgo/testserver/
+	rm -rf vendor/github.com/globalsign/mgo/internal/json/testdata
+	rm -rf vendor/github.com/globalsign/mgo/.git/
+	rm -rf vendor/github.com/globalsign/mgo/txn/
+	find vendor/ -name "*.gif" -o -name "*.jpg" -o -name "*.gz" -o -name "*.png" -o -name "*.ico" | xargs rm -rf
 $(buildDir)/vendor/src:$(buildDir)/make-vendor $(buildDir)/render-gopath
 	@./$(buildDir)/make-vendor
 #   targets to build the small programs used to support vendoring.

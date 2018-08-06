@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
+	"github.com/globalsign/mgo"
 	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/urfave/negroni"
-	"gopkg.in/mgo.v2"
 )
 
 func main() {

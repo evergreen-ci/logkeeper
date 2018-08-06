@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/globalsign/mgo"
+	"github.com/globalsign/mgo/bson"
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
 )
 
 func resetDatabase(db *mgo.Database) {

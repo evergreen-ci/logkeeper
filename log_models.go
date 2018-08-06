@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/globalsign/mgo/bson"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"gopkg.in/mgo.v2/bson"
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
