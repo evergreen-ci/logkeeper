@@ -46,6 +46,12 @@ rm -rf $LOGKEEPER_STATIC_DIR/$LOGKEEPER_CSS_DIR
 cp -R $LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_STATIC_DIR/ $LOGKEEPER_STATIC_DIR/
 cp $LOBSTER_DIR/$LOBSTER_ASSETS_DIR/$LOBSTER_HTML $LOGKEEPER_TEMPLATES_DIR/
 
+# surround the html with go template tags
+pushd $LOGKEEPER_TEMPLATES_DIR
+echo -e "{{define \"base\"}}\n$(cat index.html)" > index.html
+echo "{{end}}" >> index.html
+popd
+
 if [ "$1" != "update" ]; then
     # clean up temporary lobster directory
     rm -rf $LOBSTER_DIR/
