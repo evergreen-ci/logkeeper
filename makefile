@@ -57,11 +57,11 @@ coverageHtmlOutput := $(foreach target,$(packages),$(buildDir)/output.$(target).
 $(gopath)/src/%:
 	@-[ ! -d $(gopath) ] && mkdir -p $(gopath) || true
 	go get $(subst $(gopath)/src/,,$@)
+$(buildDir)/.lintSetup:$(lintdeps)
+	@mkdir -p $(buildDir)
+	@-$(gopath)/bin/gometalinter --install >/dev/null && touch $@
 $(buildDir)/run-linter:buildscripts/run-linter.go $(buildDir)/.lintSetup
 	$(vendorGopath) go build -o $@ $<
-$(builddir)/.lintsetup:$(lintdeps) $(builddir)
-	@mkdir -p $(builddir)
-	@-$(gopath)/bin/gometalinter --install >/dev/null && touch $@
 # end dependency installation tools
 
 
