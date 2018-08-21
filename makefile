@@ -16,7 +16,7 @@ lintDeps := github.com/alecthomas/gometalinter
 lintArgs := --tests --deadline=1m --vendor
 #   gotype produces false positives because it reads .a files which
 #   are rarely up to date.
-lintArgs += --disable="gotype" --disable="gas" --disable="gocyclo"
+lintArgs += --disable="gotype" --disable="gosec" --disable="gocyclo"
 lintArgs += --disable="aligncheck" --disable="golint" --disable="goconst"
 lintArgs += --skip="$(buildDir)" --skip="buildscripts"
 #  add and configure additional linters
@@ -57,11 +57,11 @@ coverageHtmlOutput := $(foreach target,$(packages),$(buildDir)/output.$(target).
 $(gopath)/src/%:
 	@-[ ! -d $(gopath) ] && mkdir -p $(gopath) || true
 	go get $(subst $(gopath)/src/,,$@)
+$(buildDir)/.lintSetup:$(lintDeps)
+	@mkdir -p $(buildDir)
+	@-$(gopath)/bin/gometalinter --install >/dev/null && touch $@
 $(buildDir)/run-linter:buildscripts/run-linter.go $(buildDir)/.lintSetup
 	$(vendorGopath) go build -o $@ $<
-$(builddir)/.lintsetup:$(lintdeps) $(builddir)
-	@mkdir -p $(builddir)
-	@-$(gopath)/bin/gometalinter --install >/dev/null && touch $@
 # end dependency installation tools
 
 
