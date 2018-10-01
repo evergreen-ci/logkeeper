@@ -10,3 +10,4 @@ import:
   - package: github.com/jacobsa/oglematchers
   - package: github.com/mongodb/grip
   - package: github.com/pkg/errors
+  - package: github.com/stretchr/testify

@@ -173,7 +173,7 @@ func GetSender(fn string) (send.Sender, error) {
 		}
 
 		senders = append(senders, sender)
-	} else if fn != "NONE" || fn != "SKIP" {
+	} else if (fn != "NONE") && (fn != "SKIP") {
 		sender, err = send.NewFileLogger("logkeeper", fn, baseLevel)
 		if err != nil {
 			return nil, errors.Wrap(err, "problem creating a file logger")
