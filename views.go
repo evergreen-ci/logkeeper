@@ -600,13 +600,12 @@ func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *tim
 func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test) (chan *LogLineItem, error) {
 	ses, db := lk.getSession()
 	defer ses.Close()
-
 	globalSeqFirst, globalSeqLast := new(int), new(int)
 
 	minTime := &(test.Started)
 	var maxTime *time.Time
 
-	// Find the first global log entry after this test started.
+	// Find the first global log entry before this test started.
 	// This may not actually contain any global log lines during the test run, if the entry returned
 	// by this query comes from after the *next* test stared.
 	firstGlobalLog := &Log{}
@@ -646,22 +645,17 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 		}
 	}
 
+	var globalLogsSeq bson.M
 	if globalSeqFirst == nil {
-		return emptyChannel(), nil
+		globalLogsSeq = bson.M{"$gte": test.Seq}
+	} else {
+		globalLogsSeq = bson.M{"$gte": *globalSeqFirst}
 	}
-
-	globalLogsSeq := bson.M{"$gte": *globalSeqFirst}
 	if globalSeqLast != nil {
 		globalLogsSeq["$lte"] = *globalSeqLast
 	}
 
 	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, minTime, maxTime), nil
-}
-
-func emptyChannel() chan *LogLineItem {
-	ch := make(chan *LogLineItem)
-	close(ch)
-	return ch
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {

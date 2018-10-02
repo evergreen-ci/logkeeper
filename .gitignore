@@ -1,5 +1,6 @@
 logkeeper
 build/*
 fabfile.py
+*.pyc
 buildscripts/.lobster-temp/
 logkeeperapp.log
