@@ -162,6 +162,10 @@ vendor-clean:
 	rm -rf vendor/github.com/mongodb/grip/vendor/golang.org/x/net
 	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/davecgh/go-spew/
 	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/stretchr/testify
+	rm -rf vendor/github.com/mongodb/amboy/vendor/gopkg.in/mgo.v2/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/stretchr/testify/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/mongodb/grip/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/pkg/errors/
 
 $(buildDir)/vendor/src:$(buildDir)/make-vendor $(buildDir)/render-gopath
 	@./$(buildDir)/make-vendor
