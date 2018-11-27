@@ -14,7 +14,9 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/units"
 	gorillaCtx "github.com/gorilla/context"
+	"github.com/mongodb/amboy/queue"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
@@ -37,7 +39,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sender, err := logkeeper.GetSender(*logPath)
+	localQueue := queue.NewLocalLimitedSize(4, 2048)
+	grip.CatchEmergencyFatal(localQueue.Start(ctx))
+
+	sender, err := logkeeper.GetSender(localQueue, *logPath)
 	grip.CatchEmergencyFatal(err)
 	defer sender.Close()
 
@@ -53,6 +58,20 @@ func main() {
 
 	session, err := mgo.DialWithInfo(&dialInfo)
 	grip.CatchEmergencyFatal(err)
+
+	driverOpts := queue.MongoDBOptions{
+		Priority:       true,
+		CheckWaitUntil: true,
+		URI:            fmt.Sprintf("mongodb://%s", *dbHost),
+		DB:             "amboy",
+	}
+
+	queueDriver, err := queue.OpenNewMongoDBDriver(ctx, "logkeeper.etl", driverOpts, session)
+	grip.CatchEmergencyFatal(err)
+	remoteQueue := queue.NewRemoteUnordered(4)
+	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
+	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
+	grip.CatchEmergencyFatal(units.StartCrons(ctx, remoteQueue, localQueue))
 
 	lk := logkeeper.New(session, logkeeper.Options{
 		DB:             "buildlogs",
