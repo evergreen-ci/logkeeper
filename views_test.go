@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	mgo "gopkg.in/mgo.v2"
@@ -18,7 +19,8 @@ func makeTestLogkeeperApp(t *testing.T) *logKeeper {
 	}
 	session, err := mgo.DialWithInfo(&connInfo)
 	require.NoError(t, err)
-	lk := New(session, Options{
+	require.NoError(t, db.SetSession(session))
+	lk := New(Options{
 		DB:             "logkeeper_test",
 		URL:            fmt.Sprintf("http://localhost:8080"),
 		MaxRequestSize: 1024 * 1024 * 32,

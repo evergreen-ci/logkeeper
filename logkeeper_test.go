@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
@@ -26,12 +27,17 @@ func init() {
 }
 
 func TestLogKeeper(t *testing.T) {
+	session, err := mgo.Dial("localhost:27017")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = db.SetSession(session); err != nil {
+		t.Fatal(err)
+	}
+
 	Convey("LogKeeper instance running on testdatabase", t, func() {
-		session, err := mgo.Dial("localhost:27017")
-		if err != nil {
-			t.Fatal(err)
-		}
-		lk := New(session, Options{DB: "logkeeper_test", MaxRequestSize: 1024 * 1024 * 10})
+		lk := New(Options{DB: "logkeeper_test", MaxRequestSize: 1024 * 1024 * 10})
 		db := session.DB("logkeeper_test")
 		router := lk.NewRouter()
 
