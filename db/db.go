@@ -9,7 +9,8 @@ import (
 )
 
 type sessionCache struct {
-	s *mgo.Session
+	s      *mgo.Session
+	dbName string
 	sync.RWMutex
 }
 
@@ -44,4 +45,17 @@ func SetSession(s *mgo.Session) error {
 	session.s = s
 
 	return nil
+}
+
+func GetDatabase() *mgo.Database {
+	session.RLock()
+	defer session.RUnlock()
+
+	return GetSession().DB(session.dbName)
+}
+
+func SetDatabase(name string) {
+	session.Lock()
+	defer session.Unlock()
+	session.dbName = name
 }

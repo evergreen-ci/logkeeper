@@ -2,6 +2,7 @@ package units
 
 import (
 	"context"
+	"time"
 
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
@@ -21,8 +22,11 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 		"opts":    opts,
 	})
 
-	// amboy.IntervalQueueOperation(ctx, remote, time.Minute, time.Now(), opts, amboy.GroupQueueOperation())
-	// amboy.IntervalQueueOperation(ctx, local, time.Minute, time.Now(), opts, amboy.GroupQueueOperation())
+	amboy.IntervalQueueOperation(ctx, remote, time.Minute, time.Now(), opts,
+		amboy.GroupQueueOperationFactory(PopulateCleanupOldLogDataJobs()))
+
+	amboy.IntervalQueueOperation(ctx, local, time.Minute, time.Now(), opts,
+		amboy.GroupQueueOperationFactory(PopulateCleanupOldLogDataJobs()))
 
 	return nil
 }

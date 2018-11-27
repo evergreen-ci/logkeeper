@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
+
+const approxMonth = 30 * (time.Hour * 24)
+const deletePassedTestCutoff = 3 * approxMonth // ~3 months
 
 type Test struct {
 	Id        bson.ObjectId          `bson:"_id"`
@@ -105,4 +109,72 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 		return nil, err
 	}
 	return build, nil
+}
+
+func findAndDeleteTests(db *mgo.Database) ([]Test, error) {
+	now := time.Now()
+	query := bson.M{
+		"started": bson.M{"$lte": now.Add(-deletePassedTestCutoff)},
+		"failed":  false,
+	}
+	tests := []Test{}
+
+	err := db.C("tests").Find(query).Sort("started").Select(bson.M{"_id": 1}).All(&tests)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding tests")
+	}
+	_, err = db.C("tests").RemoveAll(query)
+	if err != nil {
+		return nil, errors.Wrap(err, "error deleting tests")
+	}
+	return tests, nil
+}
+
+func deleteLogsByTests(db *mgo.Database, tests []Test) (*mgo.ChangeInfo, error) {
+	ids := []bson.ObjectId{}
+	for _, test := range tests {
+		ids = append(ids, test.Id)
+	}
+	query := bson.M{
+		"test_id": bson.M{"$in": ids},
+	}
+	return db.C("logs").RemoveAll(query)
+}
+
+func deleteBuildsWithoutTests(db *mgo.Database) error {
+	builds := []LogKeeperBuild{}
+	err := db.C("builds").Find(bson.M{}).Select(bson.M{"_id": 1}).All(&builds)
+	if err != nil {
+		return err
+	}
+	for _, build := range builds {
+		tests, err := findTestsForBuild(db, stringifyId(build.Id))
+		if err != nil {
+			return err
+		}
+		if len(tests) == 0 {
+			if err := db.C("builds").RemoveId(build.Id); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func CleanupOldLogsTestsAndBuilds(db *mgo.Database) error {
+	tests, err := findAndDeleteTests(db)
+	if err != nil {
+		return errors.Wrap(err, "error deleting old tests")
+	}
+	if len(tests) == 0 {
+		return nil
+	}
+	_, err = deleteLogsByTests(db, tests)
+	if err != nil {
+		return errors.Wrap(err, "error deleting logs from old tests")
+	}
+	if err := deleteBuildsWithoutTests(db); err != nil {
+		return errors.Wrap(err, "error deleting builds that have no tests")
+	}
+	return nil
 }
