@@ -3,6 +3,7 @@ package logkeeper
 import (
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/mongodb/amboy"
@@ -140,6 +141,9 @@ func GetSender(queue amboy.Queue, fn string) (send.Sender, error) {
 		if channel == "" {
 			channel = "#evergreen-ops-alerts"
 		}
+		if !strings.HasPrefix(channel, "#") {
+			channel = "#" + channel
+		}
 
 		opts := &send.SlackOptions{
 			Name:          name,
@@ -150,7 +154,7 @@ func GetSender(queue amboy.Queue, fn string) (send.Sender, error) {
 
 		sender, err = send.NewSlackLogger(opts, token, send.LevelInfo{Default: level.Error, Threshold: level.Critical})
 		if err != nil {
-			return nil, errors.Wrap(err, "problem creating the sumo logic sender")
+			return nil, errors.Wrap(err, "problem creating the slack sender")
 		}
 
 		// TODO use the amboy.Queue backed sender in this case.
