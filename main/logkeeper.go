@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/units"
 	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/amboy/queue"
@@ -58,6 +59,7 @@ func main() {
 
 	session, err := mgo.DialWithInfo(&dialInfo)
 	grip.CatchEmergencyFatal(err)
+	grip.CatchEmergencyFatal(db.SetSession(session))
 
 	driverOpts := queue.MongoDBOptions{
 		Priority:       true,
@@ -66,14 +68,14 @@ func main() {
 		DB:             "amboy",
 	}
 
-	queueDriver, err := queue.OpenNewMongoDBDriver(ctx, "logkeeper.etl", driverOpts, session)
+	queueDriver, err := queue.OpenNewMongoDBDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(err)
 	remoteQueue := queue.NewRemoteUnordered(4)
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
 	grip.CatchEmergencyFatal(units.StartCrons(ctx, remoteQueue, localQueue))
 
-	lk := logkeeper.New(session, logkeeper.Options{
+	lk := logkeeper.New(logkeeper.Options{
 		DB:             "buildlogs",
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,

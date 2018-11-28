@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/grip"
@@ -17,8 +18,8 @@ import (
 )
 
 const (
-	maxLogChars          = 4 * 1024 * 1024 // 4 MB
-	defaultSocketTimeout = 90 * time.Second
+	maxLogChars = 4 * 1024 * 1024 // 4 MB
+
 )
 
 type Options struct {
@@ -33,9 +34,8 @@ type Options struct {
 }
 
 type logKeeper struct {
-	session *mgo.Session
-	render  *render.Render
-	opts    Options
+	render *render.Render
+	opts   Options
 }
 
 type createdResponse struct {
@@ -54,13 +54,7 @@ func earliestLogTime(logs []LogLine) *time.Time {
 	return earliest
 }
 
-func New(session *mgo.Session, opts Options) *logKeeper {
-	if session == nil {
-		panic("session must not be nil")
-	}
-
-	session.SetSocketTimeout(defaultSocketTimeout)
-
+func New(opts Options) *logKeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
 		Funcs: template.FuncMap{
@@ -82,11 +76,11 @@ func New(session *mgo.Session, opts Options) *logKeeper {
 		opts.DB = "logkeeper"
 	}
 
-	return &logKeeper{session, render, opts}
+	return &logKeeper{render, opts}
 }
 
 func (lk *logKeeper) getSession() (*mgo.Session, *mgo.Database) {
-	session := lk.session.Copy()
+	session := db.GetSession()
 
 	return session, session.DB(lk.opts.DB)
 }
