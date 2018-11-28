@@ -9,8 +9,11 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const approxMonth = 30 * (time.Hour * 24)
-const deletePassedTestCutoff = 3 * approxMonth // ~3 months
+const (
+	approxMonth            = 30 * (time.Hour * 24)
+	deletePassedTestCutoff = 3 * approxMonth // ~3 months
+	maxTests               = 10000
+)
 
 type Test struct {
 	Id        bson.ObjectId          `bson:"_id"`
@@ -111,30 +114,28 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 	return build, nil
 }
 
-func findAndDeleteTests(db *mgo.Database) ([]Test, error) {
+func findAndDeleteTests(db *mgo.Database) ([]bson.ObjectId, error) {
 	now := time.Now()
 	query := bson.M{
 		"started": bson.M{"$lte": now.Add(-deletePassedTestCutoff)},
 		"failed":  false,
 	}
-	tests := []Test{}
-
-	err := db.C("tests").Find(query).Sort("started").Select(bson.M{"_id": 1}).All(&tests)
+	var testIDs []bson.ObjectId
+	err := db.C("tests").Find(query).Sort("started").Limit(maxTests).Distinct("_id", &testIDs)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding tests")
 	}
-	_, err = db.C("tests").RemoveAll(query)
+	filter := bson.M{
+		"_id": bson.M{"$in": testIDs},
+	}
+	_, err = db.C("tests").RemoveAll(filter)
 	if err != nil {
 		return nil, errors.Wrap(err, "error deleting tests")
 	}
-	return tests, nil
+	return testIDs, nil
 }
 
-func deleteLogsByTests(db *mgo.Database, tests []Test) (*mgo.ChangeInfo, error) {
-	ids := []bson.ObjectId{}
-	for _, test := range tests {
-		ids = append(ids, test.Id)
-	}
+func deleteLogsByTests(db *mgo.Database, ids []bson.ObjectId) (*mgo.ChangeInfo, error) {
 	query := bson.M{
 		"test_id": bson.M{"$in": ids},
 	}
@@ -162,14 +163,14 @@ func deleteBuildsWithoutTests(db *mgo.Database) error {
 }
 
 func CleanupOldLogsTestsAndBuilds(db *mgo.Database) error {
-	tests, err := findAndDeleteTests(db)
+	testIDs, err := findAndDeleteTests(db)
 	if err != nil {
 		return errors.Wrap(err, "error deleting old tests")
 	}
-	if len(tests) == 0 {
+	if len(testIDs) == 0 {
 		return nil
 	}
-	_, err = deleteLogsByTests(db, tests)
+	_, err = deleteLogsByTests(db, testIDs)
 	if err != nil {
 		return errors.Wrap(err, "error deleting logs from old tests")
 	}

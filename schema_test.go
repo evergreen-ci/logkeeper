@@ -9,7 +9,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-func insertTests(t *testing.T, db *mgo.Database) []Test {
+func insertTests(t *testing.T, db *mgo.Database) []bson.ObjectId {
 	now := time.Now()
 	assert := assert.New(t)
 	_, err := db.C("tests").RemoveAll(bson.M{})
@@ -49,7 +49,7 @@ func insertTests(t *testing.T, db *mgo.Database) []Test {
 	}
 	assert.NoError(db.C("tests").Insert(newTest))
 
-	return []Test{oldTestSuccess, oldTestFail, edgeTestSuccess, edgeTestFailed, newTest}
+	return []bson.ObjectId{oldTestSuccess.Id, oldTestFail.Id, edgeTestSuccess.Id, edgeTestFailed.Id, newTest.Id}
 }
 
 func insertBuilds(t *testing.T, db *mgo.Database) {
@@ -63,16 +63,14 @@ func insertBuilds(t *testing.T, db *mgo.Database) {
 	assert.NoError(db.C("builds").Insert(build1, build2, build3, build4))
 }
 
-func insertLogs(t *testing.T, db *mgo.Database, tests []Test) {
+func insertLogs(t *testing.T, db *mgo.Database, ids []bson.ObjectId) {
 	assert := assert.New(t)
 	_, err := db.C("logs").RemoveAll(bson.M{})
 	assert.NoError(err)
 
-	id1 := tests[0].Id
-	id2 := tests[1].Id
-	log1 := Log{TestId: &id1}
-	log2 := Log{TestId: &id1}
-	log3 := Log{TestId: &id2}
+	log1 := Log{TestId: &ids[0]}
+	log2 := Log{TestId: &ids[0]}
+	log3 := Log{TestId: &ids[1]}
 	newId := bson.NewObjectId()
 	log4 := Log{TestId: &newId}
 	assert.NoError(db.C("logs").Insert(log1, log2, log3, log4))
