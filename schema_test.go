@@ -31,14 +31,14 @@ func insertTests(t *testing.T, db *mgo.Database) []bson.ObjectId {
 	edgeTestSuccess := Test{
 		Id:      bson.NewObjectId(),
 		BuildId: "123",
-		Started: now.Add(-deletePassedTestCutoff),
+		Started: now.Add(-deletePassedTestCutoff + time.Minute),
 		Failed:  false,
 	}
 	assert.NoError(db.C("tests").Insert(edgeTestSuccess))
 	edgeTestFailed := Test{
 		Id:      bson.NewObjectId(),
 		BuildId: "234",
-		Started: now.Add(-deletePassedTestCutoff),
+		Started: now.Add(-deletePassedTestCutoff + time.Minute),
 		Failed:  true,
 	}
 	assert.NoError(db.C("tests").Insert(edgeTestFailed))
@@ -50,17 +50,6 @@ func insertTests(t *testing.T, db *mgo.Database) []bson.ObjectId {
 	assert.NoError(db.C("tests").Insert(newTest))
 
 	return []bson.ObjectId{oldTestSuccess.Id, oldTestFail.Id, edgeTestSuccess.Id, edgeTestFailed.Id, newTest.Id}
-}
-
-func insertBuilds(t *testing.T, db *mgo.Database) {
-	assert := assert.New(t)
-	_, err := db.C("builds").RemoveAll(bson.M{})
-	assert.NoError(err)
-	build1 := LogKeeperBuild{Id: "123"}
-	build2 := LogKeeperBuild{Id: "234"}
-	build3 := LogKeeperBuild{Id: "notests"}
-	build4 := LogKeeperBuild{Id: "alsonotests"}
-	assert.NoError(db.C("builds").Insert(build1, build2, build3, build4))
 }
 
 func insertLogs(t *testing.T, db *mgo.Database, ids []bson.ObjectId) {
@@ -76,70 +65,35 @@ func insertLogs(t *testing.T, db *mgo.Database, ids []bson.ObjectId) {
 	assert.NoError(db.C("logs").Insert(log1, log2, log3, log4))
 }
 
-func TestFindAndDeleteTests(t *testing.T) {
+func TestGetOldTests(t *testing.T) {
 	assert := assert.New(t)
 	lk := makeTestLogkeeperApp(t)
 	_, db := lk.getSession()
-	insertTests(t, db)
+	ids := insertTests(t, db)
+	insertLogs(t, db, ids)
 
-	tests, err := findAndDeleteTests(db)
+	tests, err := GetOldTests(db, time.Now())
 	assert.NoError(err)
-	assert.Len(tests, 2)
-
-	count, _ := db.C("tests").Find(bson.M{}).Count()
-	assert.Equal(3, count)
-}
-
-func TestDeleteLogsByTests(t *testing.T) {
-	assert := assert.New(t)
-	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
-	tests := insertTests(t, db)
-	insertLogs(t, db, tests)
-
-	info, err := deleteLogsByTests(db, tests)
-	assert.NoError(err)
-	assert.Equal(3, info.Removed)
-}
-
-func TestDeleteBuildsWithoutTests(t *testing.T) {
-	assert := assert.New(t)
-	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
-	insertTests(t, db)
-	insertBuilds(t, db)
-
-	count, err := db.C("builds").Find(bson.M{}).Count()
-	assert.NoError(err)
-	assert.Equal(4, count)
-
-	assert.NoError(deleteBuildsWithoutTests(db))
-
-	count, err = db.C("builds").Find(bson.M{}).Count()
-	assert.NoError(err)
-	assert.Equal(2, count)
+	assert.Len(*tests, 2)
 }
 
 func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 	assert := assert.New(t)
 	lk := makeTestLogkeeperApp(t)
 	_, db := lk.getSession()
-	tests := insertTests(t, db)
-	insertBuilds(t, db)
-	insertLogs(t, db, tests)
+	ids := insertTests(t, db)
+	insertLogs(t, db, ids)
+	assert.Len(ids, 5)
 
-	assert.NoError(CleanupOldLogsTestsAndBuilds(db))
+	assert.NoError(CleanupOldLogsByTest(db, ids[0]))
 	count, _ := db.C("tests").Find(bson.M{}).Count()
-	assert.Equal(3, count)
+	assert.Equal(4, count)
 
 	count, _ = db.C("logs").Find(bson.M{}).Count()
 	assert.Equal(2, count)
-
-	count, _ = db.C("builds").Find(bson.M{}).Count()
-	assert.Equal(1, count)
 }
 
-func TestNoErrorWithNoOldTests(t *testing.T) {
+func TestNoErrorWithBadTest(t *testing.T) {
 	assert := assert.New(t)
 	lk := makeTestLogkeeperApp(t)
 	_, db := lk.getSession()
@@ -150,5 +104,5 @@ func TestNoErrorWithNoOldTests(t *testing.T) {
 		Started: time.Now(),
 	}
 	assert.NoError(db.C("tests").Insert(test))
-	assert.NoError(CleanupOldLogsTestsAndBuilds(db))
+	assert.NoError(CleanupOldLogsByTest(db, test.Id))
 }

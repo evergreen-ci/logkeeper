@@ -1,7 +1,7 @@
 # start project configuration
 name := logkeeper
 buildDir := build
-packages := $(name) units
+packages := $(name)
 orgPath := github.com/evergreen-ci
 projectPath := $(orgPath)/$(name)
 # end project configuration

@@ -12,7 +12,7 @@ import (
 const (
 	approxMonth            = 30 * (time.Hour * 24)
 	deletePassedTestCutoff = 3 * approxMonth // ~3 months
-	maxTests               = 10000
+	maxTests               = 1000
 )
 
 type Test struct {
@@ -114,68 +114,27 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 	return build, nil
 }
 
-func findAndDeleteTests(db *mgo.Database) ([]bson.ObjectId, error) {
-	now := time.Now()
+func GetOldTests(db *mgo.Database, now time.Time) (*[]Test, error) {
 	query := bson.M{
 		"started": bson.M{"$lte": now.Add(-deletePassedTestCutoff)},
-		"failed":  false,
 	}
-	var testIDs []bson.ObjectId
-	err := db.C("tests").Find(query).Sort("started").Limit(maxTests).Distinct("_id", &testIDs)
+	tests := []Test{}
+	err := db.C("tests").Find(query).Sort("-started").Limit(maxTests).All(&tests)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding tests")
 	}
-	filter := bson.M{
-		"_id": bson.M{"$in": testIDs},
-	}
-	_, err = db.C("tests").RemoveAll(filter)
-	if err != nil {
-		return nil, errors.Wrap(err, "error deleting tests")
-	}
-	return testIDs, nil
+	return &tests, err
 }
 
-func deleteLogsByTests(db *mgo.Database, ids []bson.ObjectId) (*mgo.ChangeInfo, error) {
-	query := bson.M{
-		"test_id": bson.M{"$in": ids},
-	}
-	return db.C("logs").RemoveAll(query)
-}
-
-func deleteBuildsWithoutTests(db *mgo.Database) error {
-	builds := []LogKeeperBuild{}
-	err := db.C("builds").Find(bson.M{}).Select(bson.M{"_id": 1}).All(&builds)
+func CleanupOldLogsByTest(db *mgo.Database, id bson.ObjectId) error {
+	err := db.C("tests").RemoveId(id)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "error deleting test")
 	}
-	for _, build := range builds {
-		tests, err := findTestsForBuild(db, stringifyId(build.Id))
-		if err != nil {
-			return err
-		}
-		if len(tests) == 0 {
-			if err := db.C("builds").RemoveId(build.Id); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
 
-func CleanupOldLogsTestsAndBuilds(db *mgo.Database) error {
-	testIDs, err := findAndDeleteTests(db)
-	if err != nil {
-		return errors.Wrap(err, "error deleting old tests")
-	}
-	if len(testIDs) == 0 {
-		return nil
-	}
-	_, err = deleteLogsByTests(db, testIDs)
+	_, err = db.C("logs").RemoveAll(bson.M{"test_id": id})
 	if err != nil {
 		return errors.Wrap(err, "error deleting logs from old tests")
-	}
-	if err := deleteBuildsWithoutTests(db); err != nil {
-		return errors.Wrap(err, "error deleting builds that have no tests")
 	}
 	return nil
 }
