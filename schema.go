@@ -114,9 +114,15 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 	return build, nil
 }
 
+func UpdateFailedTest(db *mgo.Database, id bson.ObjectId) error {
+	update := bson.M{"failed": true}
+	return db.C("tests").UpdateId(id, update)
+}
+
 func GetOldTests(db *mgo.Database, now time.Time) (*[]Test, error) {
 	query := bson.M{
 		"started": bson.M{"$lte": now.Add(-deletePassedTestCutoff)},
+		"failed":  false,
 	}
 	tests := []Test{}
 	err := db.C("tests").Find(query).Sort("-started").Limit(maxTests).All(&tests)

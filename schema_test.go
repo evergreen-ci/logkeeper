@@ -14,42 +14,29 @@ func insertTests(t *testing.T, db *mgo.Database) []bson.ObjectId {
 	assert := assert.New(t)
 	_, err := db.C("tests").RemoveAll(bson.M{})
 	assert.NoError(err)
-	oldTestSuccess := Test{
+	oldTest1 := Test{
 		Id:      bson.NewObjectId(),
-		BuildId: "123",
 		Started: time.Date(2016, time.January, 15, 0, 0, 0, 0, time.Local),
-		Failed:  false,
 	}
-	assert.NoError(db.C("tests").Insert(oldTestSuccess))
-	oldTestFail := Test{
+	assert.NoError(db.C("tests").Insert(oldTest1))
+	oldTest2 := Test{
 		Id:      bson.NewObjectId(),
-		BuildId: "234",
 		Started: time.Date(2016, time.February, 15, 0, 0, 0, 0, time.Local),
-		Failed:  true,
 	}
-	assert.NoError(db.C("tests").Insert(oldTestFail))
-	edgeTestSuccess := Test{
+	assert.NoError(db.C("tests").Insert(oldTest2))
+	edgeTest := Test{
 		Id:      bson.NewObjectId(),
-		BuildId: "123",
 		Started: now.Add(-deletePassedTestCutoff + time.Minute),
 		Failed:  false,
 	}
-	assert.NoError(db.C("tests").Insert(edgeTestSuccess))
-	edgeTestFailed := Test{
-		Id:      bson.NewObjectId(),
-		BuildId: "234",
-		Started: now.Add(-deletePassedTestCutoff + time.Minute),
-		Failed:  true,
-	}
-	assert.NoError(db.C("tests").Insert(edgeTestFailed))
+	assert.NoError(db.C("tests").Insert(edgeTest))
 	newTest := Test{
 		Id:      bson.NewObjectId(),
-		BuildId: "234",
 		Started: now,
 	}
 	assert.NoError(db.C("tests").Insert(newTest))
 
-	return []bson.ObjectId{oldTestSuccess.Id, oldTestFail.Id, edgeTestSuccess.Id, edgeTestFailed.Id, newTest.Id}
+	return []bson.ObjectId{oldTest1.Id, oldTest2.Id, edgeTest.Id, newTest.Id}
 }
 
 func insertLogs(t *testing.T, db *mgo.Database, ids []bson.ObjectId) {
@@ -83,11 +70,11 @@ func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 	_, db := lk.getSession()
 	ids := insertTests(t, db)
 	insertLogs(t, db, ids)
-	assert.Len(ids, 5)
+	assert.Len(ids, 4)
 
 	assert.NoError(CleanupOldLogsByTest(db, ids[0]))
 	count, _ := db.C("tests").Find(bson.M{}).Count()
-	assert.Equal(4, count)
+	assert.Equal(3, count)
 
 	count, _ = db.C("logs").Find(bson.M{}).Count()
 	assert.Equal(2, count)
@@ -105,4 +92,21 @@ func TestNoErrorWithBadTest(t *testing.T) {
 	}
 	assert.NoError(db.C("tests").Insert(test))
 	assert.NoError(CleanupOldLogsByTest(db, test.Id))
+}
+
+func TestUpdateFailedTest(t *testing.T) {
+	assert := assert.New(t)
+	lk := makeTestLogkeeperApp(t)
+	_, db := lk.getSession()
+	ids := insertTests(t, db)
+	insertLogs(t, db, ids)
+
+	tests, err := GetOldTests(db, time.Now())
+	assert.NoError(err)
+	assert.Len(*tests, 2)
+
+	assert.NoError(UpdateFailedTest(db, ids[1]))
+	tests, err = GetOldTests(db, time.Now())
+	assert.NoError(err)
+	assert.Len(*tests, 1)
 }

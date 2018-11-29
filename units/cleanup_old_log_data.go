@@ -89,6 +89,10 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}
 
 	if taskInfo.Status != "success" {
+		logkeeper.UpdateFailedTest(db, j.testID)
+		if err != nil {
+			j.AddError(errors.Wrap(err, "error updating failed status of test"))
+		}
 		return
 	}
 
