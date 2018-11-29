@@ -88,6 +88,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		return
 	}
 
+	db := db.GetDatabase()
 	if taskInfo.Status != "success" {
 		logkeeper.UpdateFailedTest(db, j.testID)
 		if err != nil {
@@ -96,7 +97,6 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		return
 	}
 
-	db := db.GetDatabase()
 	err = logkeeper.CleanupOldLogsByTest(db, j.testID)
 	if err != nil {
 		j.AddError(errors.Wrap(err, "error cleaning up old logs"))
