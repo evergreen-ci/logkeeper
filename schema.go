@@ -4,8 +4,19 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+)
+
+const (
+	approxMonth            = 30 * (time.Hour * 24)
+	deletePassedTestCutoff = 3 * approxMonth // ~3 months
+	maxTests               = 1000
+	logsName               = "logs"
+	testsName              = "tests"
+	buildsName             = "builds"
 )
 
 type Test struct {
@@ -59,7 +70,7 @@ func findTest(db *mgo.Database, id string) (*Test, error) {
 	}
 	test := &Test{}
 
-	err := db.C("tests").Find(bson.M{"_id": bson.ObjectIdHex(id)}).One(test)
+	err := db.C(testsName).Find(bson.M{"_id": bson.ObjectIdHex(id)}).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
@@ -73,7 +84,7 @@ func findTestsForBuild(db *mgo.Database, buildId string) ([]Test, error) {
 	queryBuildId := idFromString(buildId)
 	tests := []Test{}
 
-	err := db.C("tests").Find(bson.M{"build_id": queryBuildId}).Sort("started").All(&tests)
+	err := db.C(testsName).Find(bson.M{"build_id": queryBuildId}).Sort("started").All(&tests)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +95,7 @@ func findBuildById(db *mgo.Database, id string) (*LogKeeperBuild, error) {
 	queryBuildId := idFromString(id)
 	build := &LogKeeperBuild{}
 
-	err := db.C("builds").Find(bson.M{"_id": queryBuildId}).One(build)
+	err := db.C(buildsName).Find(bson.M{"_id": queryBuildId}).One(build)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
@@ -97,7 +108,7 @@ func findBuildById(db *mgo.Database, id string) (*LogKeeperBuild, error) {
 func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKeeperBuild, error) {
 	build := &LogKeeperBuild{}
 
-	err := db.C("builds").Find(bson.M{"builder": builder, "buildnum": buildnum}).One(build)
+	err := db.C(buildsName).Find(bson.M{"builder": builder, "buildnum": buildnum}).One(build)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
@@ -105,4 +116,38 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 		return nil, err
 	}
 	return build, nil
+}
+
+func UpdateFailedTest(id bson.ObjectId) error {
+	db := db.GetDatabase()
+	update := bson.M{"failed": true}
+	return db.C(testsName).UpdateId(id, update)
+}
+
+func GetOldTests() ([]Test, error) {
+	db := db.GetDatabase()
+	query := bson.M{
+		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
+		"failed":  false,
+	}
+	var tests []Test
+	err := db.C(testsName).Find(query).Sort("-started").Limit(maxTests).All(&tests)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding tests")
+	}
+	return tests, err
+}
+
+func CleanupOldLogsByTest(id bson.ObjectId) error {
+	db := db.GetDatabase()
+	err := db.C(testsName).RemoveId(id)
+	if err != nil {
+		return errors.Wrap(err, "error deleting test")
+	}
+
+	_, err = db.C(logsName).RemoveAll(bson.M{"test_id": id})
+	if err != nil {
+		return errors.Wrap(err, "error deleting logs from old tests")
+	}
+	return nil
 }

@@ -75,12 +75,13 @@ func main() {
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
 	grip.CatchEmergencyFatal(units.StartCrons(ctx, remoteQueue, localQueue))
 
+	dbName := "buildlogs"
 	lk := logkeeper.New(logkeeper.Options{
-		DB:             "buildlogs",
+		DB:             dbName,
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
 	})
-
+	db.SetDatabase(dbName)
 	logkeeper.StartBackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()
