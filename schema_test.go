@@ -4,16 +4,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
-	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
-func insertTests(t *testing.T, db *mgo.Database) []bson.ObjectId {
-	now := time.Now()
+func insertTests(t *testing.T) []bson.ObjectId {
 	assert := assert.New(t)
+	db := db.GetDatabase()
 	_, err := db.C("tests").RemoveAll(bson.M{})
 	assert.NoError(err)
+
+	now := time.Now()
 	oldTest1 := Test{
 		Id:      bson.NewObjectId(),
 		Started: time.Date(2016, time.January, 15, 0, 0, 0, 0, time.Local),
@@ -35,12 +37,12 @@ func insertTests(t *testing.T, db *mgo.Database) []bson.ObjectId {
 		Started: now,
 	}
 	assert.NoError(db.C("tests").Insert(newTest))
-
 	return []bson.ObjectId{oldTest1.Id, oldTest2.Id, edgeTest.Id, newTest.Id}
 }
 
-func insertLogs(t *testing.T, db *mgo.Database, ids []bson.ObjectId) {
+func insertLogs(t *testing.T, ids []bson.ObjectId) {
 	assert := assert.New(t)
+	db := db.GetDatabase()
 	_, err := db.C("logs").RemoveAll(bson.M{})
 	assert.NoError(err)
 
@@ -54,26 +56,25 @@ func insertLogs(t *testing.T, db *mgo.Database, ids []bson.ObjectId) {
 
 func TestGetOldTests(t *testing.T) {
 	assert := assert.New(t)
-	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
-	ids := insertTests(t, db)
-	insertLogs(t, db, ids)
+	ids := insertTests(t)
+	insertLogs(t, ids)
 
-	tests, err := GetOldTests(db, time.Now())
+	tests, err := GetOldTests()
 	assert.NoError(err)
-	assert.Len(*tests, 2)
+	assert.Len(tests, 2)
 }
 
 func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 	assert := assert.New(t)
-	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
-	ids := insertTests(t, db)
-	insertLogs(t, db, ids)
-	assert.Len(ids, 4)
+	db := db.GetDatabase()
+	ids := insertTests(t)
+	insertLogs(t, ids)
 
-	assert.NoError(CleanupOldLogsByTest(db, ids[0]))
 	count, _ := db.C("tests").Find(bson.M{}).Count()
+	assert.Equal(4, count)
+
+	assert.NoError(CleanupOldLogsByTest(ids[0]))
+	count, _ = db.C("tests").Find(bson.M{}).Count()
 	assert.Equal(3, count)
 
 	count, _ = db.C("logs").Find(bson.M{}).Count()
@@ -82,8 +83,7 @@ func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 
 func TestNoErrorWithBadTest(t *testing.T) {
 	assert := assert.New(t)
-	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
+	db := db.GetDatabase()
 	_, err := db.C("tests").RemoveAll(bson.M{})
 	assert.NoError(err)
 	test := Test{
@@ -91,22 +91,20 @@ func TestNoErrorWithBadTest(t *testing.T) {
 		Started: time.Now(),
 	}
 	assert.NoError(db.C("tests").Insert(test))
-	assert.NoError(CleanupOldLogsByTest(db, test.Id))
+	assert.NoError(CleanupOldLogsByTest(test.Id))
 }
 
 func TestUpdateFailedTest(t *testing.T) {
 	assert := assert.New(t)
-	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
-	ids := insertTests(t, db)
-	insertLogs(t, db, ids)
+	ids := insertTests(t)
+	insertLogs(t, ids)
 
-	tests, err := GetOldTests(db, time.Now())
+	tests, err := GetOldTests()
 	assert.NoError(err)
-	assert.Len(*tests, 2)
+	assert.Len(tests, 2)
 
-	assert.NoError(UpdateFailedTest(db, ids[1]))
-	tests, err = GetOldTests(db, time.Now())
+	assert.NoError(UpdateFailedTest(ids[1]))
+	tests, err = GetOldTests()
 	assert.NoError(err)
-	assert.Len(*tests, 1)
+	assert.Len(tests, 1)
 }

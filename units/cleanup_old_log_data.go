@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/evergreen-ci/logkeeper"
-	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/amboy/dependency"
 	"github.com/mongodb/amboy/job"
@@ -80,7 +79,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}
 
 	taskInfo := struct {
-		Status string
+		Status string `json:"status"`
 	}{}
 
 	if err = json.Unmarshal(payload, &taskInfo); err != nil {
@@ -88,16 +87,15 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		return
 	}
 
-	db := db.GetDatabase()
 	if taskInfo.Status != "success" {
-		logkeeper.UpdateFailedTest(db, j.testID)
+		err := logkeeper.UpdateFailedTest(j.testID)
 		if err != nil {
 			j.AddError(errors.Wrap(err, "error updating failed status of test"))
 		}
 		return
 	}
 
-	err = logkeeper.CleanupOldLogsByTest(db, j.testID)
+	err = logkeeper.CleanupOldLogsByTest(j.testID)
 	if err != nil {
 		j.AddError(errors.Wrap(err, "error cleaning up old logs"))
 	}

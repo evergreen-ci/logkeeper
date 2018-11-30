@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
-	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -40,12 +39,11 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 	return func(queue amboy.Queue) error {
 		catcher := grip.NewBasicCatcher()
 
-		db := db.GetDatabase()
-		tests, err := logkeeper.GetOldTests(db, time.Now())
+		tests, err := logkeeper.GetOldTests()
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		for _, test := range *tests {
+		for _, test := range tests {
 			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.Id, test.Info["taskID"])))
 		}
 
