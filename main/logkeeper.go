@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -22,6 +21,7 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
+	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
 	"gopkg.in/mgo.v2"
 )
@@ -70,9 +70,10 @@ func main() {
 	}
 
 	queueDriver, err := queue.OpenNewMongoDBDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
-	grip.CatchEmergencyFatal(err)
+	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
 	remoteQueue := queue.NewRemoteUnordered(4)
-	runner := pool.NewMovingAverageRateLimitedWorkers(2048, 60, time.Minute, remoteQueue)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(2048, 60, time.Minute, remoteQueue)
+	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
 	grip.CatchEmergencyFatal(remoteQueue.SetRunner(runner))
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
