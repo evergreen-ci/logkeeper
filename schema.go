@@ -119,8 +119,7 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 }
 
 func UpdateFailedTest(id bson.ObjectId) error {
-	db := db.GetDatabase()
-	return db.C(testsName).UpdateId(id, bson.M{"$set": bson.M{"failed": true}})
+	return errors.WithStack(db.GetDatabase().C(testsName).UpdateId(id, bson.M{"$set": bson.M{"failed": true}}))
 }
 
 func GetOldTests() ([]Test, error) {
@@ -139,14 +138,14 @@ func GetOldTests() ([]Test, error) {
 
 func CleanupOldLogsByTest(id bson.ObjectId) error {
 	db := db.GetDatabase()
-	err := db.C(testsName).RemoveId(id)
-	if err != nil {
-		return errors.Wrap(err, "error deleting test")
-	}
-
-	_, err = db.C(logsName).RemoveAll(bson.M{"test_id": id})
+	_, err := db.C(logsName).RemoveAll(bson.M{"test_id": id})
 	if err != nil {
 		return errors.Wrap(err, "error deleting logs from old tests")
 	}
+
+	if err := db.C(testsName).RemoveId(id); err != nil {
+		return errors.Wrap(err, "error deleting test")
+	}
+
 	return nil
 }
