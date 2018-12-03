@@ -157,7 +157,7 @@ func IntervalQueueOperation(ctx context.Context, q Queue, interval time.Duration
 		}()
 
 		initialWait := time.Since(startAt)
-		if initialWait > time.Second {
+		if initialWait > 15*time.Minute {
 			grip.InfoWhen(conf.DebugLogging, message.Fields{
 				"message": "waiting initial, interval to start scheduling jobs",
 				"period":  initialWait,

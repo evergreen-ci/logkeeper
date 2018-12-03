@@ -13,7 +13,7 @@ import (
 const (
 	approxMonth            = 30 * (time.Hour * 24)
 	deletePassedTestCutoff = 3 * approxMonth // ~3 months
-	maxTests               = 1000
+	maxTests               = 60
 	logsName               = "logs"
 	testsName              = "tests"
 	buildsName             = "builds"
@@ -120,8 +120,7 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 
 func UpdateFailedTest(id bson.ObjectId) error {
 	db := db.GetDatabase()
-	update := bson.M{"failed": true}
-	return db.C(testsName).UpdateId(id, update)
+	return db.C(testsName).UpdateId(id, bson.M{"$set": bson.M{"failed": true}})
 }
 
 func GetOldTests() ([]Test, error) {
