@@ -25,7 +25,7 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 		"opts":    opts,
 	})
 
-	amboy.IntervalQueueOperation(ctx, remote, time.Hour, time.Now(), opts,
+	amboy.IntervalQueueOperation(ctx, remote, time.Minute, time.Now(), opts,
 		amboy.GroupQueueOperationFactory(PopulateCleanupOldLogDataJobs()))
 
 	return nil
@@ -44,7 +44,7 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 		}
 
 		for idx, test := range tests {
-			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.Id, test.Info["taskID"])))
+			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"])))
 
 			grip.DebugWhen(sometimes.Percent(10), message.Fields{
 				"message":    "adding decomission jobs",

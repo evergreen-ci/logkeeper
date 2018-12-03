@@ -13,7 +13,7 @@ import (
 const (
 	approxMonth            = 30 * (time.Hour * 24)
 	deletePassedTestCutoff = 3 * approxMonth // ~3 months
-	maxTests               = 1000
+	maxTests               = 60
 	logsName               = "logs"
 	testsName              = "tests"
 	buildsName             = "builds"
@@ -118,10 +118,12 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 	return build, nil
 }
 
-func UpdateFailedTest(id bson.ObjectId) error {
-	db := db.GetDatabase()
-	update := bson.M{"failed": true}
-	return db.C(testsName).UpdateId(id, update)
+func UpdateFailedTestsByBuildID(id interface{}) error {
+	if id == nil {
+		return errors.New("no build id defined")
+	}
+
+	return errors.WithStack(db.GetDatabase().C(testsName).Update(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}}))
 }
 
 func GetOldTests() ([]Test, error) {
@@ -138,16 +140,20 @@ func GetOldTests() ([]Test, error) {
 	return tests, err
 }
 
-func CleanupOldLogsByTest(id bson.ObjectId) error {
-	db := db.GetDatabase()
-	err := db.C(testsName).RemoveId(id)
-	if err != nil {
-		return errors.Wrap(err, "error deleting test")
+func CleanupOldLogsByBuild(id interface{}) error {
+	if id == nil {
+		return errors.New("no build ID defined")
 	}
 
-	_, err = db.C(logsName).RemoveAll(bson.M{"test_id": id})
+	db := db.GetDatabase()
+	_, err := db.C(logsName).RemoveAll(bson.M{"build_id": id})
 	if err != nil {
 		return errors.Wrap(err, "error deleting logs from old tests")
 	}
+
+	if err := db.C(testsName).Remove(bson.M{"build_id": id}); err != nil {
+		return errors.Wrap(err, "error deleting test")
+	}
+
 	return nil
 }
