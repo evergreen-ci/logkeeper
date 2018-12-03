@@ -17,6 +17,7 @@ import (
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/units"
 	gorillaCtx "github.com/gorilla/context"
+	"github.com/mongodb/amboy/pool"
 	"github.com/mongodb/amboy/queue"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -71,7 +72,9 @@ func main() {
 	queueDriver, err := queue.OpenNewMongoDBDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(err)
 	remoteQueue := queue.NewRemoteUnordered(4)
+	runner := pool.NewMovingAverageRateLimitedWorkers(2048, 60, time.Minute, remoteQueue)
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
+	grip.CatchEmergencyFatal(remoteQueue.SetRunner(runner))
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
 	grip.CatchEmergencyFatal(units.StartCrons(ctx, remoteQueue, localQueue))
 
