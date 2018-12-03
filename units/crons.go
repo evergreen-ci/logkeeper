@@ -44,7 +44,7 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 		}
 
 		for idx, test := range tests {
-			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.Id, test.Info["task_id"])))
+			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"])))
 
 			grip.DebugWhen(sometimes.Percent(10), message.Fields{
 				"message":    "adding decomission jobs",

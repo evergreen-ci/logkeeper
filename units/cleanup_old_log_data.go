@@ -14,7 +14,6 @@ import (
 	"github.com/mongodb/amboy/job"
 	"github.com/mongodb/amboy/registry"
 	"github.com/pkg/errors"
-	"gopkg.in/mgo.v2/bson"
 )
 
 const (
@@ -28,22 +27,21 @@ var (
 )
 
 func init() {
-
 	registry.AddJobType(cleanupJobsName,
 		func() amboy.Job { return makeCleanupOldLogDataJob() })
 }
 
 type cleanupOldLogDataJob struct {
-	TestID   bson.ObjectId `bson:"test_id" json:"test_id" yaml:"test_id"`
-	TaskID   interface{}   `bson:"task_id" json:"task_id" yaml:"task_id"`
+	BuildID  interface{} `bson:"build_id" json:"build_id" yaml:"build_id"`
+	TaskID   interface{} `bson:"task_id" json:"task_id" yaml:"task_id"`
 	job.Base `bson:"job_base" json:"job_base" yaml:"job_base"`
 }
 
-func NewCleanupOldLogDataJob(testID bson.ObjectId, taskID interface{}) amboy.Job {
+func NewCleanupOldLogDataJob(buildID, taskID interface{}) amboy.Job {
 	j := makeCleanupOldLogDataJob()
-	j.TestID = testID
+	j.BuildID = buildID
 	j.TaskID = taskID
-	j.SetID(fmt.Sprintf("%s.%s", cleanupJobsName, j.TestID.Hex()))
+	j.SetID(fmt.Sprintf("%s.%s", cleanupJobsName, j.BuildID))
 	return j
 }
 
@@ -52,7 +50,7 @@ func makeCleanupOldLogDataJob() *cleanupOldLogDataJob {
 		Base: job.Base{
 			JobType: amboy.JobType{
 				Name:    cleanupJobsName,
-				Version: 0,
+				Version: 1,
 			},
 		},
 	}
@@ -98,14 +96,14 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}
 
 	if taskInfo.Status != "success" {
-		err := logkeeper.UpdateFailedTest(j.TestID)
+		err := logkeeper.UpdateFailedTestsByBuildID(j.BuildID)
 		if err != nil {
 			j.AddError(errors.Wrap(err, "error updating failed status of test"))
 		}
 		return
 	}
 
-	err = logkeeper.CleanupOldLogsByTest(j.TestID)
+	err = logkeeper.CleanupOldLogsByBuild(j.BuildID)
 	if err != nil {
 		j.AddError(errors.Wrap(err, "error cleaning up old logs"))
 	}
