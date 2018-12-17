@@ -24,7 +24,7 @@ imports:
 - name: github.com/mongodb/grip
   version: d07e4b4315431972625195cb03f8dc7ecdc6b8be
 - name: github.com/mongodb/amboy
-  version: 2dbca094b6aff937c58a86af2f569dcbd756da6e
+  version: 45ee6f1e790a2fdf28a7d6acaf61c2ffc1da9629
 - name: github.com/pkg/errors
   version: ff09b135c25aae272398c51a07235b90a75aa4f0
 - name: github.com/stretchr/testify

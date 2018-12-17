@@ -69,7 +69,7 @@ func main() {
 		DB:             "amboy",
 	}
 
-	queueDriver, err := queue.OpenNewMongoDBDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
+	queueDriver, err := queue.OpenNewMgoDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
 	remoteQueue := queue.NewRemoteUnordered(4)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(2048, 60, time.Minute, remoteQueue)

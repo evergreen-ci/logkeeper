@@ -32,7 +32,7 @@ func NewRemoteUnordered(size int) Remote {
 		remoteBase: newRemoteBase(),
 	}
 
-	grip.CatchError(q.SetRunner(pool.NewLocalWorkers(size, q)))
+	grip.Error(q.SetRunner(pool.NewLocalWorkers(size, q)))
 
 	grip.Infof("creating new remote job queue with %d workers", size)
 
@@ -58,18 +58,18 @@ func (q *remoteUnordered) Next(ctx context.Context) amboy.Job {
 				continue
 			}
 
-			job, err = q.driver.Get(job.ID())
+			job, err = q.driver.Get(ctx, job.ID())
 			if job == nil {
 				continue
 			}
 
 			if err != nil {
-				grip.Notice(message.WrapError(err, message.Fields{
+				grip.Debug(message.WrapError(err, message.Fields{
 					"id":        job.ID(),
 					"operation": "problem refreshing job in dispatching from remote queue",
 				}))
 
-				grip.Warning(message.WrapError(q.driver.Unlock(job),
+				grip.Debug(message.WrapError(q.driver.Unlock(ctx, job),
 					message.Fields{
 						"id":        job.ID(),
 						"operation": "unlocking job, may leave a stale job",
@@ -87,12 +87,19 @@ func (q *remoteUnordered) Next(ctx context.Context) amboy.Job {
 			job.UpdateTimeInfo(ti)
 
 			if err := q.driver.Lock(ctx, job); err != nil {
-				grip.Warning(err)
+				grip.Debug(message.WrapError(err, message.Fields{
+					"id":        job.ID(),
+					"operation": "locking job",
+					"attempt":   count,
+				}))
 				continue
 			}
 
-			grip.Debugf("returning job from remote source, count = %d; duration = %s",
-				count, time.Since(start))
+			grip.Debug(message.Fields{
+				"message":       "returning job from remote source",
+				"dispatch_secs": time.Since(start).Seconds(),
+				"attempts":      count,
+			})
 
 			return job
 		}
