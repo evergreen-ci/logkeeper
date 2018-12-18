@@ -8,7 +8,6 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"github.com/mongodb/grip/sometimes"
 	"github.com/pkg/errors"
 )
 
@@ -45,16 +44,8 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 			return errors.WithStack(err)
 		}
 
-		for idx, test := range tests {
+		for _, test := range tests {
 			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"])))
-
-			grip.DebugWhen(sometimes.Percent(10), message.Fields{
-				"message":    "adding decomission jobs",
-				"index":      idx,
-				"total":      len(tests),
-				"errors":     catcher.HasErrors(),
-				"num_errors": catcher.Len(),
-			})
 		}
 
 		grip.Info(message.Fields{
