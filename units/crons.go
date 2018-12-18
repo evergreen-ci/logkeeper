@@ -34,11 +34,13 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 // Queue Population Tasks
 
 func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
+	const limit = 600
+
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
 		catcher := grip.NewBasicCatcher()
 
-		tests, err := logkeeper.GetOldTests()
+		tests, err := logkeeper.GetOldTests(limit)
 		if err != nil {
 			return errors.WithStack(err)
 		}

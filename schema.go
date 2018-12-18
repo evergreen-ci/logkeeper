@@ -13,7 +13,6 @@ import (
 const (
 	approxMonth            = 30 * (time.Hour * 24)
 	deletePassedTestCutoff = 3 * approxMonth // ~3 months
-	maxTests               = 60
 	logsName               = "logs"
 	testsName              = "tests"
 	buildsName             = "builds"
@@ -126,14 +125,14 @@ func UpdateFailedTestsByBuildID(id interface{}) error {
 	return errors.WithStack(db.GetDatabase().C(testsName).Update(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}}))
 }
 
-func GetOldTests() ([]Test, error) {
+func GetOldTests(limit int) ([]Test, error) {
 	db := db.GetDatabase()
 	query := bson.M{
 		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
 		"failed":  false,
 	}
 	var tests []Test
-	err := db.C(testsName).Find(query).Sort("-started").Limit(maxTests).All(&tests)
+	err := db.C(testsName).Find(query).Sort("-started").Limit(limit).All(&tests)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding tests")
 	}
