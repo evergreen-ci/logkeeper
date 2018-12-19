@@ -122,11 +122,15 @@ func UpdateFailedTestsByBuildID(id interface{}) error {
 		return errors.New("no build id defined")
 	}
 
-	return errors.WithStack(db.GetDatabase().C(testsName).Update(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}}))
+	db, closer := db.GetDatabase()
+	defer closer()
+
+	return errors.WithStack(db.C(testsName).Update(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}}))
 }
 
 func GetOldTests(limit int) ([]Test, error) {
-	db := db.GetDatabase()
+	db, closer := db.GetDatabase()
+	defer closer()
 	query := bson.M{
 		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
 		"failed":  false,
@@ -144,7 +148,9 @@ func CleanupOldLogsByBuild(id interface{}) error {
 		return errors.New("no build ID defined")
 	}
 
-	db := db.GetDatabase()
+	db, closer := db.GetDatabase()
+	defer closer()
+
 	_, err := db.C(logsName).RemoveAll(bson.M{"build_id": id})
 	if err != nil {
 		return errors.Wrap(err, "error deleting logs from old tests")

@@ -47,11 +47,12 @@ func SetSession(s *mgo.Session) error {
 	return nil
 }
 
-func GetDatabase() *mgo.Database {
+func GetDatabase() (*mgo.Database, func()) {
 	session.RLock()
 	defer session.RUnlock()
 
-	return GetSession().DB(session.dbName)
+	ses := GetSession()
+	return ses.DB(session.dbName), ses.Close
 }
 
 func SetDatabase(name string) {
