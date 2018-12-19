@@ -33,7 +33,7 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 // Queue Population Tasks
 
 func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
-	const limit = 3000
+	const limit = 1500
 
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
