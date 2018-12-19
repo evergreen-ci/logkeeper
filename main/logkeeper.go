@@ -72,7 +72,7 @@ func main() {
 	queueDriver, err := queue.OpenNewMgoDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
 	remoteQueue := queue.NewRemoteUnordered(4)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(8, 60, time.Minute, remoteQueue)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(8, 300, time.Minute, remoteQueue)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
 	grip.CatchEmergencyFatal(remoteQueue.SetRunner(runner))

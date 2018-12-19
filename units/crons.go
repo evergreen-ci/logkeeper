@@ -33,7 +33,7 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 // Queue Population Tasks
 
 func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
-	const limit = 600
+	const limit = 1500
 
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
@@ -52,6 +52,7 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 			"message":    "completed adding cleanup job",
 			"num":        len(tests),
 			"errors":     catcher.HasErrors(),
+			"limit":      limit,
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 		})
