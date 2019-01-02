@@ -24,8 +24,12 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 		"opts":    opts,
 	})
 
-	amboy.IntervalQueueOperation(ctx, remote, time.Minute, time.Now(), opts,
-		amboy.GroupQueueOperationFactory(PopulateCleanupOldLogDataJobs()))
+	amboy.IntervalQueueOperation(ctx, remote, logkeeper.AmboyInterval, time.Now(), opts,
+		amboy.GroupQueueOperationFactory(
+			PopulateCleanupOldLogDataJobs(),
+			PopulateStatsJobs(),
+		),
+	)
 
 	return nil
 }
@@ -33,13 +37,11 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 // Queue Population Tasks
 
 func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
-	const limit = 1500
-
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
 		catcher := grip.NewBasicCatcher()
 
-		tests, err := logkeeper.GetOldTests(limit)
+		tests, err := logkeeper.GetOldTests(logkeeper.CleanupBatchSize)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -52,11 +54,20 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 			"message":    "completed adding cleanup job",
 			"num":        len(tests),
 			"errors":     catcher.HasErrors(),
-			"limit":      limit,
+			"limit":      logkeeper.CleanupBatchSize,
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 		})
 
 		return catcher.Resolve()
+	}
+}
+
+func PopulateStatsJobs() amboy.QueueOperation {
+	return func(queue amboy.Queue) error {
+		// round time to the minute by format
+		ts := time.Now().Format("2006-01-02.15-04")
+
+		return queue.Put(NewAmboyStatsCollector(ts))
 	}
 }

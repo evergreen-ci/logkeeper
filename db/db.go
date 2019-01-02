@@ -4,12 +4,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mongodb/amboy"
 	"github.com/pkg/errors"
 	mgo "gopkg.in/mgo.v2"
 )
 
 type sessionCache struct {
 	s      *mgo.Session
+	mq     amboy.Queue
 	dbName string
 	sync.RWMutex
 }
@@ -59,4 +61,23 @@ func SetDatabase(name string) {
 	session.Lock()
 	defer session.Unlock()
 	session.dbName = name
+}
+
+func SetMigrationQueue(q amboy.Queue) error {
+	if !q.Started() {
+		return errors.New("queue isn't started")
+	}
+
+	session.Lock()
+	defer session.Unlock()
+
+	session.mq = q
+	return nil
+}
+
+func GetMigrationQueue() amboy.Queue {
+	session.RLock()
+	defer session.RUnlock()
+
+	return session.mq
 }
