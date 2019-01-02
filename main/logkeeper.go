@@ -66,13 +66,13 @@ func main() {
 		Priority:       true,
 		CheckWaitUntil: true,
 		URI:            fmt.Sprintf("mongodb://%s", *dbHost),
-		DB:             "amboy",
+		DB:             logkeeper.AmboyDBName,
 	}
 
-	queueDriver, err := queue.OpenNewMgoDriver(ctx, "logkeeper.etl", driverOpts, db.GetSession())
+	queueDriver, err := queue.OpenNewMgoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
 	remoteQueue := queue.NewRemoteUnordered(4)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(8, 300, time.Minute, remoteQueue)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkersPerApp, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, remoteQueue)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
 	grip.CatchEmergencyFatal(remoteQueue.SetRunner(runner))
