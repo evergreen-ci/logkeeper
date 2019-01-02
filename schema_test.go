@@ -6,14 +6,16 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/mgo.v2/bson"
 )
 
 func insertTests(t *testing.T) []interface{} {
 	assert := assert.New(t)
-	db := db.GetDatabase()
+	db, closer := db.GetDatabase()
+	defer closer()
 	_, err := db.C("tests").RemoveAll(bson.M{})
-	assert.NoError(err)
+	require.NoError(t, err)
 
 	now := time.Now()
 	oldTest1 := Test{
@@ -46,9 +48,10 @@ func insertTests(t *testing.T) []interface{} {
 
 func insertLogs(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
-	db := db.GetDatabase()
+	db, closer := db.GetDatabase()
+	defer closer()
 	_, err := db.C("logs").RemoveAll(bson.M{})
-	assert.NoError(err)
+	require.NoError(t, err)
 
 	log1 := Log{BuildId: &ids[0]}
 	log2 := Log{BuildId: &ids[0]}
@@ -63,14 +66,16 @@ func TestGetOldTests(t *testing.T) {
 	ids := insertTests(t)
 	insertLogs(t, ids)
 
-	tests, err := GetOldTests()
+	tests, err := GetOldTests(CleanupBatchSize)
 	assert.NoError(err)
 	assert.Len(tests, 2)
 }
 
 func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 	assert := assert.New(t)
-	db := db.GetDatabase()
+	db, closer := db.GetDatabase()
+	defer closer()
+
 	ids := insertTests(t)
 	insertLogs(t, ids)
 
@@ -87,9 +92,11 @@ func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 
 func TestNoErrorWithBadTest(t *testing.T) {
 	assert := assert.New(t)
-	db := db.GetDatabase()
+	db, closer := db.GetDatabase()
+	defer closer()
 	_, err := db.C("tests").RemoveAll(bson.M{})
-	assert.NoError(err)
+	require.NoError(t, err)
+
 	test := Test{
 		Id:      bson.NewObjectId(),
 		BuildId: "lol",
@@ -104,12 +111,12 @@ func TestUpdateFailedTest(t *testing.T) {
 	ids := insertTests(t)
 	insertLogs(t, ids)
 
-	tests, err := GetOldTests()
+	tests, err := GetOldTests(CleanupBatchSize)
 	assert.NoError(err)
 	assert.Len(tests, 2)
 
 	assert.NoError(UpdateFailedTestsByBuildID(ids[1]))
-	tests, err = GetOldTests()
+	tests, err = GetOldTests(CleanupBatchSize)
 	assert.NoError(err)
 	assert.Len(tests, 1)
 }
