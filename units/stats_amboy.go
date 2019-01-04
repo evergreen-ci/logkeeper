@@ -68,6 +68,12 @@ func (j *amboyStatsCollector) Run(ctx context.Context) {
 			j.AddError(j.collectExtendedRemoteStats(ctx, logkeeper.AmboyMigrationQueueName))
 		}
 	}
+
+	grip.Warning(message.Fields{
+		"op":   "amboy queue stats",
+		"name": logkeeper.AmboyMigrationQueueName,
+		"nil":  queue == nil,
+	})
 }
 
 func (j *amboyStatsCollector) collectExtendedRemoteStats(ctx context.Context, name string) error {

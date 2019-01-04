@@ -117,15 +117,17 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 	return build, nil
 }
 
-func UpdateFailedTestsByBuildID(id interface{}) error {
+func UpdateFailedTestsByBuildID(id interface{}) (int, error) {
 	if id == nil {
-		return errors.New("no build id defined")
+		return 0, errors.New("no build id defined")
 	}
 
 	db, closer := db.GetDatabase()
 	defer closer()
 
-	return errors.WithStack(db.C(testsName).Update(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}}))
+	info, err := db.C(testsName).UpdateAll(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}})
+
+	return info.Updated, errors.Wrapf(err, "problem setting failed state on tasks %+v", info)
 }
 
 func GetOldTests(limit int) ([]Test, error) {
@@ -143,22 +145,29 @@ func GetOldTests(limit int) ([]Test, error) {
 	return tests, err
 }
 
-func CleanupOldLogsByBuild(id interface{}) error {
+func CleanupOldLogsByBuild(id interface{}) (int, error) {
 	if id == nil {
-		return errors.New("no build ID defined")
+		return 0, errors.New("no build ID defined")
 	}
 
 	db, closer := db.GetDatabase()
 	defer closer()
 
-	_, err := db.C(logsName).RemoveAll(bson.M{"build_id": id})
+	var err error
+	var num int
+	info := &mgo.ChangeInfo{}
+
+	info, err = db.C(logsName).RemoveAll(bson.M{"build_id": id})
+	num += info.Removed
 	if err != nil {
-		return errors.Wrap(err, "error deleting logs from old tests")
+		return num, errors.Wrap(err, "error deleting logs from old tests")
 	}
 
-	if err := db.C(testsName).Remove(bson.M{"build_id": id}); err != nil {
-		return errors.Wrap(err, "error deleting test")
+	info, err = db.C(testsName).RemoveAll(bson.M{"build_id": id})
+	num += info.Removed
+	if err != nil {
+		return num, errors.Wrap(err, "error deleting test")
 	}
 
-	return nil
+	return num, nil
 }

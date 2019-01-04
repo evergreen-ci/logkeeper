@@ -2,6 +2,7 @@ package units
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
@@ -12,6 +13,11 @@ import (
 )
 
 func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
+	if _, err := os.Stat("/srv/logkeeper/amboy.leader"); os.IsNotExist(err) {
+		grip.Notice("leader file does not exist, not submitting jobs")
+		return nil
+	}
+
 	opts := amboy.QueueOperationConfig{
 		ContinueOnError: true,
 		LogErrors:       false,
@@ -47,17 +53,22 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 		}
 
 		for _, test := range tests {
-			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"])))
+			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
 		}
 
-		grip.Info(message.Fields{
+		m := message.Fields{
 			"message":    "completed adding cleanup job",
 			"num":        len(tests),
 			"errors":     catcher.HasErrors(),
 			"limit":      logkeeper.CleanupBatchSize,
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
-		})
+		}
+		if catcher.HasErrors() {
+			m["err"] = catcher.Errors()[0].Error()
+		}
+
+		grip.Info(m)
 
 		return catcher.Resolve()
 	}

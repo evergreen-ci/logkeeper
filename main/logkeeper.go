@@ -74,10 +74,10 @@ func main() {
 	remoteQueue := queue.NewRemoteUnordered(4)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkersPerApp, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, remoteQueue)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
-	grip.CatchEmergencyFatal(db.SetMigrationQueue(remoteQueue))
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
 	grip.CatchEmergencyFatal(remoteQueue.SetRunner(runner))
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
+	grip.CatchEmergencyFatal(db.SetMigrationQueue(remoteQueue))
 	grip.CatchEmergencyFatal(units.StartCrons(ctx, remoteQueue, localQueue))
 
 	dbName := "buildlogs"
