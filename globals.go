@@ -3,7 +3,7 @@ package logkeeper
 import "time"
 
 const (
-	CleanupBatchSize = 2000
+	CleanupBatchSize = 3000
 
 	AmboyInterval      = time.Minute
 	AmboyWorkersPerApp = 8
