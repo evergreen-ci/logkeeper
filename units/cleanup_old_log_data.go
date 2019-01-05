@@ -82,6 +82,16 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 {
+		grip.Info(message.Fields{
+			"job":   j.ID(),
+			"code":  resp.StatusCode,
+			"op":    "skipping build with missing evergreen task",
+			"build": j.BuildID,
+		})
+		return
+	}
+
 	payload, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		j.AddError(err)

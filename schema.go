@@ -136,6 +136,10 @@ func GetOldTests(limit int) ([]Test, error) {
 	query := bson.M{
 		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
 		"failed":  false,
+		"$and": []bson.M{
+			{"info.task_id": bson.M{"$exists": true}},
+			{"info.task_id": bson.M{"$ne": ""}},
+		},
 	}
 	var tests []Test
 	err := db.C(testsName).Find(query).Sort("-started").Limit(limit).All(&tests)
