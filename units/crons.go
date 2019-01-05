@@ -64,6 +64,12 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 		}
+
+		if len(tests) > 0 {
+			test := tests[len(tests)-1]
+			m["last_started_at"] = test.Started.Format("2006-01-02.15:04:05")
+		}
+
 		if catcher.HasErrors() {
 			m["err"] = catcher.Errors()[0].Error()
 		}
