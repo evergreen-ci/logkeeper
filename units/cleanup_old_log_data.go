@@ -103,8 +103,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}{}
 
 	if err = json.Unmarshal(payload, &taskInfo); err != nil {
-		j.AddError(errors.Wrapf(err, "problem reading response from server for task %s", j.TaskID))
-		return
+		j.AddError(errors.Wrapf(err, "problem reading response from server for [task='%s' build='%s']", j.TaskID, j.BuildID))
 	}
 
 	var num int
@@ -124,6 +123,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		"op":       "deletion complete",
 		"task":     j.TaskID,
 		"build":    j.BuildID,
+		"errors":   j.HasErrors(),
 		"job":      j.ID(),
 		"num":      num,
 		"status":   taskInfo.Status,

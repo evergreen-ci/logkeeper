@@ -1,10 +1,12 @@
 package logkeeper
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -133,7 +135,20 @@ func UpdateFailedTestsByBuildID(id interface{}) (int, error) {
 func GetOldTests(limit int) ([]Test, error) {
 	db, closer := db.GetDatabase()
 	defer closer()
-	query := bson.M{
+	query := getOldTestQuery()
+
+	db.Session.SetSocketTimeout(2 * AmboyInterval)
+
+	var tests []Test
+	err := db.C(testsName).Find(query).Limit(limit).All(&tests)
+	if err != nil {
+		return nil, errors.Wrap(err, "error finding tests")
+	}
+	return tests, err
+}
+
+func getOldTestQuery() bson.M {
+	return bson.M{
 		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
 		"failed":  false,
 		"$and": []bson.M{
@@ -141,12 +156,39 @@ func GetOldTests(limit int) ([]Test, error) {
 			{"info.task_id": bson.M{"$ne": ""}},
 		},
 	}
-	var tests []Test
-	err := db.C(testsName).Find(query).Sort("started").Limit(limit).All(&tests)
-	if err != nil {
-		return nil, errors.Wrap(err, "error finding tests")
-	}
-	return tests, err
+
+}
+
+func StreamingGetOldTests(ctx context.Context) (<-chan Test, <-chan error) {
+	db, closer := db.GetDatabase()
+
+	errOut := make(chan error)
+	out := make(chan Test)
+	db.Session.SetSocketTimeout(time.Hour)
+	go func() {
+		defer closer()
+		defer close(errOut)
+		defer close(out)
+		defer recovery.LogStackTraceAndContinue("streaming query")
+
+		iter := db.C(testsName).Find(getOldTestQuery()).Iter()
+		test := Test{}
+		for iter.Next(&test) {
+			out <- test
+			test = Test{}
+
+			if ctx.Err() != nil {
+				outErr <- errors.New("operation canceled")
+			}
+		}
+
+		if err := iter.Err(); err != nil {
+			errOut <- err
+			return
+		}
+	}()
+
+	return out, errOut
 }
 
 func CleanupOldLogsByBuild(id interface{}) (int, error) {

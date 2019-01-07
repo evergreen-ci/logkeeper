@@ -71,14 +71,19 @@ func main() {
 
 	queueDriver, err := queue.OpenNewMgoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
-	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkersPerApp)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkersPerApp, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, remoteQueue)
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
+	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkers)
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
-	grip.CatchEmergencyFatal(remoteQueue.SetRunner(runner))
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetMigrationQueue(remoteQueue))
-	grip.CatchEmergencyFatal(units.StartCrons(ctx, remoteQueue, localQueue))
+	grip.CatchEmergencyFatal(db.SetQueue(remoteQueue))
+
+	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, 100*logkeeper.CleanupBatchSize)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
+	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
+	grip.CatchEmergencyFatal(migrationQueue.SetRunner(runner))
+	grip.CatchEmergencyFatal(migrationQueue.Start(ctx))
+	grip.CatchEmergencyFatal(db.SetMigrationQueue(migrationQueue))
+
+	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, remoteQueue, localQueue))
 
 	dbName := "buildlogs"
 	lk := logkeeper.New(logkeeper.Options{

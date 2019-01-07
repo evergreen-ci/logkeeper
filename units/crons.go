@@ -2,18 +2,17 @@ package units
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"github.com/pkg/errors"
 )
 
-func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
-	if _, err := os.Stat("/srv/logkeeper/amboy.leader"); os.IsNotExist(err) {
+func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error {
+	if !logkeeper.IsLeader() {
 		grip.Notice("leader file does not exist, not submitting jobs")
 		return nil
 	}
@@ -25,13 +24,23 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 	}
 
 	grip.Info(message.Fields{
-		"message": "starting background cron jobs",
-		"state":   "not populated",
-		"opts":    opts,
+		"message":  "starting background cron jobs",
+		"state":    "not populated",
+		"interval": logkeeper.AmboyInterval.String(),
+		"opts":     opts,
+		"started": message.Fields{
+			"migration": migration.Started(),
+			"remote":    remote.Started(),
+			"local":     local.Started(),
+		},
+		"stats": message.Fields{
+			"migration": migration.Stats(),
+			"remote":    remote.Stats(),
+			"local":     local.Stats(),
+		},
 	})
 
-	amboy.IntervalQueueOperation(ctx, remote, time.Minute, time.Now(), opts, PopulateStatsJobs())
-	amboy.IntervalQueueOperation(ctx, remote, logkeeper.AmboyInterval, time.Now(), opts, PopulateCleanupOldLogDataJobs())
+	amboy.IntervalQueueOperation(ctx, migration, time.Minute, time.Now(), opts, PopulateCleanupOldLogDataJobs())
 
 	return nil
 }
@@ -39,18 +48,29 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 // Queue Population Tasks
 
 func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
+	var lastDuration time.Duration
+	var lastCompleted time.Time
+
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
 		catcher := grip.NewBasicCatcher()
 
-		tests, err := logkeeper.GetOldTests(logkeeper.CleanupBatchSize)
-		if err != nil {
-			return errors.WithStack(err)
+		var (
+			err   error
+			tests []logkeeper.Test
+		)
+
+		stats := queue.Stats()
+		if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
+			tests, err = logkeeper.GetOldTests(logkeeper.CleanupBatchSize)
+			catcher.Add(err)
+			lastDuration = time.Since(startAt)
 		}
 
 		for _, test := range tests {
 			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
 		}
+		lastCompleted = time.Now()
 
 		m := message.Fields{
 			"message":    "completed adding cleanup job",
@@ -59,6 +79,8 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 			"limit":      logkeeper.CleanupBatchSize,
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
+			"queue":      fmt.Sprintf("%T", queue),
+			"stats":      queue.Stats(),
 		}
 
 		if len(tests) > 0 {

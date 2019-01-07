@@ -680,7 +680,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		Build:           BuildRevision,
 		MaxRequestSize:  lk.opts.MaxRequestSize,
 		BatchSize:       CleanupBatchSize,
-		NumWorkers:      AmboyWorkersPerApp,
+		NumWorkers:      AmboyWorkers,
 		DurationSeconds: AmboyInterval.Seconds(),
 		MigrationStatus: db.GetMigrationQueue().Stats(),
 	}

@@ -1,16 +1,28 @@
 package logkeeper
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 const (
-	factor = 5
+	CleanupFactor    = 5
+	CleanupBatchSize = 30000 * CleanupFactor
 
-	CleanupBatchSize = 3000 * factor
-
-	AmboyInterval      = time.Minute * factor
-	AmboyWorkersPerApp = 16
+	AmboyInterval      = time.Minute * CleanupFactor
+	AmboyWorkers       = 8
 	AmboyTargetNumJobs = CleanupBatchSize
 
 	AmboyDBName             = "amboy"
 	AmboyMigrationQueueName = "logkeeper.etl"
+
+	AmboyLeaderFile = "/srv/logkeeper/amboy.leader"
 )
+
+func IsLeader() bool {
+	if _, err := os.Stat(AmboyLeaderFile); !os.IsNotExist(err) {
+		return true
+	}
+
+	return false
+}

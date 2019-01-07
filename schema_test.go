@@ -82,7 +82,8 @@ func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
 	count, _ := db.C("tests").Find(bson.M{}).Count()
 	assert.Equal(4, count)
 
-	assert.NoError(CleanupOldLogsByBuild(ids[0]))
+	_, err := CleanupOldLogsByBuild(ids[0])
+	assert.NoError(err)
 	count, _ = db.C("tests").Find(bson.M{}).Count()
 	assert.Equal(3, count)
 
@@ -103,7 +104,8 @@ func TestNoErrorWithBadTest(t *testing.T) {
 		Started: time.Now(),
 	}
 	assert.NoError(db.C("tests").Insert(test))
-	assert.NoError(CleanupOldLogsByBuild(test.BuildId))
+	_, err = CleanupOldLogsByBuild(test.BuildId)
+	assert.NoError(err)
 }
 
 func TestUpdateFailedTest(t *testing.T) {
@@ -115,7 +117,8 @@ func TestUpdateFailedTest(t *testing.T) {
 	assert.NoError(err)
 	assert.Len(tests, 2)
 
-	assert.NoError(UpdateFailedTestsByBuildID(ids[1]))
+	_, err = UpdateFailedTestsByBuildID(ids[1])
+	assert.NoError(err)
 	tests, err = GetOldTests(CleanupBatchSize)
 	assert.NoError(err)
 	assert.Len(tests, 1)

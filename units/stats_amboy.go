@@ -3,6 +3,7 @@ package units
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
@@ -56,24 +57,20 @@ func makeAmboyStatsCollector() *amboyStatsCollector {
 func (j *amboyStatsCollector) Run(ctx context.Context) {
 	defer j.MarkComplete()
 
-	queue := db.GetMigrationQueue()
-	if queue != nil && queue.Started() {
-		grip.Info(message.Fields{
-			"message": "amboy queue stats",
-			"name":    logkeeper.AmboyMigrationQueueName,
-			"stats":   queue.Stats(),
-		})
+	for _, queue := range []amboy.Queue{db.GetMigrationQueue(), db.GetQueue()} {
+		if queue != nil && queue.Started() {
+			grip.Info(message.Fields{
+				"message":   "amboy queue stats",
+				"remote":    strings.Contains(fmt.Sprintf("%T", queue), "remote"),
+				"migration": strings.Contains(fmt.Sprintf("%T", queue.Runner()), "ewma"),
+				"stats":     queue.Stats(),
+			})
 
-		if enableExtendedRemoteStats {
-			j.AddError(j.collectExtendedRemoteStats(ctx, logkeeper.AmboyMigrationQueueName))
+			if enableExtendedRemoteStats {
+				j.AddError(j.collectExtendedRemoteStats(ctx, logkeeper.AmboyMigrationQueueName))
+			}
 		}
 	}
-
-	grip.Warning(message.Fields{
-		"op":   "amboy queue stats",
-		"name": logkeeper.AmboyMigrationQueueName,
-		"nil":  queue == nil,
-	})
 }
 
 func (j *amboyStatsCollector) collectExtendedRemoteStats(ctx context.Context, name string) error {
