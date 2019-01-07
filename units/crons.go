@@ -40,16 +40,18 @@ func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error
 		},
 	})
 
-	amboy.IntervalQueueOperation(ctx, migration, time.Minute, time.Now(), opts, PopulateCleanupOldLogDataJobs())
+	amboy.IntervalQueueOperation(ctx, migration, time.Minute, time.Now(), opts, PopulateCleanupOldLogDataJobs(ctx, time.Hour))
 
 	return nil
 }
 
 // Queue Population Tasks
 
-func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
+func PopulateCleanupOldLogDataJobs(ctx context.Context, timeout time.Duration) amboy.QueueOperation {
 	var lastDuration time.Duration
 	var lastCompleted time.Time
+
+	const useStreamingMethod = false
 
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
@@ -60,17 +62,34 @@ func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 			tests []logkeeper.Test
 		)
 
-		stats := queue.Stats()
-		if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
-			tests, err = logkeeper.GetOldTests(logkeeper.CleanupBatchSize)
-			catcher.Add(err)
-			lastDuration = time.Since(startAt)
-		}
+		if useStreamingMethod {
+			tests, errs := logkeeper.StreamingGetOldTests(ctx, timeout)
+		addLoop:
+			for {
+				select {
+				case <-ctx.Done():
+					break addLoop
+				case err := <-errs:
+					catcher.Add(err)
+					break addLoop
+				case test := <-tests:
+					catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
+					continue
+				}
+			}
+		} else {
+			stats := queue.Stats()
+			if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
+				tests, err = logkeeper.GetOldTests(logkeeper.CleanupBatchSize)
+				catcher.Add(err)
+				lastDuration = time.Since(startAt)
+			}
 
-		for _, test := range tests {
-			catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
+			for _, test := range tests {
+				catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
+			}
+			lastCompleted = time.Now()
 		}
-		lastCompleted = time.Now()
 
 		m := message.Fields{
 			"message":    "completed adding cleanup job",
