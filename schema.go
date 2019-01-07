@@ -142,7 +142,7 @@ func GetOldTests(limit int) ([]Test, error) {
 		},
 	}
 	var tests []Test
-	err := db.C(testsName).Find(query).Sort("-started").Limit(limit).All(&tests)
+	err := db.C(testsName).Find(query).Sort("started").Limit(limit).All(&tests)
 	if err != nil {
 		return nil, errors.Wrap(err, "error finding tests")
 	}

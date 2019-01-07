@@ -11,6 +11,7 @@ import (
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
+	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"gopkg.in/mgo.v2"
@@ -667,13 +668,21 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	defer ses.Close()
 
 	resp := struct {
-		Err            string `json:"err"`
-		MaxRequestSize int    `json:"maxRequestSize"`
-		DB             bool   `json:"db"`
-		Build          string `json:"build_id"`
+		Err             string           `json:"err"`
+		MaxRequestSize  int              `json:"maxRequestSize"`
+		DB              bool             `json:"db"`
+		Build           string           `json:"build_id"`
+		BatchSize       int              `json:"batch_size"`
+		NumWorkers      int              `json:"workers"`
+		DurationSeconds float64          `json:"dur_secs"`
+		MigrationStatus amboy.QueueStats `json:"migration_queue_stats"`
 	}{
-		Build:          BuildRevision,
-		MaxRequestSize: lk.opts.MaxRequestSize,
+		Build:           BuildRevision,
+		MaxRequestSize:  lk.opts.MaxRequestSize,
+		BatchSize:       CleanupBatchSize,
+		NumWorkers:      AmboyWorkersPerApp,
+		DurationSeconds: AmboyInterval.Seconds(),
+		MigrationStatus: db.GetMigrationQueue().Stats(),
 	}
 
 	if err := ses.Ping(); err != nil {

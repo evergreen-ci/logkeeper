@@ -71,7 +71,7 @@ func main() {
 
 	queueDriver, err := queue.OpenNewMgoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, db.GetSession())
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
-	remoteQueue := queue.NewRemoteUnordered(4)
+	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkersPerApp)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkersPerApp, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, remoteQueue)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))

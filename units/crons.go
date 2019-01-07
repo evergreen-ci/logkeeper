@@ -30,12 +30,8 @@ func StartCrons(ctx context.Context, remote, local amboy.Queue) error {
 		"opts":    opts,
 	})
 
-	amboy.IntervalQueueOperation(ctx, remote, logkeeper.AmboyInterval, time.Now(), opts,
-		amboy.GroupQueueOperationFactory(
-			PopulateCleanupOldLogDataJobs(),
-			PopulateStatsJobs(),
-		),
-	)
+	amboy.IntervalQueueOperation(ctx, remote, time.Minute, time.Now(), opts, PopulateStatsJobs())
+	amboy.IntervalQueueOperation(ctx, remote, logkeeper.AmboyInterval, time.Now(), opts, PopulateCleanupOldLogDataJobs())
 
 	return nil
 }
