@@ -40,18 +40,18 @@ func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error
 		},
 	})
 
-	amboy.IntervalQueueOperation(ctx, migration, time.Minute, time.Now(), opts, PopulateCleanupOldLogDataJobs(ctx, time.Hour))
+	amboy.IntervalQueueOperation(ctx, migration, 10*time.Second, time.Now(), opts, PopulateCleanupOldLogDataJobs(ctx))
 
 	return nil
 }
 
 // Queue Population Tasks
 
-func PopulateCleanupOldLogDataJobs(ctx context.Context, timeout time.Duration) amboy.QueueOperation {
+func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 	var lastDuration time.Duration
 	var lastCompleted time.Time
 
-	const useStreamingMethod = false
+	const useStreamingMethod = true
 
 	return func(queue amboy.Queue) error {
 		startAt := time.Now()
@@ -63,7 +63,8 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context, timeout time.Duration) a
 		)
 
 		if useStreamingMethod {
-			tests, errs := logkeeper.StreamingGetOldTests(ctx, timeout)
+			grip.Info("starting streaming creation")
+			tests, errs := logkeeper.StreamingGetOldTests(ctx)
 		addLoop:
 			for {
 				select {
@@ -93,6 +94,7 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context, timeout time.Duration) a
 
 		m := message.Fields{
 			"message":    "completed adding cleanup job",
+			"streaming":  useStreamingMethod,
 			"num":        len(tests),
 			"errors":     catcher.HasErrors(),
 			"limit":      logkeeper.CleanupBatchSize,

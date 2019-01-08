@@ -6,10 +6,9 @@ import (
 )
 
 const (
-	CleanupFactor    = 5
-	CleanupBatchSize = 30000 * CleanupFactor
+	CleanupBatchSize = 10000
 
-	AmboyInterval      = time.Minute * CleanupFactor
+	AmboyInterval      = time.Minute
 	AmboyWorkers       = 8
 	AmboyTargetNumJobs = CleanupBatchSize
 

@@ -159,12 +159,12 @@ func getOldTestQuery() bson.M {
 
 }
 
-func StreamingGetOldTests(ctx context.Context, timeout time.Duration) (<-chan Test, <-chan error) {
+func StreamingGetOldTests(ctx context.Context) (<-chan Test, <-chan error) {
 	db, closer := db.GetDatabase()
 
 	errOut := make(chan error)
 	out := make(chan Test)
-	db.Session.SetSocketTimeout(timeout)
+	db.Session.SetSocketTimeout(5 * time.Minute)
 	go func() {
 		defer closer()
 		defer close(errOut)
