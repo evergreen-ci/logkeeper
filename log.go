@@ -40,7 +40,7 @@ func NewLogger() *Logger {
 
 func getLevel(l int) level.Priority {
 	if l == http.StatusOK {
-		return level.Info
+		return level.Debug
 	}
 
 	return level.Warning
@@ -114,7 +114,7 @@ func GetSender(queue amboy.Queue, fn string) (send.Sender, error) {
 	// variables are specified.
 
 	if splunk := send.GetSplunkConnectionInfo(); splunk.Populated() {
-		sender, err = send.NewSplunkLogger(name, splunk, baseLevel)
+		sender, err = send.NewSplunkLogger(name, splunk, send.LevelInfo{Default: level.Info, Threshold: level.Info})
 		if err != nil {
 			return nil, errors.Wrap(err, "problem creating the splunk logger")
 		}
