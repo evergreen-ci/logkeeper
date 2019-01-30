@@ -39,7 +39,7 @@ func NewLogger() *Logger {
 }
 
 func getLevel(l int) level.Priority {
-	if l == http.StatusOK {
+	if l <= 300 {
 		return level.Debug
 	}
 
