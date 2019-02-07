@@ -29,6 +29,7 @@ type Test struct {
 	Started   time.Time              `bson:"started"`
 	Ended     *time.Time             `bson:"ended"`
 	Info      map[string]interface{} `bson:"info"`
+	Failed    bool                   `bson:"failed,omitempty"`
 	Phase     string                 `bson:"phase"`
 	Seq       int                    `bson:"seq"`
 }
@@ -150,7 +151,10 @@ func GetOldBuilds(limit int) ([]LogKeeperBuild, error) {
 func getOldBuildQuery() bson.M {
 	return bson.M{
 		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
-		"failed":  false,
+		"$or": []bson.M{
+			{"failed": bson.M{"$exists": false}},
+			{"failed": bson.M{"$eq": false}},
+		},
 		"$and": []bson.M{
 			{"info.task_id": bson.M{"$exists": true}},
 			{"info.task_id": bson.M{"$ne": ""}},
