@@ -39,11 +39,11 @@ type cleanupOldLogDataJob struct {
 	job.Base `bson:"job_base" json:"job_base" yaml:"job_base"`
 }
 
-func NewCleanupOldLogDataJob(buildID, taskID, oid interface{}) amboy.Job {
+func NewCleanupOldLogDataJob(buildID, taskID interface{}) amboy.Job {
 	j := makeCleanupOldLogDataJob()
 	j.BuildID = buildID
 	j.TaskID = taskID
-	j.SetID(fmt.Sprintf("%s.%s.%s.oid=%s", cleanupJobsName, j.BuildID, j.TaskID, oid))
+	j.SetID(fmt.Sprintf("%s.%s.%s", cleanupJobsName, j.BuildID, j.TaskID))
 	return j
 }
 
@@ -108,12 +108,12 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 
 	var num int
 	if taskInfo.Status != "success" {
-		num, err = logkeeper.UpdateFailedTestsByBuildID(j.BuildID)
+		err = logkeeper.UpdateFailedBuild(j.BuildID)
 		if err != nil {
-			j.AddError(errors.Wrapf(err, "error updating failed status of test [%d]", num))
+			j.AddError(errors.Wrapf(err, "error updating failed status of build %v", j.BuildID))
 		}
 	} else {
-		num, err = logkeeper.CleanupOldLogsByBuild(j.BuildID)
+		num, err = logkeeper.CleanupOldLogsAndTestsByBuild(j.BuildID)
 		if err != nil {
 			j.AddError(errors.Wrapf(err, "error cleaning up old logs [%d]", num))
 		}

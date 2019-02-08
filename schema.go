@@ -29,7 +29,7 @@ type Test struct {
 	Started   time.Time              `bson:"started"`
 	Ended     *time.Time             `bson:"ended"`
 	Info      map[string]interface{} `bson:"info"`
-	Failed    bool                   `bson:"failed"`
+	Failed    bool                   `bson:"failed,omitempty"`
 	Phase     string                 `bson:"phase"`
 	Seq       int                    `bson:"seq"`
 }
@@ -41,6 +41,7 @@ type LogKeeperBuild struct {
 	Started  time.Time              `bson:"started"`
 	Name     string                 `bson:"name"`
 	Info     map[string]interface{} `bson:"info"`
+	Failed   bool                   `bson:"failed"`
 	Phases   []string               `bson:"phases"`
 	Seq      int                    `bson:"seq"`
 }
@@ -119,38 +120,41 @@ func findBuildByBuilder(db *mgo.Database, builder string, buildnum int) (*LogKee
 	return build, nil
 }
 
-func UpdateFailedTestsByBuildID(id interface{}) (int, error) {
+func UpdateFailedBuild(id interface{}) error {
 	if id == nil {
-		return 0, errors.New("no build id defined")
+		return errors.New("no build id defined")
 	}
 
 	db, closer := db.GetDatabase()
 	defer closer()
 
-	info, err := db.C(testsName).UpdateAll(bson.M{"build_id": id}, bson.M{"$set": bson.M{"failed": true}})
+	err := db.C(buildsName).UpdateId(id, bson.M{"$set": bson.M{"failed": true}})
 
-	return info.Updated, errors.Wrapf(err, "problem setting failed state on tasks %+v", info)
+	return errors.Wrapf(err, "problem setting failed state on build %v", id)
 }
 
-func GetOldTests(limit int) ([]Test, error) {
+func GetOldBuilds(limit int) ([]LogKeeperBuild, error) {
 	db, closer := db.GetDatabase()
 	defer closer()
-	query := getOldTestQuery()
+	query := getOldBuildQuery()
 
 	db.Session.SetSocketTimeout(2 * AmboyInterval)
 
-	var tests []Test
-	err := db.C(testsName).Find(query).Limit(limit).All(&tests)
+	var builds []LogKeeperBuild
+	err := db.C(buildsName).Find(query).Limit(limit).All(&builds)
 	if err != nil {
-		return nil, errors.Wrap(err, "error finding tests")
+		return nil, errors.Wrap(err, "error finding builds")
 	}
-	return tests, err
+	return builds, err
 }
 
-func getOldTestQuery() bson.M {
+func getOldBuildQuery() bson.M {
 	return bson.M{
 		"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
-		"failed":  false,
+		"$or": []bson.M{
+			{"failed": bson.M{"$exists": false}},
+			{"failed": bson.M{"$eq": false}},
+		},
 		"$and": []bson.M{
 			{"info.task_id": bson.M{"$exists": true}},
 			{"info.task_id": bson.M{"$ne": ""}},
@@ -159,11 +163,11 @@ func getOldTestQuery() bson.M {
 
 }
 
-func StreamingGetOldTests(ctx context.Context) (<-chan Test, <-chan error) {
+func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan error) {
 	db, closer := db.GetDatabase()
 
 	errOut := make(chan error)
-	out := make(chan Test)
+	out := make(chan LogKeeperBuild)
 	db.Session.SetSocketTimeout(5 * time.Minute)
 	go func() {
 		defer closer()
@@ -171,11 +175,11 @@ func StreamingGetOldTests(ctx context.Context) (<-chan Test, <-chan error) {
 		defer close(out)
 		defer recovery.LogStackTraceAndContinue("streaming query")
 
-		iter := db.C(testsName).Find(getOldTestQuery()).Iter()
-		test := Test{}
-		for iter.Next(&test) {
-			out <- test
-			test = Test{}
+		iter := db.C(buildsName).Find(getOldBuildQuery()).Iter()
+		build := LogKeeperBuild{}
+		for iter.Next(&build) {
+			out <- build
+			build = LogKeeperBuild{}
 
 			if ctx.Err() != nil {
 				return
@@ -191,7 +195,7 @@ func StreamingGetOldTests(ctx context.Context) (<-chan Test, <-chan error) {
 	return out, errOut
 }
 
-func CleanupOldLogsByBuild(id interface{}) (int, error) {
+func CleanupOldLogsAndTestsByBuild(id interface{}) (int, error) {
 	if id == nil {
 		return 0, errors.New("no build ID defined")
 	}
@@ -201,18 +205,17 @@ func CleanupOldLogsByBuild(id interface{}) (int, error) {
 
 	var err error
 	var num int
-	info := &mgo.ChangeInfo{}
 
-	info, err = db.C(logsName).RemoveAll(bson.M{"build_id": id})
+	info, err := db.C(logsName).RemoveAll(bson.M{"build_id": id})
 	num += info.Removed
 	if err != nil {
-		return num, errors.Wrap(err, "error deleting logs from old tests")
+		return num, errors.Wrap(err, "error deleting logs from old builds")
 	}
 
 	info, err = db.C(testsName).RemoveAll(bson.M{"build_id": id})
 	num += info.Removed
 	if err != nil {
-		return num, errors.Wrap(err, "error deleting test")
+		return num, errors.Wrap(err, "error deleting tests from old builds")
 	}
 
 	return num, nil

@@ -59,12 +59,12 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 
 		var (
 			err   error
-			tests []logkeeper.Test
+			builds []logkeeper.LogKeeperBuild
 		)
 
 		if useStreamingMethod {
 			grip.Info("starting streaming creation")
-			tests, errs := logkeeper.StreamingGetOldTests(ctx)
+			builds, errs := logkeeper.StreamingGetOldBuilds(ctx)
 		addLoop:
 			for {
 				select {
@@ -73,21 +73,21 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 				case err := <-errs:
 					catcher.Add(err)
 					break addLoop
-				case test := <-tests:
-					catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
+				case build := <-builds:
+					catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
 					continue
 				}
 			}
 		} else {
 			stats := queue.Stats()
 			if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
-				tests, err = logkeeper.GetOldTests(logkeeper.CleanupBatchSize)
+				builds, err = logkeeper.GetOldBuilds(logkeeper.CleanupBatchSize)
 				catcher.Add(err)
 				lastDuration = time.Since(startAt)
 			}
 
-			for _, test := range tests {
-				catcher.Add(queue.Put(NewCleanupOldLogDataJob(test.BuildId, test.Info["task_id"], test.Id.Hex())))
+			for _, build := range builds {
+				catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
 			}
 			lastCompleted = time.Now()
 		}
@@ -95,7 +95,7 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 		m := message.Fields{
 			"message":    "completed adding cleanup job",
 			"streaming":  useStreamingMethod,
-			"num":        len(tests),
+			"num":        len(builds),
 			"errors":     catcher.HasErrors(),
 			"limit":      logkeeper.CleanupBatchSize,
 			"num_errors": catcher.Len(),
@@ -104,9 +104,9 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 			"stats":      queue.Stats(),
 		}
 
-		if len(tests) > 0 {
-			test := tests[len(tests)-1]
-			m["last_started_at"] = test.Started.Format("2006-01-02.15:04:05")
+		if len(builds) > 0 {
+			build := builds[len(builds)-1]
+			m["last_started_at"] = build.Started.Format("2006-01-02.15:04:05")
 		}
 
 		if catcher.HasErrors() {

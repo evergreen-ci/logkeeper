@@ -10,47 +10,72 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-func insertTests(t *testing.T) []interface{} {
+func insertBuilds(t *testing.T) []interface{} {
 	assert := assert.New(t)
 	db, closer := db.GetDatabase()
 	defer closer()
-	_, err := db.C("tests").RemoveAll(bson.M{})
+	_, err := db.C(buildsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
 
+	info := make(map[string]interface{})
+	info["task_id"] = bson.NewObjectId()
 	now := time.Now()
-	oldTest1 := Test{
-		Id:      bson.NewObjectId(),
-		BuildId: "one",
+	oldBuild1 := LogKeeperBuild{
+		Id: "one",
 		Started: time.Date(2016, time.January, 15, 0, 0, 0, 0, time.Local),
+		Info: info,
 	}
-	assert.NoError(db.C("tests").Insert(oldTest1))
-	oldTest2 := Test{
-		Id:      bson.NewObjectId(),
-		BuildId: "two",
+	oldBuild2 := LogKeeperBuild{
+		Id: "two",
 		Started: time.Date(2016, time.February, 15, 0, 0, 0, 0, time.Local),
+		Info: info,
 	}
-	assert.NoError(db.C("tests").Insert(oldTest2))
-	edgeTest := Test{
-		Id:      bson.NewObjectId(),
+	edgeBuild := LogKeeperBuild{
+		Id: "three",
 		Started: now.Add(-deletePassedTestCutoff + time.Minute),
-		BuildId: "three",
-		Failed:  false,
+		Failed: false,
+		Info: info,
 	}
-	assert.NoError(db.C("tests").Insert(edgeTest))
-	newTest := Test{
-		Id:      bson.NewObjectId(),
-		BuildId: "four",
+	newBuild := LogKeeperBuild{
+		Id: "four",
 		Started: now,
+		Info: info,
 	}
-	assert.NoError(db.C("tests").Insert(newTest))
-	return []interface{}{oldTest1.BuildId, oldTest2.BuildId, edgeTest.BuildId, newTest.BuildId}
+	assert.NoError(db.C(buildsName).Insert(oldBuild1, oldBuild2, edgeBuild, newBuild))
+	return []interface{}{oldBuild1.Id, oldBuild2.Id, edgeBuild.Id, newBuild.Id}
+}
+
+func insertTests(t *testing.T, ids []interface{}) {
+	assert := assert.New(t)
+	db, closer := db.GetDatabase()
+	defer closer()
+	_, err := db.C(testsName).RemoveAll(bson.M{})
+	require.NoError(t, err)
+
+	test1 := Test{
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[0],
+	}
+	test2 := Test{
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[1],
+	}
+	test3 := Test{
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[2],
+	}
+	test4 := Test{
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[3],
+	}
+	assert.NoError(db.C(testsName).Insert(test1, test2, test3, test4))
 }
 
 func insertLogs(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
 	db, closer := db.GetDatabase()
 	defer closer()
-	_, err := db.C("logs").RemoveAll(bson.M{})
+	_, err := db.C(logsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
 
 	log1 := Log{BuildId: &ids[0]}
@@ -58,68 +83,83 @@ func insertLogs(t *testing.T, ids []interface{}) {
 	log3 := Log{BuildId: &ids[1]}
 	newId := bson.NewObjectId()
 	log4 := Log{BuildId: &newId}
-	assert.NoError(db.C("logs").Insert(log1, log2, log3, log4))
+	assert.NoError(db.C(logsName).Insert(log1, log2, log3, log4))
 }
 
 func TestGetOldTests(t *testing.T) {
 	assert := assert.New(t)
-	ids := insertTests(t)
+	ids := insertBuilds(t)
+	insertTests(t, ids)
 	insertLogs(t, ids)
 
-	tests, err := GetOldTests(CleanupBatchSize)
+	builds, err := GetOldBuilds(CleanupBatchSize)
 	assert.NoError(err)
-	assert.Len(tests, 2)
+	assert.Len(builds, 2)
 }
 
-func TestCleanupOldLogsTestsAndBuilds(t *testing.T) {
+func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	assert := assert.New(t)
 	db, closer := db.GetDatabase()
 	defer closer()
 
-	ids := insertTests(t)
+	ids := insertBuilds(t)
+	insertTests(t, ids)
 	insertLogs(t, ids)
 
-	count, _ := db.C("tests").Find(bson.M{}).Count()
+	count, _ := db.C(testsName).Find(bson.M{}).Count()
 	assert.Equal(4, count)
 
-	_, err := CleanupOldLogsByBuild(ids[0])
+	count, _ = db.C(logsName).Find(bson.M{}).Count()
+	assert.Equal(4, count)
+
+	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
 	assert.NoError(err)
-	count, _ = db.C("tests").Find(bson.M{}).Count()
+	assert.Equal(3, numDeleted)
+
+	count, _ = db.C(testsName).Find(bson.M{}).Count()
 	assert.Equal(3, count)
 
-	count, _ = db.C("logs").Find(bson.M{}).Count()
+	count, _ = db.C(logsName).Find(bson.M{}).Count()
 	assert.Equal(2, count)
 }
 
-func TestNoErrorWithBadTest(t *testing.T) {
+func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	assert := assert.New(t)
 	db, closer := db.GetDatabase()
 	defer closer()
-	_, err := db.C("tests").RemoveAll(bson.M{})
+	_, err := db.C(testsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
 
 	test := Test{
 		Id:      bson.NewObjectId(),
-		BuildId: "lol",
+		BuildId: "testwithnolog",
 		Started: time.Now(),
 	}
-	assert.NoError(db.C("tests").Insert(test))
-	_, err = CleanupOldLogsByBuild(test.BuildId)
+	assert.NoError(db.C(testsName).Insert(test))
+	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
+	assert.Equal(1, count)
+
+	log := Log{BuildId: "logwithnotest"}
+	assert.NoError(db.C(logsName).Insert(log))
+	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
+	assert.NoError(err)
+	assert.Equal(1, count)
 }
 
 func TestUpdateFailedTest(t *testing.T) {
 	assert := assert.New(t)
-	ids := insertTests(t)
+	ids := insertBuilds(t)
+	insertTests(t, ids)
 	insertLogs(t, ids)
 
-	tests, err := GetOldTests(CleanupBatchSize)
+	builds, err := GetOldBuilds(CleanupBatchSize)
 	assert.NoError(err)
-	assert.Len(tests, 2)
+	assert.Len(builds, 2)
 
-	_, err = UpdateFailedTestsByBuildID(ids[1])
+	err = UpdateFailedBuild(ids[1])
 	assert.NoError(err)
-	tests, err = GetOldTests(CleanupBatchSize)
+	builds, err = GetOldBuilds(CleanupBatchSize)
 	assert.NoError(err)
-	assert.Len(tests, 1)
+	assert.Len(builds, 1)
 }
