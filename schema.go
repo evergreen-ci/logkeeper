@@ -218,5 +218,11 @@ func CleanupOldLogsAndTestsByBuild(id interface{}) (int, error) {
 		return num, errors.Wrap(err, "error deleting tests from old builds")
 	}
 
+	err = db.C(buildsName).RemoveId(id)
+	if err != nil {
+		return num, errors.Wrap(err, "error deleting build record")
+	}
+	num++
+
 	return num, nil
 }
