@@ -207,16 +207,16 @@ func CleanupOldLogsAndTestsByBuild(id interface{}) (int, error) {
 	var num int
 
 	info, err := db.C(logsName).RemoveAll(bson.M{"build_id": id})
-	num += info.Removed
 	if err != nil {
 		return num, errors.Wrap(err, "error deleting logs from old builds")
 	}
+	num += info.Removed
 
 	info, err = db.C(testsName).RemoveAll(bson.M{"build_id": id})
-	num += info.Removed
 	if err != nil {
 		return num, errors.Wrap(err, "error deleting tests from old builds")
 	}
+	num += info.Removed
 
 	err = db.C(buildsName).RemoveId(id)
 	if err != nil {
