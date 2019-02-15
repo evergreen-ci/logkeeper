@@ -114,7 +114,7 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 
 	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
 	assert.NoError(err)
-	assert.Equal(3, numDeleted)
+	assert.Equal(4, numDeleted)
 
 	count, _ = db.C(testsName).Find(bson.M{}).Count()
 	assert.Equal(3, count)
@@ -132,19 +132,23 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 
 	test := Test{
 		Id:      bson.NewObjectId(),
-		BuildId: "testwithnolog",
+		BuildId: "incompletebuild",
 		Started: time.Now(),
 	}
+	build := LogKeeperBuild{Id: "incompletebuild"}
+	assert.NoError(db.C(buildsName).Insert(build))
 	assert.NoError(db.C(testsName).Insert(test))
 	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
-	assert.Equal(1, count)
+	assert.Equal(2, count)
 
-	log := Log{BuildId: "logwithnotest"}
+
+	log := Log{BuildId: "incompletebuild"}
+	assert.NoError(db.C(buildsName).Insert(build))
 	assert.NoError(db.C(logsName).Insert(log))
 	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
 	assert.NoError(err)
-	assert.Equal(1, count)
+	assert.Equal(2, count)
 }
 
 func TestUpdateFailedTest(t *testing.T) {

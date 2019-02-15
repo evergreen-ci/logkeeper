@@ -13,7 +13,6 @@ import (
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/send"
 	"github.com/pkg/errors"
-	"github.com/urfave/negroni"
 )
 
 const remoteAddrHeaderName = "X-Cluster-Client-Ip"
@@ -78,22 +77,6 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	}()
 
 	next(rw, r)
-
-	res := rw.(negroni.ResponseWriter)
-
-	code := res.Status()
-
-	grip.Log(getLevel(code), message.Fields{
-		"method":   r.Method,
-		"request":  reqID,
-		"path":     r.URL.Path,
-		"duration": time.Since(start),
-		"action":   "completed",
-		"status":   code,
-		"remote":   remote,
-		"outcome":  http.StatusText(code),
-		"span":     time.Since(start).String(),
-	})
 }
 
 func GetSender(queue amboy.Queue, fn string) (send.Sender, error) {
