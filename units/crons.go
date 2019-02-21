@@ -58,8 +58,9 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 		catcher := grip.NewBasicCatcher()
 
 		var (
-			err   error
+			err    error
 			builds []logkeeper.LogKeeperBuild
+			seen   int
 		)
 
 		if useStreamingMethod {
@@ -75,6 +76,7 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 					break addLoop
 				case build := <-builds:
 					catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
+					seen++
 					continue
 				}
 			}
@@ -96,8 +98,8 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 			"message":    "completed adding cleanup job",
 			"streaming":  useStreamingMethod,
 			"num":        len(builds),
+			"iters":      seen,
 			"errors":     catcher.HasErrors(),
-			"limit":      logkeeper.CleanupBatchSize,
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 			"queue":      fmt.Sprintf("%T", queue),

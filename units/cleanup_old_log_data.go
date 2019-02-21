@@ -82,32 +82,24 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		grip.Info(message.Fields{
-			"job":   j.ID(),
-			"code":  resp.StatusCode,
-			"op":    "skipping build with missing evergreen task",
-			"build": j.BuildID,
-		})
-		return
-	}
-
-	payload, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		j.AddError(err)
-		return
-	}
-
 	taskInfo := struct {
 		Status string `json:"status"`
 	}{}
 
-	if err = json.Unmarshal(payload, &taskInfo); err != nil {
-		j.AddError(errors.Wrapf(err, "problem reading response from server for [task='%s' build='%s']", j.TaskID, j.BuildID))
+	if resp.StatusCode == 200 {
+		payload, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			j.AddError(err)
+			return
+		}
+		if err = json.Unmarshal(payload, &taskInfo); err != nil {
+			j.AddError(errors.Wrapf(err, "problem reading response from server for [task='%s' build='%s']", j.TaskID, j.BuildID))
+			return
+		}
 	}
 
 	var num int
-	if taskInfo.Status != "success" {
+	if taskInfo.Status != "success" && resp.StatusCode == 200 {
 		err = logkeeper.UpdateFailedBuild(j.BuildID)
 		if err != nil {
 			j.AddError(errors.Wrapf(err, "error updating failed status of build %v", j.BuildID))
@@ -118,6 +110,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 			j.AddError(errors.Wrapf(err, "error cleaning up old logs [%d]", num))
 		}
 	}
+
 	grip.Info(message.Fields{
 		"job_type": j.Type().Name,
 		"op":       "deletion complete",
@@ -127,5 +120,6 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		"job":      j.ID(),
 		"num":      num,
 		"status":   taskInfo.Status,
+		"code":     resp.StatusCode,
 	})
 }

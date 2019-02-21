@@ -76,7 +76,7 @@ func main() {
 	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
 	grip.CatchEmergencyFatal(db.SetQueue(remoteQueue))
 
-	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, 10*logkeeper.CleanupBatchSize)
+	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
 	grip.CatchEmergencyFatal(migrationQueue.SetRunner(runner))
