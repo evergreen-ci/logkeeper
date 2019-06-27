@@ -17,6 +17,7 @@ const (
 	AmboyMigrationQueueName = "logkeeper.etl"
 
 	AmboyLeaderFile = "/srv/logkeeper/amboy.leader"
+	NoUse           = "nouse"
 )
 
 func IsLeader() bool {
