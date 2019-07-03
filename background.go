@@ -14,6 +14,7 @@ func StartBackgroundLogging(ctx context.Context) {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 		grip.Debug("starting stats collector")
+		grip.Debug("hey look another log statement")
 
 		for {
 			select {
