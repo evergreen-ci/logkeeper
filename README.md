@@ -1,4 +1,5 @@
 To set up and run (be sure to have a mongod instance running on localhost on the default port):
+Blah
 
     git clone git@github.com:evergreen-ci/logkeeper
     cd logkeeper
