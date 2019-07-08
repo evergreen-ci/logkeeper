@@ -31,7 +31,7 @@ func main() {
 
 	httpPort := flag.Int("port", 8080, "port to listen on for HTTP.")
 	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
-	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
+	rsName := flag.String("rsName", "", "name of replica set that the DB instaaaaances belong to. "+
 		"Leave empty for stand-alone and mongos instances.")
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
