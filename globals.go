@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	CleanupBatchSize = 100000
+	CleanupBatchSize = 10000
 	QueueSizeCap     = 10 * CleanupBatchSize * 5
 
 	AmboyInterval      = time.Minute
