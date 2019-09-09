@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	approxMonth            = 30 * (time.Hour * 24)
-	deletePassedTestCutoff = 3 * approxMonth // ~3 months
+	deletePassedTestCutoff = 45 * (24 * time.Hour)
 	logsName               = "logs"
 	testsName              = "tests"
 	buildsName             = "builds"
