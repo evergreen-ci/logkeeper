@@ -129,18 +129,18 @@ ifneq (,$(RUN_CASE))
 testArgs += -testify.m='$(RUN_CASE)'
 endif
 #  targets to run the tests and report the output
-$(buildDir)/output.%.test:$(buildDir)/test.% .FORCE
-	$(testRunEnv) ./$< $(testArgs) 2>&1 | tee $@
-$(buildDir)/output.%.race:$(buildDir)/race.% .FORCE
-	$(testRunEnv) ./$< $(testArgs) 2>&1 | tee $@
+$(buildDir)/output.%.test: .FORCE
+	$(testRunEnv) go test $(testArgs) ./$(if $(subst $(name),,$*),$(subst -,/,$*,)) | tee $@
+$(buildDir)/output.%.race: .FORCE
+	$(testRunEnv) go test -race $(testArgs) | tee $@
 #  targets to generate gotest output from the linter.
 $(buildDir)/output.%.lint:$(buildDir)/run-linter $(testSrcFiles) .FORCE
 	@./$< --output=$@ --lintBin=$(buildDir)/golangci-lint --packages='$*'
 $(buildDir)/output.lint:$(buildDir)/run-linter .FORCE
 	@./$< --output=$@ --lintBin=$(buildDir)/golangci-lint --packages='$(packages)'
 #  targets to process and generate coverage reports
-$(buildDir)/output.%.coverage:$(buildDir)/test.% .FORCE
-	$(testRunEnv) ./$< $(testArgs) -test.coverprofile=$@ | tee $(subst coverage,test,$@)
+$(buildDir)/output.%.coverage: .FORCE
+	go test $(testArgs) ./$(if $(subst $(name),,$*),$(subst -,/,$*),) -covermode=count -coverprofile $@ | tee $(buildDir)/output.$*.test
 	@-[ -f $@ ] && go tool cover -func=$@ | sed 's%$(projectPath)/%%' | column -t
 $(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage
 	go tool cover -html=$< -o $@
