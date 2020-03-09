@@ -182,6 +182,7 @@ buildvariants:
   - name: race-detector
     display_name: Race Detector (Arch Linux)
     expansions:
+      build_env: "GOROOT=/opt/go1.13/go PATH=/opt/go1.13/go/bin/go:$PATH"
       mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
     run_on:
       - archlinux-test

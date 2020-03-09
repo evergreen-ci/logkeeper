@@ -21,25 +21,25 @@ func insertBuilds(t *testing.T) []interface{} {
 	info["task_id"] = bson.NewObjectId()
 	now := time.Now()
 	oldBuild1 := LogKeeperBuild{
-		Id: "one",
+		Id:      "one",
 		Started: time.Date(2016, time.January, 15, 0, 0, 0, 0, time.Local),
-		Info: info,
+		Info:    info,
 	}
 	oldBuild2 := LogKeeperBuild{
-		Id: "two",
+		Id:      "two",
 		Started: time.Date(2016, time.February, 15, 0, 0, 0, 0, time.Local),
-		Info: info,
+		Info:    info,
 	}
 	edgeBuild := LogKeeperBuild{
-		Id: "three",
+		Id:      "three",
 		Started: now.Add(-deletePassedTestCutoff + time.Minute),
-		Failed: false,
-		Info: info,
+		Failed:  false,
+		Info:    info,
 	}
 	newBuild := LogKeeperBuild{
-		Id: "four",
+		Id:      "four",
 		Started: now,
-		Info: info,
+		Info:    info,
 	}
 	assert.NoError(db.C(buildsName).Insert(oldBuild1, oldBuild2, edgeBuild, newBuild))
 	return []interface{}{oldBuild1.Id, oldBuild2.Id, edgeBuild.Id, newBuild.Id}
@@ -141,7 +141,6 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
 	assert.Equal(2, count)
-
 
 	log := Log{BuildId: "incompletebuild"}
 	assert.NoError(db.C(buildsName).Insert(build))
