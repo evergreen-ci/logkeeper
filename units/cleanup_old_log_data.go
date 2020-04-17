@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/evergreen-ci/gimlet"
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/amboy/dependency"
@@ -96,10 +97,25 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 			j.AddError(errors.Wrapf(err, "problem reading response from server for [task='%s' build='%s']", j.TaskID, j.BuildID))
 			return
 		}
+	} else {
+		errResp := gimlet.ErrorResponse{}
+		j.AddError(gimlet.GetJSON(resp.Body, &errResp))
+
+		grip.Error(message.Fields{
+			"job":      j.ID(),
+			"job_type": j.Type().Name,
+			"task":     j.TaskID,
+			"build":    j.BuildID,
+			"code":     resp.StatusCode,
+			"msg":      errResp.Message,
+		})
+
+		return
 	}
 
 	var num int
-	if taskInfo.Status != "success" && resp.StatusCode == 200 {
+
+	if taskInfo.Status != "success" {
 		err = logkeeper.UpdateFailedBuild(j.BuildID)
 		if err != nil {
 			j.AddError(errors.Wrapf(err, "error updating failed status of build %v", j.BuildID))
