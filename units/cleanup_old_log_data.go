@@ -2,14 +2,12 @@ package units
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 
-	"github.com/evergreen-ci/gimlet"
 	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/utility"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/amboy/dependency"
 	"github.com/mongodb/amboy/job"
@@ -65,6 +63,13 @@ func makeCleanupOldLogDataJob() *cleanupOldLogDataJob {
 func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	defer j.MarkComplete()
 
+	if apiUser == "" {
+		j.AddError(errors.New("cannot run job without a user defined"))
+		return
+	}
+
+	client := utility.GetDefaultHTTPRetryableClient()
+	defer utility.PutHTTPClient(client)
 	url := fmt.Sprintf("%s/%s", urlBase, j.TaskID)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -76,7 +81,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	req.Header.Add("Api-User", apiUser)
 	req.Header.Add("Api-Key", apiKey)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		j.AddError(err)
 		return
@@ -88,18 +93,16 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	}{}
 
 	if resp.StatusCode == 200 {
-		payload, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			j.AddError(err)
-			return
-		}
-		if err = json.Unmarshal(payload, &taskInfo); err != nil {
+		if err = utility.ReadJSON(resp.Body, &taskInfo); err != nil {
 			j.AddError(errors.Wrapf(err, "problem reading response from server for [task='%s' build='%s']", j.TaskID, j.BuildID))
 			return
 		}
 	} else {
-		errResp := gimlet.ErrorResponse{}
-		j.AddError(gimlet.GetJSON(resp.Body, &errResp))
+		errResp := struct {
+			StatusCode int    `bson:"status" json:"status" yaml:"status"`
+			Message    string `bson:"message" json:"message" yaml:"message"`
+		}{}
+		j.AddError(utility.ReadJSON(resp.Body, &errResp))
 
 		grip.Error(message.Fields{
 			"job":      j.ID(),
