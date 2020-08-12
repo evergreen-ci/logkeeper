@@ -231,7 +231,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.logErrorf(r, "content length limit exceeded for appendLog: %s", err.Err)
+		lk.logWarningf(r, "content length limit exceeded for appendLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
