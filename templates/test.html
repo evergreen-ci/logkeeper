@@ -66,10 +66,10 @@
     <div>
   	  {{ if .TestId }}
         <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
-        <a href ="/lobster/build/{{.BuildId}}/test/{{.TestId}}">Lobster Log Viewer</a>
+        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildId}}/test/{{.TestId}}">Lobster Log Viewer</a>
   	  {{ else }}
         <a href ="/build/{{.BuildId}}/all?raw=1">Plain Text</a>
-        <a href ="/lobster/build/{{.BuildId}}/all">Lobster Log Viewer</a>
+        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildId}}/all">Lobster Log Viewer</a>
   	  {{ end }}
     </div>
     <table>
