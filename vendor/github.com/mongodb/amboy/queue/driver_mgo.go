@@ -128,9 +128,10 @@ func (d *mgoDriver) start(ctx context.Context, session *mgo.Session) error {
 		})
 	}()
 
-	if err := d.setupDB(); err != nil {
-		return errors.Wrap(err, "problem setting up database")
-	}
+	// EVG-14831 Don't build indexes automatically. They were failing to build and causing performance problems.
+	// if err := d.setupDB(); err != nil {
+	// 	return errors.Wrap(err, "problem setting up database")
+	// }
 
 	return nil
 }
