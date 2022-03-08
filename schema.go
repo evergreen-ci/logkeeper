@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	deletePassedTestCutoff = 45 * (24 * time.Hour)
+	deletePassedTestCutoff = 30 * (24 * time.Hour)
 	logsName               = "logs"
 	testsName              = "tests"
 	buildsName             = "builds"
