@@ -9,6 +9,8 @@ imports:
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: gopkg.in/mgo.v2
   version: 22287bab4379e1fbf6002fb4eb769888f3fb224c
+- name: go.mongodb.org/mongo-driver/mongo
+  version: 886d852b768f98f06d976609ef5fdc00351ca405
 - name: github.com/smartystreets/goconvey
   version: 75bc4a2dad71e5c5b51c5009b33eba766ec57051
 - name: github.com/urfave/negroni
