@@ -15,7 +15,7 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/bson"
 	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
