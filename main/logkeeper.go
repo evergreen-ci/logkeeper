@@ -20,10 +20,10 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
-	"github.com/mongodb/mongo-go-driver/mongo"
-	"github.com/mongodb/mongo-go-driver/mongo/options"
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
@@ -55,20 +55,6 @@ func main() {
 	db.SetClient(client)
 	db.SetDBName(logkeeper.DBName)
 
-	driverOpts := queue.MongoDBOptions{
-		Priority:       true,
-		CheckWaitUntil: true,
-		URI:            fmt.Sprintf("mongodb://%s", *dbHost),
-		DB:             logkeeper.AmboyDBName,
-	}
-
-	queueDriver, err := queue.OpenNewMongoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, client)
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
-	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkers)
-	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
-	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetQueue(remoteQueue))
-
 	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
@@ -76,7 +62,7 @@ func main() {
 	grip.CatchEmergencyFatal(migrationQueue.Start(ctx))
 	grip.CatchEmergencyFatal(db.SetMigrationQueue(migrationQueue))
 
-	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, remoteQueue, localQueue))
+	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, localQueue))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),

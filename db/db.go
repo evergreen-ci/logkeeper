@@ -16,7 +16,6 @@ type sessionCache struct {
 	dbName string
 
 	mq amboy.Queue
-	rq amboy.Queue
 
 	sync.RWMutex
 }
@@ -95,23 +94,4 @@ func GetMigrationQueue() amboy.Queue {
 	defer session.RUnlock()
 
 	return session.mq
-}
-
-func SetQueue(q amboy.Queue) error {
-	if !q.Started() {
-		return errors.New("queue isn't started")
-	}
-
-	session.Lock()
-	defer session.Unlock()
-
-	session.rq = q
-	return nil
-}
-
-func GetQueue() amboy.Queue {
-	session.RLock()
-	defer session.RUnlock()
-
-	return session.rq
 }

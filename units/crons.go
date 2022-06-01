@@ -11,7 +11,7 @@ import (
 	"github.com/mongodb/grip/message"
 )
 
-func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error {
+func StartCrons(ctx context.Context, migration, local amboy.Queue) error {
 	if !logkeeper.IsLeader() {
 		grip.Notice("leader file does not exist, not submitting jobs")
 		return nil
@@ -30,12 +30,10 @@ func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error
 		"opts":     opts,
 		"started": message.Fields{
 			"migration": migration.Started(),
-			"remote":    remote.Started(),
 			"local":     local.Started(),
 		},
 		"stats": message.Fields{
 			"migration": migration.Stats(),
-			"remote":    remote.Stats(),
 			"local":     local.Stats(),
 		},
 	})
