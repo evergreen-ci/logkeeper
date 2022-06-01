@@ -22,7 +22,7 @@ import (
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
-	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 

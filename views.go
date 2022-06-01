@@ -16,9 +16,9 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-go-driver/bson/primitive"
 )
 
 const (
@@ -27,9 +27,6 @@ const (
 )
 
 type Options struct {
-	// Name of DB in mongod to use for reading/writing log data
-	DB string
-
 	//Base URL to append to relative paths
 	URL string
 

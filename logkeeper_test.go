@@ -2,6 +2,7 @@ package logkeeper
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -14,12 +15,14 @@ import (
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/mongo/bson"
+	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func resetDatabase(db *mgo.Database) {
-	grip.Error(db.DropDatabase())
+func resetDatabase(ctx context.Context) {
+	grip.Error(db.DB().Drop(ctx))
 }
 
 func init() {
@@ -27,18 +30,21 @@ func init() {
 }
 
 func TestLogKeeper(t *testing.T) {
-	session, err := mgo.Dial("localhost:27017")
+	ctx := context.Background()
+
+	client, err := mongo.NewClient(options.Client().ApplyURI("localhost:27017"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err = db.SetSession(session); err != nil {
+	if err = client.Connect(ctx); err != nil {
 		t.Fatal(err)
 	}
 
+	db.SetClient(client)
+	db.SetDBName("logkeeper_test")
 	Convey("LogKeeper instance running on testdatabase", t, func() {
-		lk := New(Options{DB: "logkeeper_test", MaxRequestSize: 1024 * 1024 * 10})
-		db := session.DB("logkeeper_test")
+		lk := New(Options{MaxRequestSize: 1024 * 1024 * 10})
 		router := lk.NewRouter()
 
 		Convey("Call POST /build creates a build with the given builder/buildnum", func() {
@@ -65,6 +71,8 @@ func TestLogKeeper(t *testing.T) {
 			data = checkEndpointResponse(router, r, http.StatusCreated)
 			So(data["id"], ShouldNotBeNil)
 			testId := data["id"].(string)
+			testObjectID, err := primitive.ObjectIDFromHex(testId)
+			So(err, ShouldBeNil)
 
 			// Insert oversize log
 			line := strings.Repeat("a", 2097152)
@@ -75,21 +83,23 @@ func TestLogKeeper(t *testing.T) {
 
 			// Test should have seq = 2
 			test := &Test{}
-			err := db.C("tests").Find(bson.M{"_id": idFromString(testId)}).One(test)
+			err = db.C("tests").FindOne(ctx, bson.M{"_id": testObjectID}).Decode(test)
 			So(err, ShouldBeNil)
 			So(test.Seq, ShouldEqual, 2)
 
 			// Test should have two logs
-			numLogs, err := db.C("logs").Find(bson.M{"test_id": idFromString(testId)}).Count()
+			numLogs, err := db.C("logs").CountDocuments(ctx, bson.M{"test_id": testObjectID})
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			logs := db.C("logs").Find(bson.M{"test_id": idFromString(testId)}).Sort("seq").Iter()
-			log := &Log{}
+			cur, err := db.C("logs").Find(ctx, bson.M{"test_id": testObjectID}, options.Find().SetSort("seq"))
 			firstLog := true
-			for logs.Next(log) {
+			for cur.Next(ctx) {
+				log := &Log{}
+				So(cur.Decode(log), ShouldBeNil)
+
 				if firstLog {
 					So(len(log.Lines), ShouldEqual, 2)
 					So(log.Seq, ShouldEqual, 1)
@@ -100,7 +110,7 @@ func TestLogKeeper(t *testing.T) {
 				}
 			}
 
-			So(db.DropDatabase(), ShouldBeNil)
+			So(db.DB().Drop(ctx), ShouldBeNil)
 
 			// Create build
 			r = newTestRequest(lk, "POST", "/build", map[string]interface{}{"builder": "myBuilder", "buildnum": 123})
@@ -115,21 +125,23 @@ func TestLogKeeper(t *testing.T) {
 
 			// Build should have seq = 2
 			build := &LogKeeperBuild{}
-			err = db.C("builds").Find(bson.M{"_id": idFromString(buildId)}).One(build)
+			err = db.C("builds").FindOne(ctx, bson.M{"_id": buildId}).Decode(build)
 			So(err, ShouldBeNil)
 			So(build.Seq, ShouldEqual, 2)
 
 			// Build should have two logs
-			numLogs, err = db.C("logs").Find(bson.M{"build_id": idFromString(buildId)}).Count()
+			numLogs, err = db.C("logs").CountDocuments(ctx, bson.M{"build_id": buildId})
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			logs = db.C("logs").Find(bson.M{"build_id": idFromString(buildId)}).Sort("seq").Iter()
-			log = &Log{}
+			cur, err = db.C("logs").Find(ctx, bson.M{"build_id": buildId}, options.Find().SetSort("seq"))
 			firstLog = true
-			for logs.Next(log) {
+			for cur.Next(ctx) {
+				log := &Log{}
+				So(cur.Decode(log), ShouldBeNil)
+
 				if firstLog {
 					So(len(log.Lines), ShouldEqual, 2)
 					So(log.Seq, ShouldEqual, 1)
@@ -159,16 +171,18 @@ func TestLogKeeper(t *testing.T) {
 			data = checkEndpointResponse(router, r, http.StatusCreated)
 			So(data["id"], ShouldNotBeNil)
 			testId := data["id"].(string)
+			testObjectID, err := primitive.ObjectIDFromHex(testId)
+			So(err, ShouldBeNil)
 
 			test := &Test{}
-			err := db.C("tests").Find(bson.M{"_id": idFromString(testId)}).One(test)
+			err = db.C("tests").FindOne(ctx, bson.M{"_id": testObjectID}).Decode(test)
 			So(err, ShouldBeNil)
 			So(test.Info, ShouldNotBeNil)
 			So(test.Info["task_id"], ShouldEqual, "abc123")
 		})
 
 		// Clear database
-		Reset(func() { resetDatabase(db) })
+		Reset(func() { resetDatabase(ctx) })
 	})
 }
 

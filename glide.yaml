@@ -4,8 +4,6 @@ import:
   - package: github.com/urfave/negroni
   - package: github.com/gorilla/mux
   - package: github.com/phyber/negroni-gzip
-  - package: gopkg.in/mgo.v2
-  - package: go.mongodb.org/mongo-driver/mongo
   - package: github.com/smartystreets/goconvey
   - package: golang.org/x/net
   - package: github.com/jacobsa/oglematchers
