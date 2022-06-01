@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -21,9 +20,10 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
+	"github.com/mongodb/mongo-go-driver/mongo"
+	"github.com/mongodb/mongo-go-driver/mongo/options"
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
-	"gopkg.in/mgo.v2"
 )
 
 func main() {
@@ -50,17 +50,10 @@ func main() {
 
 	grip.CatchEmergencyFatal(grip.SetSender(sender))
 
-	dialInfo := mgo.DialInfo{
-		Addrs: strings.Split(*dbHost, ","),
-	}
-
-	if *rsName != "" {
-		dialInfo.ReplicaSetName = *rsName
-	}
-
-	session, err := mgo.DialWithInfo(&dialInfo)
+	client, err := initDB(ctx, *dbHost, *rsName)
 	grip.CatchEmergencyFatal(err)
-	grip.CatchEmergencyFatal(db.SetSession(session))
+	db.SetClient(client)
+	db.SetDBName(logkeeper.DBName)
 
 	driverOpts := queue.MongoDBOptions{
 		Priority:       true,
@@ -69,7 +62,7 @@ func main() {
 		DB:             logkeeper.AmboyDBName,
 	}
 
-	queueDriver, err := queue.OpenNewMgoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, db.GetSession())
+	queueDriver, err := queue.OpenNewMongoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, client)
 	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
 	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkers)
 	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
@@ -85,13 +78,11 @@ func main() {
 
 	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, remoteQueue, localQueue))
 
-	dbName := "buildlogs"
 	lk := logkeeper.New(logkeeper.Options{
-		DB:             dbName,
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
 	})
-	db.SetDatabase(dbName)
+
 	logkeeper.StartBackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()
@@ -180,4 +171,22 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 		}(s)
 	}
 	wg.Wait()
+}
+
+func initDB(ctx context.Context, dbURI, rsName string) (*mongo.Client, error) {
+	opts := options.Client().ApplyURI(dbURI)
+	if rsName != "" {
+		opts.SetReplicaSet(rsName)
+	}
+
+	client, err := mongo.NewClient(opts)
+	if err != nil {
+		return nil, errors.Wrap(err, "getting mongo client")
+	}
+
+	if err = client.Connect(ctx); err != nil {
+		return nil, errors.Wrap(err, "connecting to the database")
+	}
+
+	return client, nil
 }

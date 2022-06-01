@@ -1,6 +1,7 @@
 package logkeeper
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -14,8 +15,10 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-go-driver/bson/primitive"
 )
 
 const (
@@ -59,7 +62,6 @@ func New(opts Options) *logKeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
 		Funcs: template.FuncMap{
-			"StringifyId": stringifyId,
 			"MutableVar": func() interface{} {
 				return &MutableVar{""}
 			},
@@ -72,18 +74,7 @@ func New(opts Options) *logKeeper {
 		},
 	})
 
-	// Set default values for options
-	if opts.DB == "" {
-		opts.DB = "logkeeper"
-	}
-
 	return &logKeeper{render, opts}
-}
-
-func (lk *logKeeper) getSession() (*mgo.Session, *mgo.Database) {
-	session := db.GetSession()
-
-	return session, session.DB(lk.opts.DB)
 }
 
 type apiError struct {
@@ -113,19 +104,15 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ses, db := lk.getSession()
-	defer ses.Close()
-
-	existingBuild, err := findBuildByBuilder(db, buildParameters.Builder, buildParameters.BuildNum)
+	existingBuild, err := findBuildByBuilder(buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
 		lk.logErrorf(r, "Error finding build by builder: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 	if existingBuild != nil {
-		buildIdStr := stringifyId(existingBuild.Id)
-		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, buildIdStr)
-		response := createdResponse{buildIdStr, existingBuildUri}
+		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, existingBuild.Id)
+		response := createdResponse{existingBuild.Id, existingBuildUri}
 		lk.render.WriteJSON(w, http.StatusOK, response)
 		return
 	}
@@ -133,7 +120,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	buildInfo := map[string]interface{}{"task_id": buildParameters.TaskId}
 
 	hasher := md5.New()
-	if _, err = hasher.Write([]byte(bson.NewObjectId().Hex())); err != nil {
+	if _, err = hasher.Write([]byte(primitive.NewObjectID().Hex())); err != nil {
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -148,10 +135,9 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Info:     buildInfo,
 	}
 
-	err = db.C("builds").Insert(newBuild)
-
+	_, err = db.C("builds").InsertOne(db.Context(), newBuild)
 	if err != nil {
-		lk.logErrorf(r, "Error inserting build object: %v", err)
+		lk.logErrorf(r, "inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -174,10 +160,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
-
-	build, err := findBuildById(db, buildId)
+	build, err := findBuildById(buildId)
 	if err != nil {
 		lk.logErrorf(r, "error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -205,7 +188,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	testInfo := map[string]interface{}{"task_id": testParams.TaskId}
 
 	newTest := Test{
-		Id:        bson.NewObjectId(),
+		Id:        primitive.NewObjectID(),
 		BuildId:   build.Id,
 		BuildName: build.Name,
 		Name:      testParams.TestFilename,
@@ -215,15 +198,14 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Info:      testInfo,
 	}
 
-	err = db.C("tests").Insert(newTest)
-
+	_, err = db.C("tests").InsertOne(db.Context(), newTest)
 	if err != nil {
 		lk.logErrorf(r, "Error inserting test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), newTest.Id.Hex())
+	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id, newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
 }
 
@@ -238,17 +220,15 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
-	ses, db := lk.getSession()
-	defer ses.Close()
 
-	build, err := findBuildById(db, buildId)
+	build, err := findBuildById(buildId)
 	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "appending log: build not found"})
 		return
 	}
 
 	test_id := vars["test_id"]
-	test, err := findTest(db, test_id)
+	test, err := findTest(test_id)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
@@ -289,11 +269,14 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		logChars += len(line.Msg())
 	}
 
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
-	_, err = db.C("tests").With(ses).Find(bson.M{"_id": test.Id}).Apply(change, test)
-
-	if err != nil {
-		lk.logErrorf(r, "Error updating tests: %v", err)
+	findOneResult := db.C("tests").FindOneAndUpdate(db.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}})
+	if err := findOneResult.Err(); err != nil {
+		lk.logErrorf(r, "updating tests: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
+	}
+	if err = findOneResult.Decode(test); err != nil {
+		lk.logErrorf(r, "decoding updated test: %s", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -306,7 +289,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		err = db.C("logs").With(ses).Insert(logEntry)
+		_, err := db.C("logs").InsertOne(db.Context(), logEntry)
 		if err != nil {
 			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -314,7 +297,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), test.Id.Hex())
+	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id, test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -330,12 +313,9 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
-
-	build, err := findBuildById(db, buildId)
+	build, err := findBuildById(buildId)
 	if err != nil {
-		lk.logErrorf(r, "Error finding builds entry: %v", err)
+		lk.logErrorf(r, "finding builds entry: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding builds in append global log:" + err.Error()})
 		return
 	}
@@ -379,10 +359,14 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		logChars += len(line.Msg())
 	}
 
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
-	_, err = db.C("builds").With(ses).Find(bson.M{"_id": build.Id}).Apply(change, build)
-	if err != nil {
-		lk.logErrorf(r, "Error updating builds entry: %v", err)
+	findOneResult := db.C("builds").FindOneAndUpdate(db.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}})
+	if err := findOneResult.Err(); err != nil {
+		lk.logErrorf(r, "updating builds entry: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
+	}
+	if err = findOneResult.Decode(build); err != nil {
+		lk.logErrorf(r, "decoding updated build: %s", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -395,15 +379,15 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		err = db.C("logs").With(ses).Insert(logEntry)
+		_, err = db.C("logs").InsertOne(db.Context(), logEntry)
 		if err != nil {
-			lk.logErrorf(r, "Error inserting logs entry: %v", err)
+			lk.logErrorf(r, "inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}
 	}
 
-	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, stringifyId(build.Id))
+	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, build.Id)
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -414,10 +398,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
-
-	build, err := findBuildById(db, buildId)
+	build, err := findBuildById(buildId)
 	if err != nil {
 		lk.logErrorf(r, "Error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "failed to find build:" + err.Error()})
@@ -427,7 +408,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view build: build not found"})
 		return
 	}
-	tests, err := findTestsForBuild(db, buildId)
+	tests, err := findTestsForBuild(buildId)
 	if err != nil {
 		lk.logErrorf(r, "Error finding tests for build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -442,22 +423,21 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
+
+	ctx := r.Context()
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
-
-	build, err := findBuildById(db, buildId)
+	build, err := findBuildById(buildId)
 	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view all logs: build not found"})
 		return
 	}
 
-	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, []string{"seq"}, nil, nil)
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
+	globalLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil}, []string{"seq"}, nil, nil)
+	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
 	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
@@ -479,7 +459,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			TestId   string
 			TestName string
 			Info     map[string]interface{}
-		}{merged, stringifyId(build.Id), build.Builder, "", "All logs", build.Info}, "base", "test.html")
+		}{merged, build.Id, build.Builder, "", "All logs", build.Info}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
@@ -489,28 +469,27 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
+
+	ctx := r.Context()
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
 	build_id := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
-
-	build, err := findBuildById(db, build_id)
+	build, err := findBuildById(build_id)
 	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view test by id: build not found"})
 		return
 	}
 
 	test_id := vars["test_id"]
-	test, err := findTest(db, test_id)
+	test, err := findTest(test_id)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
 	}
 
-	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
+	globalLogs, err := lk.findGlobalLogsDuringTest(ctx, build, test)
 
 	if err != nil {
 		lk.logErrorf(r, "Error finding global logs during test: %v", err)
@@ -518,7 +497,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, []string{"seq"}, nil, nil)
+	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": test.Id}, []string{"seq"}, nil, nil)
 
 	merged := MergeLog(testLogs, globalLogs)
 
@@ -547,7 +526,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			TestId   string
 			TestName string
 			Info     map[string]interface{}
-		}{merged, stringifyId(build.Id), build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
+		}{merged, build.Id, build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
 		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
 		// instead
 		if err != nil {
@@ -564,18 +543,22 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
-	ses, db := lk.getSession()
-
+func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
 	outputLog := make(chan *LogLineItem)
-	logItem := &Log{}
-
 	go func() {
-		defer ses.Close()
 		defer close(outputLog)
 		lineNum := 0
-		log := db.C("logs").Find(query).Sort(sort...).Iter()
-		for log.Next(logItem) {
+		cur, err := db.C("logs").Find(db.Context(), query, options.Find().SetSort(sort))
+		if err != nil {
+			return
+		}
+
+		for cur.Next(ctx) {
+			var logItem Log
+			if err = cur.Decode(logItem); err != nil {
+				continue
+			}
+
 			for _, v := range logItem.Lines {
 				if minTime != nil && v.Time().Before(*minTime) {
 					continue
@@ -596,9 +579,7 @@ func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *tim
 	return outputLog
 }
 
-func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test) (chan *LogLineItem, error) {
-	ses, db := lk.getSession()
-	defer ses.Close()
+func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKeeperBuild, test *Test) (chan *LogLineItem, error) {
 	globalSeqFirst, globalSeqLast := new(int), new(int)
 
 	minTime := &(test.Started)
@@ -607,10 +588,12 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 	// Find the first global log entry before this test started.
 	// This may not actually contain any global log lines during the test run, if the entry returned
 	// by this query comes from after the *next* test stared.
-	firstGlobalLog := &Log{}
-	err := db.C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}).Sort("-seq").Limit(1).One(firstGlobalLog)
+	var firstGlobalLog Log
+	err := db.C("logs").
+		FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort("-seq")).
+		Decode(&firstGlobalLog)
 	if err != nil {
-		if err != mgo.ErrNotFound {
+		if err != mongo.ErrNoDocuments {
 			return nil, err
 		}
 		// There are no global entries after this test started.
@@ -619,13 +602,14 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 		*globalSeqFirst = firstGlobalLog.Seq
 	}
 
-	lastGlobalLog := &Log{}
 	// Find the next test after this one.
-	nextTest := &Test{}
-	err = db.C("tests").Find(bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}).Sort("started").Limit(1).One(nextTest)
+	var nextTest Test
+	err = db.C("tests").
+		FindOne(db.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort("started")).
+		Decode(&nextTest)
 	if err != nil {
-		if err != mgo.ErrNotFound {
-			return nil, err
+		if err != mongo.ErrNoDocuments {
+			return nil, nil
 		}
 		// no next test exists
 		globalSeqLast = nil
@@ -633,10 +617,13 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 		maxTime = &(nextTest.Started)
 		// Find the last global log entry that covers this test. This may return a global log entry
 		// that started before the test itself.
-		err = db.C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}).Sort("-seq").Limit(1).One(lastGlobalLog)
+		var lastGlobalLog Log
+		err = db.C("logs").
+			FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort("-seq")).
+			Decode(&lastGlobalLog)
 		if err != nil {
-			if err != mgo.ErrNotFound {
-				return nil, err
+			if err != mongo.ErrNoDocuments {
+				return nil, nil
 			}
 			globalSeqLast = nil
 		} else {
@@ -654,7 +641,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 		globalLogsSeq["$lte"] = *globalSeqLast
 	}
 
-	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, minTime, maxTime), nil
+	return lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, minTime, maxTime), nil
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
@@ -676,9 +663,6 @@ func (lk *logKeeper) logWarningf(r *http.Request, format string, v ...interface{
 func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	ses, _ := lk.getSession()
-	defer ses.Close()
-
 	resp := struct {
 		Err             string           `json:"err"`
 		MaxRequestSize  int              `json:"maxRequestSize"`
@@ -697,7 +681,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		MigrationStatus: db.GetMigrationQueue().Stats(),
 	}
 
-	if err := ses.Ping(); err != nil {
+	if err := db.Client().Ping(r.Context(), nil); err != nil {
 		resp.Err = err.Error()
 
 		lk.render.WriteJSON(w, http.StatusServiceUnavailable, &resp)

@@ -120,12 +120,3 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 		return catcher.Resolve()
 	}
 }
-
-func PopulateStatsJobs() amboy.QueueOperation {
-	return func(queue amboy.Queue) error {
-		// round time to the minute by format
-		ts := time.Now().Format("2006-01-02.15-04")
-
-		return queue.Put(NewAmboyStatsCollector(ts))
-	}
-}

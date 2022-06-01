@@ -7,7 +7,7 @@ import (
 
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"gopkg.in/mgo.v2/bson"
+	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
@@ -18,7 +18,7 @@ type LogLineItem struct {
 	LineNum   int
 	Timestamp time.Time
 	Data      string
-	TestId    *bson.ObjectId
+	TestId    *primitive.ObjectID
 }
 
 // Global returns true if this log line comes from a global log, otherwise false (from a test log).
@@ -43,11 +43,11 @@ func (lli LogLineItem) Global() bool {
 }*/
 
 type Log struct {
-	BuildId interface{}    `bson:"build_id"`
-	TestId  *bson.ObjectId `bson:"test_id"`
-	Seq     int            `bson:"seq"`
-	Started *time.Time     `bson:"started"`
-	Lines   []LogLine      `bson:"lines"`
+	BuildId interface{}         `bson:"build_id"`
+	TestId  *primitive.ObjectID `bson:"test_id"`
+	Seq     int                 `bson:"seq"`
+	Started *time.Time          `bson:"started"`
+	Lines   []LogLine           `bson:"lines"`
 }
 
 func NewLogLine(data []interface{}) *LogLine {

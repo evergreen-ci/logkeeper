@@ -9,6 +9,8 @@ const (
 	CleanupBatchSize = 10000
 	QueueSizeCap     = 10 * CleanupBatchSize * 5
 
+	DBName = "buildlogs"
+
 	AmboyInterval      = time.Minute
 	AmboyWorkers       = 8
 	AmboyTargetNumJobs = CleanupBatchSize
