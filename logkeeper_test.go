@@ -15,9 +15,9 @@ import (
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
-	"go.mongodb.org/mongo-driver/mongo/bson"
-	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 

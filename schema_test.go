@@ -8,8 +8,8 @@ import (
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/mongo/bson"
-	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func insertBuilds(t *testing.T) []interface{} {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/mongodb/amboy"
 	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/mongo/mongo"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type sessionCache struct {

@@ -7,9 +7,9 @@ import (
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/mongo/bson"
-	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 

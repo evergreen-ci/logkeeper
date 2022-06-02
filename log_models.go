@@ -7,7 +7,7 @@ import (
 
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"go.mongodb.org/mongo-driver/mongo/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
