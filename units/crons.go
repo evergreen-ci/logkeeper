@@ -29,29 +29,29 @@ func StartCrons(ctx context.Context, migration, local amboy.Queue) error {
 		"interval": logkeeper.AmboyInterval.String(),
 		"opts":     opts,
 		"started": message.Fields{
-			"migration": migration.Started(),
-			"local":     local.Started(),
+			"migration": migration.Info().Started,
+			"local":     local.Info().Started,
 		},
 		"stats": message.Fields{
-			"migration": migration.Stats(),
-			"local":     local.Stats(),
+			"migration": migration.Stats(ctx),
+			"local":     local.Stats(ctx),
 		},
 	})
 
-	amboy.IntervalQueueOperation(ctx, migration, 10*time.Second, time.Now(), opts, PopulateCleanupOldLogDataJobs(ctx))
+	amboy.IntervalQueueOperation(ctx, migration, 10*time.Second, time.Now(), opts, PopulateCleanupOldLogDataJobs())
 
 	return nil
 }
 
 // Queue Population Tasks
 
-func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
+func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
 	var lastDuration time.Duration
 	var lastCompleted time.Time
 
 	const useStreamingMethod = true
 
-	return func(queue amboy.Queue) error {
+	return func(ctx context.Context, queue amboy.Queue) error {
 		startAt := time.Now()
 		catcher := grip.NewBasicCatcher()
 
@@ -73,13 +73,13 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 					catcher.Add(err)
 					break addLoop
 				case build := <-builds:
-					catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
+					catcher.Add(queue.Put(ctx, NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
 					seen++
 					continue
 				}
 			}
 		} else {
-			stats := queue.Stats()
+			stats := queue.Stats(ctx)
 			if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
 				builds, err = logkeeper.GetOldBuilds(logkeeper.CleanupBatchSize)
 				catcher.Add(err)
@@ -87,7 +87,7 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 			}
 
 			for _, build := range builds {
-				catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
+				catcher.Add(queue.Put(ctx, NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
 			}
 			lastCompleted = time.Now()
 		}
@@ -101,7 +101,7 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 			"queue":      fmt.Sprintf("%T", queue),
-			"stats":      queue.Stats(),
+			"stats":      queue.Stats(ctx),
 		}
 
 		if len(builds) > 0 {

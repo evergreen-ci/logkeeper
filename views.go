@@ -675,7 +675,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		BatchSize:       CleanupBatchSize,
 		NumWorkers:      AmboyWorkers,
 		DurationSeconds: AmboyInterval.Seconds(),
-		MigrationStatus: db.GetMigrationQueue().Stats(),
+		MigrationStatus: db.GetMigrationQueue().Stats(r.Context()),
 	}
 
 	if err := db.Client().Ping(r.Context(), nil); err != nil {

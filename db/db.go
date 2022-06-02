@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/mongodb/amboy"
 	"github.com/pkg/errors"
@@ -21,8 +20,6 @@ type sessionCache struct {
 }
 
 var session *sessionCache
-
-const defaultSocketTimeout = 90 * time.Second
 
 func init() {
 	session = &sessionCache{}
@@ -78,7 +75,7 @@ func SetDBName(name string) {
 }
 
 func SetMigrationQueue(q amboy.Queue) error {
-	if !q.Started() {
+	if !q.Info().Started {
 		return errors.New("queue isn't started")
 	}
 

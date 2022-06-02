@@ -42,27 +42,27 @@ func main() {
 	defer cancel()
 
 	localQueue := queue.NewLocalLimitedSize(4, 2048)
-	grip.CatchEmergencyFatal(localQueue.Start(ctx))
+	grip.EmergencyFatal(localQueue.Start(ctx))
 
-	sender, err := logkeeper.GetSender(localQueue, *logPath)
-	grip.CatchEmergencyFatal(err)
+	sender, err := logkeeper.GetSender(ctx, localQueue, *logPath)
+	grip.EmergencyFatal(err)
 	defer sender.Close()
 
-	grip.CatchEmergencyFatal(grip.SetSender(sender))
+	grip.EmergencyFatal(grip.SetSender(sender))
 
 	client, err := initDB(ctx, *dbHost, *rsName)
-	grip.CatchEmergencyFatal(err)
+	grip.EmergencyFatal(err)
 	db.SetClient(client)
 	db.SetDBName(logkeeper.DBName)
 
 	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
-	grip.CatchEmergencyFatal(migrationQueue.SetRunner(runner))
-	grip.CatchEmergencyFatal(migrationQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetMigrationQueue(migrationQueue))
+	grip.EmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
+	grip.EmergencyFatal(migrationQueue.SetRunner(runner))
+	grip.EmergencyFatal(migrationQueue.Start(ctx))
+	grip.EmergencyFatal(db.SetMigrationQueue(migrationQueue))
 
-	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, localQueue))
+	grip.EmergencyFatal(units.StartCrons(ctx, migrationQueue, localQueue))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
@@ -104,7 +104,7 @@ func main() {
 	grip.Notice("waiting for web services to terminate gracefully")
 	gracefulWait.Wait()
 
-	grip.CatchEmergencyFatal(catcher.Resolve())
+	grip.EmergencyFatal(catcher.Resolve())
 }
 
 func listenServeAndHandleErrs(s *http.Server) error {
