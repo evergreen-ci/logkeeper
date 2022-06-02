@@ -74,7 +74,7 @@ func SetDBName(name string) {
 	session.dbName = name
 }
 
-func SetMigrationQueue(q amboy.Queue) error {
+func SetCleanupQueue(q amboy.Queue) error {
 	if !q.Info().Started {
 		return errors.New("queue isn't started")
 	}
@@ -86,7 +86,7 @@ func SetMigrationQueue(q amboy.Queue) error {
 	return nil
 }
 
-func GetMigrationQueue() amboy.Queue {
+func GetCleanupQueue() amboy.Queue {
 	session.RLock()
 	defer session.RUnlock()
 

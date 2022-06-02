@@ -26,7 +26,7 @@ func StartBackgroundLogging(ctx context.Context) {
 				if IsLeader() {
 					grip.Info(message.Fields{
 						"message": "amboy queue stats",
-						"stats":   db.GetMigrationQueue().Stats(ctx),
+						"stats":   db.GetCleanupQueue().Stats(ctx),
 					})
 				}
 

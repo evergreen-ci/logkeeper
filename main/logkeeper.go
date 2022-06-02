@@ -55,14 +55,14 @@ func main() {
 	db.SetClient(client)
 	db.SetDBName(logkeeper.DBName)
 
-	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
+	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
 	grip.EmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
-	grip.EmergencyFatal(migrationQueue.SetRunner(runner))
-	grip.EmergencyFatal(migrationQueue.Start(ctx))
-	grip.EmergencyFatal(db.SetMigrationQueue(migrationQueue))
+	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
+	grip.EmergencyFatal(cleanupQueue.Start(ctx))
+	grip.EmergencyFatal(db.SetCleanupQueue(cleanupQueue))
 
-	grip.EmergencyFatal(units.StartCrons(ctx, migrationQueue, localQueue))
+	grip.EmergencyFatal(units.StartCleanupCron(ctx, cleanupQueue))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
