@@ -22,7 +22,7 @@ const (
 
 type Test struct {
 	Id        primitive.ObjectID     `bson:"_id"`
-	BuildId   interface{}            `bson:"build_id"`
+	BuildId   string                 `bson:"build_id"`
 	BuildName string                 `bson:"build_name"`
 	Name      string                 `bson:"name"`
 	Command   string                 `bson:"command"`
@@ -64,7 +64,7 @@ func findTest(id string) (*Test, error) {
 }
 
 func findTestsForBuild(buildID string) ([]Test, error) {
-	cur, err := db.C(testsName).Find(db.Context(), bson.M{"build_id": buildID}, options.Find().SetSort("started"))
+	cur, err := db.C(testsName).Find(db.Context(), bson.M{"build_id": buildID}, options.Find().SetSort(bson.M{"started": 1}))
 	if err != nil {
 		return nil, errors.Wrapf(err, "finding tests for build '%s'", buildID)
 	}

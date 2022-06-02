@@ -2,21 +2,23 @@ package logkeeper
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func makeTestLogkeeperApp(t *testing.T) *logKeeper {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	client, err := mongo.NewClient(options.Client().ApplyURI("localhost:27017").SetConnectTimeout(5 * time.Second))
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,8 +30,15 @@ func makeTestLogkeeperApp(t *testing.T) *logKeeper {
 	db.SetClient(client)
 	db.SetDBName("logkeeper_test")
 
+	_, err = db.C(buildsName).DeleteMany(ctx, bson.M{})
+	require.NoError(t, err)
+	_, err = db.C(testsName).DeleteMany(ctx, bson.M{})
+	require.NoError(t, err)
+	_, err = db.C(logsName).DeleteMany(ctx, bson.M{})
+	require.NoError(t, err)
+
 	lk := New(Options{
-		URL:            fmt.Sprintf("http://localhost:8080"),
+		URL:            "http://localhost:8080",
 		MaxRequestSize: 1024 * 1024 * 32,
 	})
 
@@ -39,30 +48,32 @@ func makeTestLogkeeperApp(t *testing.T) *logKeeper {
 func TestFindGlobalLogsDuringTest(t *testing.T) {
 	ctx := context.Background()
 	assert := assert.New(t)
-	now := time.Now()
+	testStart := time.Now()
 	lk := makeTestLogkeeperApp(t)
 
 	b := LogKeeperBuild{
 		Id:      "b",
-		Started: now,
+		Started: testStart,
 	}
 	_, err := db.C("builds").InsertOne(ctx, b)
 	assert.NoError(err)
 
 	t1 := Test{
 		Id:      primitive.NewObjectID(),
-		Started: now.Add(10 * time.Second),
+		BuildId: b.Id,
+		Started: testStart.Add(10 * time.Second),
 	}
 	_, err = db.C("tests").InsertOne(ctx, t1)
 	assert.NoError(err)
 	t2 := Test{
 		Id:      primitive.NewObjectID(),
-		Started: now,
+		BuildId: b.Id,
+		Started: testStart,
 	}
 	_, err = db.C("tests").InsertOne(ctx, t2)
 	assert.NoError(err)
 
-	globalLogTime := now.Add(5 * time.Second)
+	globalLogTime := testStart.Add(5 * time.Second)
 	globalLog := Log{
 		BuildId: b.Id,
 		TestId:  nil,
@@ -100,16 +111,16 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	_, err = db.C("logs").InsertOne(ctx, testLog2)
 	assert.NoError(err)
 
-	// build logs that during a test should be returned as part of the test, even
+	// build logs during a test should be returned as part of the test, even
 	// if the build itself started after the test
 	logChan, err := lk.findGlobalLogsDuringTest(ctx, &b, &t2)
 	assert.NoError(err)
 	count := 0
 	for logLine := range logChan {
 		count++
-		assert.Contains(logLine.Data, "build 1")
+		assert.Contains(logLine.Data, "build 1-1")
 	}
-	assert.Equal(2, count)
+	assert.Equal(1, count)
 
 	// test that we can correctly find global logs during a test that start before a test starts
 	logChan, err = lk.findGlobalLogsDuringTest(ctx, &b, &t1)

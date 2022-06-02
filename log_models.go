@@ -43,7 +43,7 @@ func (lli LogLineItem) Global() bool {
 }*/
 
 type Log struct {
-	BuildId interface{}         `bson:"build_id"`
+	BuildId string              `bson:"build_id"`
 	TestId  *primitive.ObjectID `bson:"test_id"`
 	Seq     int                 `bson:"seq"`
 	Started *time.Time          `bson:"started"`
@@ -71,7 +71,14 @@ func NewLogLine(data []interface{}) *LogLine {
 }
 
 func (s LogLine) Time() time.Time {
-	return (s[0]).(time.Time)
+	switch v := s[0].(type) {
+	case primitive.DateTime:
+		return v.Time()
+	case time.Time:
+		return v
+	default:
+		return time.Time{}
+	}
 }
 
 func (s LogLine) Msg() string {

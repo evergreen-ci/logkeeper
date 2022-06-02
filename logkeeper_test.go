@@ -15,6 +15,7 @@ import (
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
+	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,9 +31,10 @@ func init() {
 }
 
 func TestLogKeeper(t *testing.T) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
-	client, err := mongo.NewClient(options.Client().ApplyURI("localhost:27017"))
+	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,6 +45,14 @@ func TestLogKeeper(t *testing.T) {
 
 	db.SetClient(client)
 	db.SetDBName("logkeeper_test")
+
+	_, err = db.C(buildsName).DeleteMany(ctx, bson.M{})
+	require.NoError(t, err)
+	_, err = db.C(testsName).DeleteMany(ctx, bson.M{})
+	require.NoError(t, err)
+	_, err = db.C(logsName).DeleteMany(ctx, bson.M{})
+	require.NoError(t, err)
+
 	Convey("LogKeeper instance running on testdatabase", t, func() {
 		lk := New(Options{MaxRequestSize: 1024 * 1024 * 10})
 		router := lk.NewRouter()
@@ -94,7 +104,8 @@ func TestLogKeeper(t *testing.T) {
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			cur, err := db.C("logs").Find(ctx, bson.M{"test_id": testObjectID}, options.Find().SetSort("seq"))
+			cur, err := db.C("logs").Find(ctx, bson.M{"test_id": testObjectID}, options.Find().SetSort(bson.M{"seq": 1}))
+			So(err, ShouldBeNil)
 			firstLog := true
 			for cur.Next(ctx) {
 				log := &Log{}
@@ -136,7 +147,8 @@ func TestLogKeeper(t *testing.T) {
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			cur, err = db.C("logs").Find(ctx, bson.M{"build_id": buildId}, options.Find().SetSort("seq"))
+			cur, err = db.C("logs").Find(ctx, bson.M{"build_id": buildId}, options.Find().SetSort(bson.M{"seq": 1}))
+			So(err, ShouldBeNil)
 			firstLog = true
 			for cur.Next(ctx) {
 				log := &Log{}

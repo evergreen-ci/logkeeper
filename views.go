@@ -266,14 +266,10 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		logChars += len(line.Msg())
 	}
 
-	findOneResult := db.C("tests").FindOneAndUpdate(db.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}})
-	if err := findOneResult.Err(); err != nil {
-		lk.logErrorf(r, "updating tests: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
-		return
-	}
-	if err = findOneResult.Decode(test); err != nil {
-		lk.logErrorf(r, "decoding updated test: %s", err)
+	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	err = db.C("tests").FindOneAndUpdate(db.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(test)
+	if err != nil {
+		lk.logErrorf(r, "updating test sequence: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -356,14 +352,10 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		logChars += len(line.Msg())
 	}
 
-	findOneResult := db.C("builds").FindOneAndUpdate(db.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}})
-	if err := findOneResult.Err(); err != nil {
-		lk.logErrorf(r, "updating builds entry: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
-		return
-	}
-	if err = findOneResult.Decode(build); err != nil {
-		lk.logErrorf(r, "decoding updated build: %s", err)
+	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
+	err = db.C("builds").FindOneAndUpdate(db.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(build)
+	if err != nil {
+		lk.logErrorf(r, "updating builds sequence: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
@@ -433,8 +425,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	globalLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil}, []string{"seq"}, nil, nil)
-	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
+	globalLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil}, bson.D{{"seq", 1}}, nil, nil)
+	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, bson.D{{"build_id", 1}, {"started", 1}}, nil, nil)
 	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
@@ -494,7 +486,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": test.Id}, []string{"seq"}, nil, nil)
+	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": test.Id}, bson.D{{"seq", 1}}, nil, nil)
 
 	merged := MergeLog(testLogs, globalLogs)
 
@@ -540,7 +532,7 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
+func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, minTime, maxTime *time.Time) chan *LogLineItem {
 	outputLog := make(chan *LogLineItem)
 	go func() {
 		defer close(outputLog)
@@ -552,7 +544,7 @@ func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort []string, 
 
 		for cur.Next(ctx) {
 			var logItem Log
-			if err = cur.Decode(logItem); err != nil {
+			if err = cur.Decode(&logItem); err != nil {
 				continue
 			}
 
@@ -587,7 +579,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 	// by this query comes from after the *next* test stared.
 	var firstGlobalLog Log
 	err := db.C("logs").
-		FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort("-seq")).
+		FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
 		Decode(&firstGlobalLog)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
@@ -602,7 +594,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 	// Find the next test after this one.
 	var nextTest Test
 	err = db.C("tests").
-		FindOne(db.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort("started")).
+		FindOne(db.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort(bson.M{"started": 1})).
 		Decode(&nextTest)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
@@ -616,7 +608,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		// that started before the test itself.
 		var lastGlobalLog Log
 		err = db.C("logs").
-			FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort("-seq")).
+			FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
 			Decode(&lastGlobalLog)
 		if err != nil {
 			if err != mongo.ErrNoDocuments {
@@ -638,7 +630,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		globalLogsSeq["$lte"] = *globalSeqLast
 	}
 
-	return lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, minTime, maxTime), nil
+	return lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, bson.D{{"seq", 1}}, minTime, maxTime), nil
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {

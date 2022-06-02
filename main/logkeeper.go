@@ -160,7 +160,7 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 }
 
 func initDB(ctx context.Context, dbURI, rsName string) (*mongo.Client, error) {
-	opts := options.Client().ApplyURI(dbURI)
+	opts := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", dbURI))
 	if rsName != "" {
 		opts.SetReplicaSet(rsName)
 	}
