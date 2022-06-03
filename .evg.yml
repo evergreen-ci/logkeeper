@@ -168,35 +168,35 @@ post:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
-  - name: rhel70
-    display_name: RHEL 7.0
+  - name: ubuntu1804
+    display_name: Ubuntu 18.04
     expansions:
-      build_env: "GOROOT=/opt/go1.8/go PATH=/opt/go1.8/go/bin:$PATH"
-      mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
+      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
+      mongodb_url: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-5.0.9.tgz
     run_on:
-      - rhel70-small
+      - ubuntu1804-small
     tasks:
       - ".dist"
       - ".test"
 
   - name: race-detector
-    display_name: Race Detector (Arch Linux)
+    display_name: Race Detector
     expansions:
-      build_env: "GOROOT=/opt/go1.13/go PATH=/opt/go1.13/go/bin/go:$PATH"
-      mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
+      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
+      mongodb_url: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-5.0.9.tgz
     run_on:
-      - archlinux-test
+      - ubuntu1804-small
     tasks:
       - ".race"
       - ".report"
 
   - name: macos
-    display_name: macOS 10.12
+    display_name: macOS
     expansions:
-      build_env: "GOROOT=/usr/local/go1.8/go PATH=/usr/local/go1.8/go/bin:$PATH"
-      mongodb_url: http://fastdl.mongodb.org/osx/mongodb-osx-x86_64-3.2.6.tgz
+      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
+      mongodb_url: https://fastdl.mongodb.org/osx/mongodb-macos-x86_64-5.0.9.tgz
     run_on:
-      - macos-1012
+      - macos-1014
     tasks:
       - ".dist"
       - ".test"
