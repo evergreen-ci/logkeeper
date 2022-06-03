@@ -133,9 +133,11 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	count, _ = db.C(logsCollection).CountDocuments(db.Context(), bson.M{})
 	assert.EqualValues(4, count)
 
-	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
+	deletedStats, err := CleanupOldLogsAndTestsByBuild(ids[0])
 	assert.NoError(err)
-	assert.EqualValues(4, numDeleted)
+	assert.Equal(1, deletedStats.NumBuilds)
+	assert.Equal(1, deletedStats.NumTests)
+	assert.Equal(2, deletedStats.NumLogs)
 
 	count, _ = db.C(testsCollection).CountDocuments(db.Context(), bson.M{})
 	assert.EqualValues(3, count)
@@ -163,18 +165,22 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	assert.NoError(err)
 	_, err = db.C(testsCollection).InsertOne(db.Context(), test)
 	assert.NoError(err)
-	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
+	deletedStats, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
-	assert.EqualValues(2, count)
+	assert.Equal(1, deletedStats.NumBuilds)
+	assert.Equal(1, deletedStats.NumTests)
+	assert.Equal(0, deletedStats.NumLogs)
 
 	log := Log{BuildId: "incompletebuild"}
 	_, err = db.C(buildsCollection).InsertOne(db.Context(), build)
 	assert.NoError(err)
 	_, err = db.C(logsCollection).InsertOne(db.Context(), log)
 	assert.NoError(err)
-	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
+	deletedStats, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
 	assert.NoError(err)
-	assert.EqualValues(2, count)
+	assert.Equal(1, deletedStats.NumBuilds)
+	assert.Equal(0, deletedStats.NumTests)
+	assert.Equal(1, deletedStats.NumLogs)
 }
 
 func TestUpdateFailedTest(t *testing.T) {
