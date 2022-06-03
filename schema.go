@@ -167,25 +167,31 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan e
 	return out, errOut
 }
 
-func CleanupOldLogsAndTestsByBuild(id string) (int, error) {
-	var num int
+type CleanupStats struct {
+	NumBuilds int `json:"num_builds"`
+	NumTests  int `json:"num_tests"`
+	NumLogs   int `json:"num_logs"`
+}
+
+func CleanupOldLogsAndTestsByBuild(id string) (CleanupStats, error) {
+	var stats CleanupStats
 	result, err := db.C(logsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
-		return num, errors.Wrap(err, "error deleting logs from old builds")
+		return stats, errors.Wrap(err, "error deleting logs from old builds")
 	}
-	num += int(result.DeletedCount)
+	stats.NumLogs += int(result.DeletedCount)
 
 	result, err = db.C(testsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
-		return num, errors.Wrap(err, "error deleting tests from old builds")
+		return stats, errors.Wrap(err, "error deleting tests from old builds")
 	}
-	num += int(result.DeletedCount)
+	stats.NumTests += int(result.DeletedCount)
 
 	result, err = db.C(buildsCollection).DeleteOne(db.Context(), bson.M{"_id": id})
 	if err != nil {
-		return num, errors.Wrap(err, "error deleting build record")
+		return stats, errors.Wrap(err, "error deleting build record")
 	}
-	num++
+	stats.NumBuilds += int(result.DeletedCount)
 
-	return num, nil
+	return stats, nil
 }

@@ -24,16 +24,12 @@ func StartCleanupCron(ctx context.Context, cleanup amboy.Queue) error {
 	}
 
 	grip.Info(message.Fields{
-		"message":  "starting background cron jobs",
+		"message":  "starting background cleanup jobs",
 		"state":    "not populated",
 		"interval": logkeeper.AmboyInterval.String(),
 		"opts":     opts,
-		"started": message.Fields{
-			"cleanup": cleanup.Info().Started,
-		},
-		"stats": message.Fields{
-			"cleanup": cleanup.Stats(ctx),
-		},
+		"started":  cleanup.Info(),
+		"stats":    cleanup.Stats(ctx),
 	})
 
 	amboy.IntervalQueueOperation(ctx, cleanup, 10*time.Second, time.Now(), opts, PopulateCleanupOldLogDataJobs())

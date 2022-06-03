@@ -15,6 +15,7 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -583,7 +584,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		Decode(&firstGlobalLog)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
-			return nil, err
+			return nil, errors.Wrap(err, "getting first global log")
 		}
 		// There are no global entries before this test started.
 		globalSeqFirst = nil
@@ -598,7 +599,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		Decode(&nextTest)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
-			return nil, nil
+			return nil, errors.Wrap(err, "getting next test")
 		}
 		// no next test exists
 		globalSeqLast = nil
@@ -612,7 +613,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 			Decode(&lastGlobalLog)
 		if err != nil {
 			if err != mongo.ErrNoDocuments {
-				return nil, nil
+				return nil, errors.Wrap(err, "getting last global log")
 			}
 			globalSeqLast = nil
 		} else {
@@ -655,7 +656,6 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	resp := struct {
 		Err             string           `json:"err"`
 		MaxRequestSize  int              `json:"maxRequestSize"`
-		DB              bool             `json:"db"`
 		Build           string           `json:"build_id"`
 		BatchSize       int              `json:"batch_size"`
 		NumWorkers      int              `json:"workers"`
@@ -670,14 +670,6 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		CleanupStatus:   db.GetCleanupQueue().Stats(r.Context()),
 	}
 
-	if err := db.Client().Ping(r.Context(), nil); err != nil {
-		resp.Err = err.Error()
-
-		lk.render.WriteJSON(w, http.StatusServiceUnavailable, &resp)
-		return
-	}
-
-	resp.DB = true
 	lk.render.WriteJSON(w, http.StatusOK, &resp)
 }
 

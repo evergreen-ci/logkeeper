@@ -14,7 +14,7 @@ type sessionCache struct {
 	ctx    context.Context
 	dbName string
 
-	mq amboy.Queue
+	cleanupQueue amboy.Queue
 
 	sync.RWMutex
 }
@@ -82,7 +82,7 @@ func SetCleanupQueue(q amboy.Queue) error {
 	session.Lock()
 	defer session.Unlock()
 
-	session.mq = q
+	session.cleanupQueue = q
 	return nil
 }
 
@@ -90,5 +90,5 @@ func GetCleanupQueue() amboy.Queue {
 	session.RLock()
 	defer session.RUnlock()
 
-	return session.mq
+	return session.cleanupQueue
 }

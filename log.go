@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mongodb/amboy"
 	"github.com/mongodb/amboy/logger"
+	"github.com/mongodb/amboy/queue"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/level"
 	"github.com/mongodb/grip/message"
@@ -80,7 +80,7 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	next(rw, r)
 }
 
-func GetSender(ctx context.Context, queue amboy.Queue, fn string) (send.Sender, error) {
+func GetSender(ctx context.Context, fn string) (send.Sender, error) {
 	const (
 		name        = "logkeeper"
 		interval    = 20 * time.Second
@@ -132,7 +132,12 @@ func GetSender(ctx context.Context, queue amboy.Queue, fn string) (send.Sender, 
 			return nil, errors.Wrap(err, "problem creating the slack sender")
 		}
 
-		senders = append(senders, logger.MakeQueueSender(ctx, queue, sender))
+		senderQueue := queue.NewLocalLimitedSize(4, 2048)
+		if err = senderQueue.Start(ctx); err != nil {
+			return nil, errors.Wrap(err, "starting sender queue")
+		}
+
+		senders = append(senders, logger.MakeQueueSender(ctx, senderQueue, sender))
 	}
 
 	// setup file logger, defaulting first to the system logger,

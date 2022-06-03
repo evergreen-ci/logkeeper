@@ -41,19 +41,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	localQueue := queue.NewLocalLimitedSize(4, 2048)
-	grip.EmergencyFatal(localQueue.Start(ctx))
-
-	sender, err := logkeeper.GetSender(ctx, localQueue, *logPath)
+	sender, err := logkeeper.GetSender(ctx, *logPath)
 	grip.EmergencyFatal(err)
 	defer sender.Close()
-
 	grip.EmergencyFatal(grip.SetSender(sender))
 
-	client, err := initDB(ctx, *dbHost, *rsName)
-	grip.EmergencyFatal(err)
-	db.SetClient(client)
-	db.SetDBName(logkeeper.DBName)
+	grip.EmergencyFatal(initDB(ctx, *dbHost, *rsName))
 
 	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
@@ -159,7 +152,7 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 	wg.Wait()
 }
 
-func initDB(ctx context.Context, dbURI, rsName string) (*mongo.Client, error) {
+func initDB(ctx context.Context, dbURI, rsName string) error {
 	opts := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", dbURI))
 	if rsName != "" {
 		opts.SetReplicaSet(rsName)
@@ -167,12 +160,16 @@ func initDB(ctx context.Context, dbURI, rsName string) (*mongo.Client, error) {
 
 	client, err := mongo.NewClient(opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "getting mongo client")
+		return errors.Wrap(err, "getting mongo client")
 	}
 
 	if err = client.Connect(ctx); err != nil {
-		return nil, errors.Wrap(err, "connecting to the database")
+		return errors.Wrap(err, "connecting to the database")
 	}
 
-	return client, nil
+	db.SetClient(client)
+	db.SetDBName(logkeeper.DBName)
+	db.SetContext(ctx)
+
+	return nil
 }
