@@ -7,35 +7,15 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func makeTestLogkeeperApp(t *testing.T) *logKeeper {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = client.Connect(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	db.SetClient(client)
-	db.SetDBName("logkeeper_test")
-
-	_, err = db.C(buildsName).DeleteMany(ctx, bson.M{})
-	require.NoError(t, err)
-	_, err = db.C(testsName).DeleteMany(ctx, bson.M{})
-	require.NoError(t, err)
-	_, err = db.C(logsName).DeleteMany(ctx, bson.M{})
-	require.NoError(t, err)
+	initDB(ctx, t)
+	clearCollections(ctx, t, buildsCollection, testsCollection, logsCollection)
 
 	lk := New(Options{
 		URL:            "http://localhost:8080",

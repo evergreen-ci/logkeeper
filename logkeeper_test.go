@@ -15,10 +15,8 @@ import (
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
-	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -34,24 +32,8 @@ func TestLogKeeper(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err = client.Connect(ctx); err != nil {
-		t.Fatal(err)
-	}
-
-	db.SetClient(client)
-	db.SetDBName("logkeeper_test")
-
-	_, err = db.C(buildsName).DeleteMany(ctx, bson.M{})
-	require.NoError(t, err)
-	_, err = db.C(testsName).DeleteMany(ctx, bson.M{})
-	require.NoError(t, err)
-	_, err = db.C(logsName).DeleteMany(ctx, bson.M{})
-	require.NoError(t, err)
+	initDB(ctx, t)
+	clearCollections(ctx, t, buildsCollection, testsCollection, logsCollection)
 
 	Convey("LogKeeper instance running on testdatabase", t, func() {
 		lk := New(Options{MaxRequestSize: 1024 * 1024 * 10})

@@ -6,6 +6,8 @@ orgPath := github.com/evergreen-ci
 projectPath := $(orgPath)/$(name)
 # end project configuration
 
+# several targets assume buildDir already exists
+$(shell mkdir -p $(buildDir))
 
 # start lint setup targets
 lintDeps := $(buildDir)/run-linter $(buildDir)/golangci-lint
