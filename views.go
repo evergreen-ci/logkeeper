@@ -576,7 +576,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 
 	// Find the first global log entry before this test started.
 	// This may not actually contain any global log lines during the test run, if the entry returned
-	// by this query comes from after the *next* test stared.
+	// by this query comes from after the *next* test started.
 	var firstGlobalLog Log
 	err := db.C("logs").
 		FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
@@ -585,7 +585,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		if err != mongo.ErrNoDocuments {
 			return nil, err
 		}
-		// There are no global entries after this test started.
+		// There are no global entries before this test started.
 		globalSeqFirst = nil
 	} else {
 		*globalSeqFirst = firstGlobalLog.Seq

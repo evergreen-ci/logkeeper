@@ -30,7 +30,7 @@ func (lli LogLineItem) Global() bool {
 /*
 {
 	"_id" : ObjectId("52e74ffd30dfa32be4877f47"),
-	"build_id" : ObjectId("52e74d583ae7400f1a000001"),
+	"build_id" : "52e74d583ae7400f1a000001",
 	"test_id" : ObjectId("52e74ffb3ae74013e2000001"),
 	"seq" : 1,
 	"started" : null,
@@ -82,11 +82,16 @@ func (s LogLine) Time() time.Time {
 }
 
 func (s LogLine) Msg() string {
-	return (s[1]).(string)
+	switch v := s[1].(type) {
+	case string:
+		return v
+	default:
+		return ""
+	}
 }
 
-func (self *LogLineItem) Color() string {
-	found := colorRegex.FindStringSubmatch(self.Data)
+func (item *LogLineItem) Color() string {
+	found := colorRegex.FindStringSubmatch(item.Data)
 	if len(found) > 0 {
 		return found[0]
 	} else {
@@ -94,13 +99,13 @@ func (self *LogLineItem) Color() string {
 	}
 }
 
-func (self *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
+func (item *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
 	if previousItem == nil {
 		return true
 	}
 
 	if previousLogLine, ok := previousItem.(*LogLineItem); ok {
-		diff := self.Timestamp.Sub(previousLogLine.Timestamp)
+		diff := item.Timestamp.Sub(previousLogLine.Timestamp)
 		if diff > 1*time.Second {
 			return true
 		} else {

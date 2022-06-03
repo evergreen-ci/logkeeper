@@ -33,12 +33,12 @@ func init() {
 }
 
 type cleanupOldLogDataJob struct {
-	BuildID  interface{} `bson:"build_id" json:"build_id" yaml:"build_id"`
+	BuildID  string      `bson:"build_id" json:"build_id" yaml:"build_id"`
 	TaskID   interface{} `bson:"task_id" json:"task_id" yaml:"task_id"`
 	job.Base `bson:"job_base" json:"job_base" yaml:"job_base"`
 }
 
-func NewCleanupOldLogDataJob(buildID, taskID interface{}) amboy.Job {
+func NewCleanupOldLogDataJob(buildID string, taskID interface{}) amboy.Job {
 	j := makeCleanupOldLogDataJob()
 	j.BuildID = buildID
 	j.TaskID = taskID

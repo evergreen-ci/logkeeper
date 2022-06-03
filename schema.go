@@ -101,11 +101,7 @@ func findBuildByBuilder(builder string, buildnum int) (*LogKeeperBuild, error) {
 	return build, nil
 }
 
-func UpdateFailedBuild(id interface{}) error {
-	if id == nil {
-		return errors.New("no build id defined")
-	}
-
+func UpdateFailedBuild(id string) error {
 	_, err := db.C(buildsCollection).UpdateByID(db.Context(), id, bson.M{"$set": bson.M{"failed": true}})
 	return errors.Wrapf(err, "setting failed state on build %v", id)
 }
@@ -171,11 +167,7 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan e
 	return out, errOut
 }
 
-func CleanupOldLogsAndTestsByBuild(id interface{}) (int, error) {
-	if id == nil {
-		return 0, errors.New("no build ID defined")
-	}
-
+func CleanupOldLogsAndTestsByBuild(id string) (int, error) {
 	var num int
 	result, err := db.C(logsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
