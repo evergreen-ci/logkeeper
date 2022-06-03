@@ -425,8 +425,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	globalLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil}, bson.D{{"seq", 1}}, nil, nil)
-	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, bson.D{{"build_id", 1}, {"started", 1}}, nil, nil)
+	globalLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil}, bson.D{{Key: "seq", Value: 1}}, nil, nil)
+	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, bson.D{{Key: "build_id", Value: 1}, {Key: "started", Value: 1}}, nil, nil)
 	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
@@ -486,7 +486,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": test.Id}, bson.D{{"seq", 1}}, nil, nil)
+	testLogs := lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": test.Id}, bson.D{{Key: "seq", Value: 1}}, nil, nil)
 
 	merged := MergeLog(testLogs, globalLogs)
 
@@ -630,7 +630,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		globalLogsSeq["$lte"] = *globalSeqLast
 	}
 
-	return lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, bson.D{{"seq", 1}}, minTime, maxTime), nil
+	return lk.findLogs(ctx, bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, bson.D{{Key: "seq", Value: 1}}, minTime, maxTime), nil
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
