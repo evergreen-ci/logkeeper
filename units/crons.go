@@ -11,7 +11,7 @@ import (
 	"github.com/mongodb/grip/message"
 )
 
-func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error {
+func StartCleanupCron(ctx context.Context, cleanup amboy.Queue) error {
 	if !logkeeper.IsLeader() {
 		grip.Notice("leader file does not exist, not submitting jobs")
 		return nil
@@ -24,91 +24,52 @@ func StartCrons(ctx context.Context, migration, remote, local amboy.Queue) error
 	}
 
 	grip.Info(message.Fields{
-		"message":  "starting background cron jobs",
+		"message":  "starting background cleanup jobs",
 		"state":    "not populated",
 		"interval": logkeeper.AmboyInterval.String(),
 		"opts":     opts,
-		"started": message.Fields{
-			"migration": migration.Started(),
-			"remote":    remote.Started(),
-			"local":     local.Started(),
-		},
-		"stats": message.Fields{
-			"migration": migration.Stats(),
-			"remote":    remote.Stats(),
-			"local":     local.Stats(),
-		},
+		"started":  cleanup.Info(),
+		"stats":    cleanup.Stats(ctx),
 	})
 
-	amboy.IntervalQueueOperation(ctx, migration, 10*time.Second, time.Now(), opts, PopulateCleanupOldLogDataJobs(ctx))
+	amboy.IntervalQueueOperation(ctx, cleanup, 10*time.Second, time.Now(), opts, PopulateCleanupOldLogDataJobs())
 
 	return nil
 }
 
 // Queue Population Tasks
 
-func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
-	var lastDuration time.Duration
-	var lastCompleted time.Time
-
-	const useStreamingMethod = true
-
-	return func(queue amboy.Queue) error {
+func PopulateCleanupOldLogDataJobs() amboy.QueueOperation {
+	return func(ctx context.Context, queue amboy.Queue) error {
 		startAt := time.Now()
 		catcher := grip.NewBasicCatcher()
 
-		var (
-			err    error
-			builds []logkeeper.LogKeeperBuild
-			seen   int
-		)
-
-		if useStreamingMethod {
-			grip.Info("starting streaming creation")
-			builds, errs := logkeeper.StreamingGetOldBuilds(ctx)
-		addLoop:
-			for {
-				select {
-				case <-ctx.Done():
-					break addLoop
-				case err := <-errs:
-					catcher.Add(err)
-					break addLoop
-				case build := <-builds:
-					catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
-					seen++
-					continue
-				}
-			}
-		} else {
-			stats := queue.Stats()
-			if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
-				builds, err = logkeeper.GetOldBuilds(logkeeper.CleanupBatchSize)
+		grip.Info("starting streaming creation")
+		var buildCount int
+		builds, errs := logkeeper.StreamingGetOldBuilds(ctx)
+	addLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				break addLoop
+			case err := <-errs:
 				catcher.Add(err)
-				lastDuration = time.Since(startAt)
+				break addLoop
+			case build := <-builds:
+				catcher.Add(queue.Put(ctx, NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
+				buildCount++
+				continue
 			}
-
-			for _, build := range builds {
-				catcher.Add(queue.Put(NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
-			}
-			lastCompleted = time.Now()
 		}
 
 		m := message.Fields{
-			"message":    "completed adding cleanup job",
-			"streaming":  useStreamingMethod,
-			"num":        len(builds),
-			"iters":      seen,
+			"message":    "added cleanup jobs",
+			"builds":     buildCount,
 			"errors":     catcher.HasErrors(),
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 			"queue":      fmt.Sprintf("%T", queue),
-			"stats":      queue.Stats(),
-		}
-
-		if len(builds) > 0 {
-			build := builds[len(builds)-1]
-			m["last_started_at"] = build.Started.Format("2006-01-02.15:04:05")
+			"stats":      queue.Stats(ctx),
 		}
 
 		if catcher.HasErrors() {
@@ -118,14 +79,5 @@ func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
 		grip.Info(m)
 
 		return catcher.Resolve()
-	}
-}
-
-func PopulateStatsJobs() amboy.QueueOperation {
-	return func(queue amboy.Queue) error {
-		// round time to the minute by format
-		ts := time.Now().Format("2006-01-02.15-04")
-
-		return queue.Put(NewAmboyStatsCollector(ts))
 	}
 }
