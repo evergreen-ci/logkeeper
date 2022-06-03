@@ -15,6 +15,7 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -536,6 +537,8 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, minTime, maxTime *time.Time) chan *LogLineItem {
 	outputLog := make(chan *LogLineItem)
 	go func() {
+		defer recovery.LogStackTraceAndContinue("find logs")
+
 		defer close(outputLog)
 		lineNum := 0
 		cur, err := db.C("logs").Find(db.Context(), query, options.Find().SetSort(sort))

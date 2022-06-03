@@ -7,10 +7,13 @@ import (
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/mongodb/grip/recovery"
 )
 
 func StartBackgroundLogging(ctx context.Context) {
 	go func() {
+		defer recovery.LogStackTraceAndContinue("background logging")
+
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
 		grip.Debug("starting stats collector")
