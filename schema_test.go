@@ -1,41 +1,24 @@
 package logkeeper
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"gopkg.in/mgo.v2/bson"
 )
 
-func initTestDB(ctx context.Context, t *testing.T) {
-	client, err := mongo.NewClient(options.Client().ApplyURI("mongodb://localhost:27017"))
-	require.NoError(t, err)
-	require.NoError(t, client.Connect(ctx))
-
-	db.SetClient(client)
-	db.SetDBName("logkeeper_test")
-	db.SetContext(ctx)
-}
-
-func clearCollections(t *testing.T, collections ...string) {
-	for _, col := range collections {
-		_, err := db.C(col).DeleteMany(db.Context(), bson.M{})
-		require.NoError(t, err)
-	}
-}
-
-func insertBuilds(t *testing.T) []string {
+func insertBuilds(t *testing.T) []interface{} {
 	assert := assert.New(t)
+	db, closer := db.GetDatabase()
+	defer closer()
+	_, err := db.C(buildsName).RemoveAll(bson.M{})
+	require.NoError(t, err)
 
 	info := make(map[string]interface{})
-	info["task_id"] = primitive.NewObjectID().Hex()
+	info["task_id"] = bson.NewObjectId()
 	now := time.Now()
 	oldBuild1 := LogKeeperBuild{
 		Id:      "one",
@@ -58,52 +41,52 @@ func insertBuilds(t *testing.T) []string {
 		Started: now,
 		Info:    info,
 	}
-	_, err := db.C(buildsCollection).InsertMany(db.Context(), []interface{}{oldBuild1, oldBuild2, edgeBuild, newBuild})
-	assert.NoError(err)
-	return []string{oldBuild1.Id, oldBuild2.Id, edgeBuild.Id, newBuild.Id}
+	assert.NoError(db.C(buildsName).Insert(oldBuild1, oldBuild2, edgeBuild, newBuild))
+	return []interface{}{oldBuild1.Id, oldBuild2.Id, edgeBuild.Id, newBuild.Id}
 }
 
-func insertTests(t *testing.T, ids []string) {
+func insertTests(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
+	db, closer := db.GetDatabase()
+	defer closer()
+	_, err := db.C(testsName).RemoveAll(bson.M{})
+	require.NoError(t, err)
 
 	test1 := Test{
-		Id:      primitive.NewObjectID(),
-		BuildId: ids[0],
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[0],
 	}
 	test2 := Test{
-		Id:      primitive.NewObjectID(),
-		BuildId: ids[1],
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[1],
 	}
 	test3 := Test{
-		Id:      primitive.NewObjectID(),
-		BuildId: ids[2],
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[2],
 	}
 	test4 := Test{
-		Id:      primitive.NewObjectID(),
-		BuildId: ids[3],
+		Id:      bson.NewObjectId(),
+		BuildId: &ids[3],
 	}
-	_, err := db.C(testsCollection).InsertMany(db.Context(), []interface{}{test1, test2, test3, test4})
-	assert.NoError(err)
+	assert.NoError(db.C(testsName).Insert(test1, test2, test3, test4))
 }
 
-func insertLogs(t *testing.T, ids []string) {
+func insertLogs(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
+	db, closer := db.GetDatabase()
+	defer closer()
+	_, err := db.C(logsName).RemoveAll(bson.M{})
+	require.NoError(t, err)
 
-	log1 := Log{BuildId: ids[0]}
-	log2 := Log{BuildId: ids[0]}
-	log3 := Log{BuildId: ids[1]}
-	newId := primitive.NewObjectID().Hex()
-	log4 := Log{BuildId: newId}
-	_, err := db.C(logsCollection).InsertMany(db.Context(), []interface{}{log1, log2, log3, log4})
-	assert.NoError(err)
+	log1 := Log{BuildId: &ids[0]}
+	log2 := Log{BuildId: &ids[0]}
+	log3 := Log{BuildId: &ids[1]}
+	newId := bson.NewObjectId()
+	log4 := Log{BuildId: &newId}
+	assert.NoError(db.C(logsName).Insert(log1, log2, log3, log4))
 }
 
 func TestGetOldTests(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	initTestDB(ctx, t)
-	clearCollections(t, buildsCollection)
-
 	assert := assert.New(t)
 	ids := insertBuilds(t)
 	insertTests(t, ids)
@@ -115,77 +98,60 @@ func TestGetOldTests(t *testing.T) {
 }
 
 func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	initTestDB(ctx, t)
-	clearCollections(t, buildsCollection, testsCollection, logsCollection)
-
 	assert := assert.New(t)
+	db, closer := db.GetDatabase()
+	defer closer()
 
 	ids := insertBuilds(t)
 	insertTests(t, ids)
 	insertLogs(t, ids)
 
-	count, _ := db.C(testsCollection).CountDocuments(db.Context(), bson.M{})
-	assert.EqualValues(4, count)
+	count, _ := db.C(testsName).Find(bson.M{}).Count()
+	assert.Equal(4, count)
 
-	count, _ = db.C(logsCollection).CountDocuments(db.Context(), bson.M{})
-	assert.EqualValues(4, count)
+	count, _ = db.C(logsName).Find(bson.M{}).Count()
+	assert.Equal(4, count)
 
 	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
 	assert.NoError(err)
-	assert.EqualValues(4, numDeleted)
+	assert.Equal(4, numDeleted)
 
-	count, _ = db.C(testsCollection).CountDocuments(db.Context(), bson.M{})
-	assert.EqualValues(3, count)
+	count, _ = db.C(testsName).Find(bson.M{}).Count()
+	assert.Equal(3, count)
 
-	count, _ = db.C(logsCollection).CountDocuments(db.Context(), bson.M{})
-	assert.EqualValues(2, count)
+	count, _ = db.C(logsName).Find(bson.M{}).Count()
+	assert.Equal(2, count)
 }
 
 func TestNoErrorWithNoLogsOrTests(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	initTestDB(ctx, t)
-	clearCollections(t, testsCollection)
-
 	assert := assert.New(t)
+	db, closer := db.GetDatabase()
+	defer closer()
+	_, err := db.C(testsName).RemoveAll(bson.M{})
+	require.NoError(t, err)
 
 	test := Test{
-		Id:      primitive.NewObjectID(),
+		Id:      bson.NewObjectId(),
 		BuildId: "incompletebuild",
 		Started: time.Now(),
 	}
 	build := LogKeeperBuild{Id: "incompletebuild"}
-	_, err := db.C(buildsCollection).InsertOne(db.Context(), build)
-	assert.NoError(err)
-	_, err = db.C(testsCollection).InsertOne(db.Context(), test)
-	assert.NoError(err)
+	assert.NoError(db.C(buildsName).Insert(build))
+	assert.NoError(db.C(testsName).Insert(test))
 	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
-	assert.EqualValues(2, count)
+	assert.Equal(2, count)
 
 	log := Log{BuildId: "incompletebuild"}
-	_, err = db.C(buildsCollection).InsertOne(db.Context(), build)
-	assert.NoError(err)
-	_, err = db.C(logsCollection).InsertOne(db.Context(), log)
-	assert.NoError(err)
+	assert.NoError(db.C(buildsName).Insert(build))
+	assert.NoError(db.C(logsName).Insert(log))
 	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
 	assert.NoError(err)
-	assert.EqualValues(2, count)
+	assert.Equal(2, count)
 }
 
 func TestUpdateFailedTest(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	initTestDB(ctx, t)
-	clearCollections(t, buildsCollection, testsCollection, logsCollection)
-
 	assert := assert.New(t)
-
 	ids := insertBuilds(t)
 	insertTests(t, ids)
 	insertLogs(t, ids)

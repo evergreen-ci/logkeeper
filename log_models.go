@@ -7,7 +7,7 @@ import (
 
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gopkg.in/mgo.v2/bson"
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
@@ -18,7 +18,7 @@ type LogLineItem struct {
 	LineNum   int
 	Timestamp time.Time
 	Data      string
-	TestId    *primitive.ObjectID
+	TestId    *bson.ObjectId
 }
 
 // Global returns true if this log line comes from a global log, otherwise false (from a test log).
@@ -30,7 +30,7 @@ func (lli LogLineItem) Global() bool {
 /*
 {
 	"_id" : ObjectId("52e74ffd30dfa32be4877f47"),
-	"build_id" : "52e74d583ae7400f1a000001",
+	"build_id" : ObjectId("52e74d583ae7400f1a000001"),
 	"test_id" : ObjectId("52e74ffb3ae74013e2000001"),
 	"seq" : 1,
 	"started" : null,
@@ -43,11 +43,11 @@ func (lli LogLineItem) Global() bool {
 }*/
 
 type Log struct {
-	BuildId string              `bson:"build_id"`
-	TestId  *primitive.ObjectID `bson:"test_id"`
-	Seq     int                 `bson:"seq"`
-	Started *time.Time          `bson:"started"`
-	Lines   []LogLine           `bson:"lines"`
+	BuildId interface{}    `bson:"build_id"`
+	TestId  *bson.ObjectId `bson:"test_id"`
+	Seq     int            `bson:"seq"`
+	Started *time.Time     `bson:"started"`
+	Lines   []LogLine      `bson:"lines"`
 }
 
 func NewLogLine(data []interface{}) *LogLine {
@@ -71,27 +71,15 @@ func NewLogLine(data []interface{}) *LogLine {
 }
 
 func (s LogLine) Time() time.Time {
-	switch v := s[0].(type) {
-	case primitive.DateTime:
-		return v.Time()
-	case time.Time:
-		return v
-	default:
-		return time.Time{}
-	}
+	return (s[0]).(time.Time)
 }
 
 func (s LogLine) Msg() string {
-	switch v := s[1].(type) {
-	case string:
-		return v
-	default:
-		return ""
-	}
+	return (s[1]).(string)
 }
 
-func (item *LogLineItem) Color() string {
-	found := colorRegex.FindStringSubmatch(item.Data)
+func (self *LogLineItem) Color() string {
+	found := colorRegex.FindStringSubmatch(self.Data)
 	if len(found) > 0 {
 		return found[0]
 	} else {
@@ -99,13 +87,13 @@ func (item *LogLineItem) Color() string {
 	}
 }
 
-func (item *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
+func (self *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
 	if previousItem == nil {
 		return true
 	}
 
 	if previousLogLine, ok := previousItem.(*LogLineItem); ok {
-		diff := item.Timestamp.Sub(previousLogLine.Timestamp)
+		diff := self.Timestamp.Sub(previousLogLine.Timestamp)
 		if diff > 1*time.Second {
 			return true
 		} else {

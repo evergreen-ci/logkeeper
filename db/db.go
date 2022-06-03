@@ -1,94 +1,105 @@
 package db
 
 import (
-	"context"
 	"sync"
+	"time"
 
 	"github.com/mongodb/amboy"
 	"github.com/pkg/errors"
-	"go.mongodb.org/mongo-driver/mongo"
+	mgo "gopkg.in/mgo.v2"
 )
 
 type sessionCache struct {
-	client *mongo.Client
-	ctx    context.Context
+	s      *mgo.Session
+	mq     amboy.Queue
+	rq     amboy.Queue
 	dbName string
-
-	cleanupQueue amboy.Queue
-
 	sync.RWMutex
 }
 
 var session *sessionCache
 
+const defaultSocketTimeout = 90 * time.Second
+
 func init() {
 	session = &sessionCache{}
 }
 
-func SetContext(ctx context.Context) {
+func GetSession() *mgo.Session {
+	session.RLock()
+	defer session.RUnlock()
+
+	if session.s == nil {
+		panic("no database connection")
+	}
+
+	s := session.s.Copy()
+	s.SetSocketTimeout(defaultSocketTimeout)
+	return s
+}
+
+func SetSession(s *mgo.Session) error {
 	session.Lock()
 	defer session.Unlock()
 
-	session.ctx = ctx
+	if s == nil {
+		return errors.New("cannot set a nil session")
+	}
+
+	s.SetSocketTimeout(defaultSocketTimeout)
+	session.s = s
+
+	return nil
 }
 
-func Context() context.Context {
+func GetDatabase() (*mgo.Database, func()) {
 	session.RLock()
 	defer session.RUnlock()
 
-	return session.ctx
+	ses := GetSession()
+	return ses.DB(session.dbName), ses.Close
 }
 
-func Client() *mongo.Client {
-	session.RLock()
-	defer session.RUnlock()
-
-	return session.client
-}
-
-func SetClient(c *mongo.Client) {
+func SetDatabase(name string) {
 	session.Lock()
 	defer session.Unlock()
-
-	session.client = c
-}
-
-func DB() *mongo.Database {
-	session.RLock()
-	defer session.RUnlock()
-
-	return session.client.Database(session.dbName)
-}
-
-func C(collectionName string) *mongo.Collection {
-	session.RLock()
-	defer session.RUnlock()
-
-	return session.client.Database(session.dbName).Collection(collectionName)
-}
-
-func SetDBName(name string) {
-	session.Lock()
-	defer session.Unlock()
-
 	session.dbName = name
 }
 
-func SetCleanupQueue(q amboy.Queue) error {
-	if !q.Info().Started {
+func SetMigrationQueue(q amboy.Queue) error {
+	if !q.Started() {
 		return errors.New("queue isn't started")
 	}
 
 	session.Lock()
 	defer session.Unlock()
 
-	session.cleanupQueue = q
+	session.mq = q
 	return nil
 }
 
-func GetCleanupQueue() amboy.Queue {
+func GetMigrationQueue() amboy.Queue {
 	session.RLock()
 	defer session.RUnlock()
 
-	return session.cleanupQueue
+	return session.mq
+}
+
+func SetQueue(q amboy.Queue) error {
+	if !q.Started() {
+		return errors.New("queue isn't started")
+	}
+
+	session.Lock()
+	defer session.Unlock()
+
+	session.rq = q
+	return nil
+}
+
+func GetQueue() amboy.Queue {
+	session.RLock()
+	defer session.RUnlock()
+
+	return session.rq
 }

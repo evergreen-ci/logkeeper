@@ -33,12 +33,12 @@ func init() {
 }
 
 type cleanupOldLogDataJob struct {
-	BuildID  string      `bson:"build_id" json:"build_id" yaml:"build_id"`
+	BuildID  interface{} `bson:"build_id" json:"build_id" yaml:"build_id"`
 	TaskID   interface{} `bson:"task_id" json:"task_id" yaml:"task_id"`
 	job.Base `bson:"job_base" json:"job_base" yaml:"job_base"`
 }
 
-func NewCleanupOldLogDataJob(buildID string, taskID interface{}) amboy.Job {
+func NewCleanupOldLogDataJob(buildID, taskID interface{}) amboy.Job {
 	j := makeCleanupOldLogDataJob()
 	j.BuildID = buildID
 	j.TaskID = taskID
@@ -116,7 +116,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		return
 	}
 
-	var stats logkeeper.CleanupStats
+	var num int
 
 	if taskInfo.Status != "success" {
 		err = logkeeper.UpdateFailedBuild(j.BuildID)
@@ -124,9 +124,9 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 			j.AddError(errors.Wrapf(err, "error updating failed status of build %v", j.BuildID))
 		}
 	} else {
-		stats, err = logkeeper.CleanupOldLogsAndTestsByBuild(j.BuildID)
+		num, err = logkeeper.CleanupOldLogsAndTestsByBuild(j.BuildID)
 		if err != nil {
-			j.AddError(errors.Wrap(err, "error cleaning up old logs"))
+			j.AddError(errors.Wrapf(err, "error cleaning up old logs [%d]", num))
 		}
 	}
 
@@ -137,7 +137,7 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		"build":    j.BuildID,
 		"errors":   j.HasErrors(),
 		"job":      j.ID(),
-		"stats":    stats,
+		"num":      num,
 		"status":   taskInfo.Status,
 		"code":     resp.StatusCode,
 	})
