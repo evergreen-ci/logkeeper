@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -23,7 +22,8 @@ import (
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
-	"gopkg.in/mgo.v2"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func main() {
@@ -41,57 +41,27 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	localQueue := queue.NewLocalLimitedSize(4, 2048)
-	grip.CatchEmergencyFatal(localQueue.Start(ctx))
-
-	sender, err := logkeeper.GetSender(localQueue, *logPath)
-	grip.CatchEmergencyFatal(err)
+	sender, err := logkeeper.GetSender(ctx, *logPath)
+	grip.EmergencyFatal(err)
 	defer sender.Close()
+	grip.EmergencyFatal(grip.SetSender(sender))
 
-	grip.CatchEmergencyFatal(grip.SetSender(sender))
+	grip.EmergencyFatal(initDB(ctx, *dbHost, *rsName))
 
-	dialInfo := mgo.DialInfo{
-		Addrs: strings.Split(*dbHost, ","),
-	}
+	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
+	grip.EmergencyFatal(errors.Wrap(err, "constructing worker pool"))
+	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
+	grip.EmergencyFatal(cleanupQueue.Start(ctx))
+	grip.EmergencyFatal(db.SetCleanupQueue(cleanupQueue))
 
-	if *rsName != "" {
-		dialInfo.ReplicaSetName = *rsName
-	}
+	grip.EmergencyFatal(units.StartCleanupCron(ctx, cleanupQueue))
 
-	session, err := mgo.DialWithInfo(&dialInfo)
-	grip.CatchEmergencyFatal(err)
-	grip.CatchEmergencyFatal(db.SetSession(session))
-
-	driverOpts := queue.MongoDBOptions{
-		Priority:       true,
-		CheckWaitUntil: true,
-		URI:            fmt.Sprintf("mongodb://%s", *dbHost),
-		DB:             logkeeper.AmboyDBName,
-	}
-
-	queueDriver, err := queue.OpenNewMgoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, db.GetSession())
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
-	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkers)
-	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
-	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetQueue(remoteQueue))
-
-	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
-	grip.CatchEmergencyFatal(migrationQueue.SetRunner(runner))
-	grip.CatchEmergencyFatal(migrationQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetMigrationQueue(migrationQueue))
-
-	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, remoteQueue, localQueue))
-
-	dbName := "buildlogs"
 	lk := logkeeper.New(logkeeper.Options{
-		DB:             dbName,
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
 	})
-	db.SetDatabase(dbName)
+
 	logkeeper.StartBackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()
@@ -127,7 +97,7 @@ func main() {
 	grip.Notice("waiting for web services to terminate gracefully")
 	gracefulWait.Wait()
 
-	grip.CatchEmergencyFatal(catcher.Resolve())
+	grip.EmergencyFatal(catcher.Resolve())
 }
 
 func listenServeAndHandleErrs(s *http.Server) error {
@@ -180,4 +150,26 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 		}(s)
 	}
 	wg.Wait()
+}
+
+func initDB(ctx context.Context, dbURI, rsName string) error {
+	opts := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", dbURI))
+	if rsName != "" {
+		opts.SetReplicaSet(rsName)
+	}
+
+	client, err := mongo.NewClient(opts)
+	if err != nil {
+		return errors.Wrap(err, "getting mongo client")
+	}
+
+	if err = client.Connect(ctx); err != nil {
+		return errors.Wrap(err, "connecting to the database")
+	}
+
+	db.SetClient(client)
+	db.SetDBName(logkeeper.DBName)
+	db.SetContext(ctx)
+
+	return nil
 }
