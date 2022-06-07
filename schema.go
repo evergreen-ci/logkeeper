@@ -148,6 +148,7 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan e
 			errOut <- err
 			return
 		}
+		defer cur.Close(db.Context())
 
 		for cur.Next(db.Context()) {
 			build := LogKeeperBuild{}

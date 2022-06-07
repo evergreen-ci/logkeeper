@@ -545,6 +545,7 @@ func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, mi
 		if err != nil {
 			return
 		}
+		defer cur.Close(db.Context())
 
 		for cur.Next(db.Context()) {
 			var logItem Log
