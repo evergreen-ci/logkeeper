@@ -546,7 +546,7 @@ func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, mi
 			return
 		}
 
-		for cur.Next(ctx) {
+		for cur.Next(db.Context()) {
 			var logItem Log
 			if err = cur.Decode(&logItem); err != nil {
 				continue
@@ -566,6 +566,10 @@ func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, mi
 					TestId:    logItem.TestId,
 				}
 				lineNum++
+			}
+
+			if ctx.Err() != nil {
+				return
 			}
 		}
 	}()
