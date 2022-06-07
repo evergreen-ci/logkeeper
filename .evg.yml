@@ -178,6 +178,8 @@ buildvariants:
     tasks:
       - ".dist"
       - ".test"
+      - ".report"
+
 
   - name: race-detector
     display_name: Race Detector
@@ -188,7 +190,6 @@ buildvariants:
       - ubuntu1804-small
     tasks:
       - ".race"
-      - ".report"
 
   - name: macos
     display_name: macOS
