@@ -95,7 +95,7 @@ func findBuildByBuilder(builder string, buildnum int) (*LogKeeperBuild, error) {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
-		return nil, errors.Wrapf(err, "fetching builder '%s' build number '%d'", builder, buildnum)
+		return nil, errors.Wrapf(err, "fetching builder '%s' build number %d", builder, buildnum)
 	}
 
 	return build, nil
@@ -103,7 +103,7 @@ func findBuildByBuilder(builder string, buildnum int) (*LogKeeperBuild, error) {
 
 func UpdateFailedBuild(id string) error {
 	_, err := db.C(buildsCollection).UpdateByID(db.Context(), id, bson.M{"$set": bson.M{"failed": true}})
-	return errors.Wrapf(err, "setting failed state on build %v", id)
+	return errors.Wrapf(err, "setting failed state on build '%s'", id)
 }
 
 func getOldBuildQuery() bson.M {
@@ -124,12 +124,12 @@ func getOldBuildQuery() bson.M {
 func GetOldBuilds(limit int) ([]LogKeeperBuild, error) {
 	cur, err := db.C(buildsCollection).Find(db.Context(), getOldBuildQuery(), options.Find().SetLimit(int64(limit)).SetMaxTime(2*AmboyInterval))
 	if err != nil {
-		return nil, errors.Wrap(err, "finding builds")
+		return nil, errors.Wrap(err, "finding old builds")
 	}
 
 	var builds []LogKeeperBuild
 	if err := cur.All(db.Context(), &builds); err != nil {
-		return nil, errors.Wrap(err, "decoding builds")
+		return nil, errors.Wrap(err, "decoding old builds")
 	}
 
 	return builds, err
@@ -177,19 +177,19 @@ func CleanupOldLogsAndTestsByBuild(id string) (CleanupStats, error) {
 	var stats CleanupStats
 	result, err := db.C(logsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
-		return stats, errors.Wrap(err, "error deleting logs from old builds")
+		return stats, errors.Wrap(err, "deleting logs from old builds")
 	}
 	stats.NumLogs += int(result.DeletedCount)
 
 	result, err = db.C(testsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
-		return stats, errors.Wrap(err, "error deleting tests from old builds")
+		return stats, errors.Wrap(err, "deleting tests from old builds")
 	}
 	stats.NumTests += int(result.DeletedCount)
 
 	result, err = db.C(buildsCollection).DeleteOne(db.Context(), bson.M{"_id": id})
 	if err != nil {
-		return stats, errors.Wrap(err, "error deleting build record")
+		return stats, errors.Wrap(err, "deleting build record")
 	}
 	stats.NumBuilds += int(result.DeletedCount)
 

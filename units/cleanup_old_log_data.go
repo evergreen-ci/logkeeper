@@ -121,12 +121,12 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	if taskInfo.Status != "success" {
 		err = logkeeper.UpdateFailedBuild(j.BuildID)
 		if err != nil {
-			j.AddError(errors.Wrapf(err, "error updating failed status of build %v", j.BuildID))
+			j.AddError(errors.Wrapf(err, "updating failed status of build %v", j.BuildID))
 		}
 	} else {
 		stats, err = logkeeper.CleanupOldLogsAndTestsByBuild(j.BuildID)
 		if err != nil {
-			j.AddError(errors.Wrap(err, "error cleaning up old logs"))
+			j.AddError(errors.Wrap(err, "cleaning up old logs"))
 		}
 	}
 

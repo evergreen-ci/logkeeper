@@ -50,7 +50,7 @@ func main() {
 
 	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
-	grip.EmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
+	grip.EmergencyFatal(errors.Wrap(err, "constructing worker pool"))
 	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
 	grip.EmergencyFatal(cleanupQueue.Start(ctx))
 	grip.EmergencyFatal(db.SetCleanupQueue(cleanupQueue))
