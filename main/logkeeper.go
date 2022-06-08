@@ -31,6 +31,7 @@ func main() {
 
 	httpPort := flag.Int("port", 8080, "port to listen on for HTTP.")
 	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
+	maxPoolSize := flag.Int("maxPoolSize", 2000, "maximum number of connections that the database connection pool may have at a given time")
 	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
 		"Leave empty for stand-alone and mongos instances.")
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
@@ -46,7 +47,7 @@ func main() {
 	defer sender.Close()
 	grip.EmergencyFatal(grip.SetSender(sender))
 
-	grip.EmergencyFatal(initDB(ctx, *dbHost, *rsName))
+	grip.EmergencyFatal(initDB(ctx, *dbHost, *rsName, *maxPoolSize))
 
 	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
@@ -152,8 +153,11 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 	wg.Wait()
 }
 
-func initDB(ctx context.Context, dbURI, rsName string) error {
-	opts := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", dbURI))
+func initDB(ctx context.Context, dbURI, rsName string, maxPoolSize int) error {
+	opts := options.Client().
+		ApplyURI(fmt.Sprintf("mongodb://%s", dbURI)).
+		SetMaxPoolSize(uint64(maxPoolSize))
+
 	if rsName != "" {
 		opts.SetReplicaSet(rsName)
 	}
