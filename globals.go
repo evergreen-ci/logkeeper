@@ -12,7 +12,7 @@ const (
 	DBName = "buildlogs"
 
 	AmboyInterval      = time.Minute
-	AmboyWorkers       = 8
+	AmboyWorkers       = 16
 	AmboyTargetNumJobs = CleanupBatchSize
 	AmboyLeaderFile    = "/srv/logkeeper/amboy.leader"
 )
