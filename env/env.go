@@ -10,8 +10,8 @@ import (
 )
 
 type environment struct {
-	client *mongo.Client
 	ctx    context.Context
+	client *mongo.Client
 	dbName string
 
 	cleanupQueue amboy.Queue
@@ -40,13 +40,6 @@ func Context() context.Context {
 	return globalEnv.ctx
 }
 
-func Client() *mongo.Client {
-	globalEnv.RLock()
-	defer globalEnv.RUnlock()
-
-	return globalEnv.client
-}
-
 func SetClient(c *mongo.Client) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -54,18 +47,11 @@ func SetClient(c *mongo.Client) {
 	globalEnv.client = c
 }
 
-func DB() *mongo.Database {
+func Client() *mongo.Client {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
 
-	return globalEnv.client.Database(globalEnv.dbName)
-}
-
-func C(collectionName string) *mongo.Collection {
-	globalEnv.RLock()
-	defer globalEnv.RUnlock()
-
-	return globalEnv.client.Database(globalEnv.dbName).Collection(collectionName)
+	return globalEnv.client
 }
 
 func SetDBName(name string) {
@@ -73,6 +59,27 @@ func SetDBName(name string) {
 	defer globalEnv.Unlock()
 
 	globalEnv.dbName = name
+}
+
+func DBName() string {
+	globalEnv.RLock()
+	defer globalEnv.RUnlock()
+
+	return globalEnv.dbName
+}
+
+func SetStatsCache(s *statsCache) {
+	globalEnv.Lock()
+	defer globalEnv.Unlock()
+
+	globalEnv.stats = s
+}
+
+func StatsCache() *statsCache {
+	globalEnv.RLock()
+	defer globalEnv.RUnlock()
+
+	return globalEnv.stats
 }
 
 func SetCleanupQueue(q amboy.Queue) error {
@@ -87,23 +94,9 @@ func SetCleanupQueue(q amboy.Queue) error {
 	return nil
 }
 
-func GetCleanupQueue() amboy.Queue {
+func CleanupQueue() amboy.Queue {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
 
 	return globalEnv.cleanupQueue
-}
-
-func SetStatsCache(s *statsCache) {
-	globalEnv.Lock()
-	defer globalEnv.Unlock()
-
-	globalEnv.stats = s
-}
-
-func GetStatsCache() *statsCache {
-	globalEnv.RLock()
-	defer globalEnv.RUnlock()
-
-	return globalEnv.stats
 }

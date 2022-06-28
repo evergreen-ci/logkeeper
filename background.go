@@ -29,7 +29,7 @@ func StartBackgroundLogging(ctx context.Context) {
 				if IsLeader() {
 					grip.Info(message.Fields{
 						"message": "amboy queue stats",
-						"stats":   env.GetCleanupQueue().Stats(ctx),
+						"stats":   env.CleanupQueue().Stats(ctx),
 					})
 				}
 

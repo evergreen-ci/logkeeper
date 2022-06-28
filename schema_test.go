@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +27,7 @@ func initTestDB(ctx context.Context, t *testing.T) {
 
 func clearCollections(t *testing.T, collections ...string) {
 	for _, col := range collections {
-		_, err := env.C(col).DeleteMany(env.Context(), bson.M{})
+		_, err := db.C(col).DeleteMany(env.Context(), bson.M{})
 		require.NoError(t, err)
 	}
 }
@@ -58,7 +59,7 @@ func insertBuilds(t *testing.T) []string {
 		Started: now,
 		Info:    info,
 	}
-	_, err := env.C(buildsCollection).InsertMany(env.Context(), []interface{}{oldBuild1, oldBuild2, edgeBuild, newBuild})
+	_, err := db.C(buildsCollection).InsertMany(env.Context(), []interface{}{oldBuild1, oldBuild2, edgeBuild, newBuild})
 	assert.NoError(err)
 	return []string{oldBuild1.Id, oldBuild2.Id, edgeBuild.Id, newBuild.Id}
 }
@@ -82,7 +83,7 @@ func insertTests(t *testing.T, ids []string) {
 		Id:      primitive.NewObjectID(),
 		BuildId: ids[3],
 	}
-	_, err := env.C(testsCollection).InsertMany(env.Context(), []interface{}{test1, test2, test3, test4})
+	_, err := db.C(testsCollection).InsertMany(env.Context(), []interface{}{test1, test2, test3, test4})
 	assert.NoError(err)
 }
 
@@ -94,7 +95,7 @@ func insertLogs(t *testing.T, ids []string) {
 	log3 := Log{BuildId: ids[1]}
 	newId := primitive.NewObjectID().Hex()
 	log4 := Log{BuildId: newId}
-	_, err := env.C(logsCollection).InsertMany(env.Context(), []interface{}{log1, log2, log3, log4})
+	_, err := db.C(logsCollection).InsertMany(env.Context(), []interface{}{log1, log2, log3, log4})
 	assert.NoError(err)
 }
 
@@ -127,10 +128,10 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	insertTests(t, ids)
 	insertLogs(t, ids)
 
-	count, _ := env.C(testsCollection).CountDocuments(env.Context(), bson.M{})
+	count, _ := db.C(testsCollection).CountDocuments(env.Context(), bson.M{})
 	assert.EqualValues(4, count)
 
-	count, _ = env.C(logsCollection).CountDocuments(env.Context(), bson.M{})
+	count, _ = db.C(logsCollection).CountDocuments(env.Context(), bson.M{})
 	assert.EqualValues(4, count)
 
 	deletedStats, err := CleanupOldLogsAndTestsByBuild(ids[0])
@@ -139,10 +140,10 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	assert.Equal(1, deletedStats.NumTests)
 	assert.Equal(2, deletedStats.NumLogs)
 
-	count, _ = env.C(testsCollection).CountDocuments(env.Context(), bson.M{})
+	count, _ = db.C(testsCollection).CountDocuments(env.Context(), bson.M{})
 	assert.EqualValues(3, count)
 
-	count, _ = env.C(logsCollection).CountDocuments(env.Context(), bson.M{})
+	count, _ = db.C(logsCollection).CountDocuments(env.Context(), bson.M{})
 	assert.EqualValues(2, count)
 }
 
@@ -161,9 +162,9 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 		Started: time.Now(),
 	}
 	build := LogKeeperBuild{Id: "incompletebuild"}
-	_, err := env.C(buildsCollection).InsertOne(env.Context(), build)
+	_, err := db.C(buildsCollection).InsertOne(env.Context(), build)
 	assert.NoError(err)
-	_, err = env.C(testsCollection).InsertOne(env.Context(), test)
+	_, err = db.C(testsCollection).InsertOne(env.Context(), test)
 	assert.NoError(err)
 	deletedStats, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
@@ -172,9 +173,9 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	assert.Equal(0, deletedStats.NumLogs)
 
 	log := Log{BuildId: "incompletebuild"}
-	_, err = env.C(buildsCollection).InsertOne(env.Context(), build)
+	_, err = db.C(buildsCollection).InsertOne(env.Context(), build)
 	assert.NoError(err)
-	_, err = env.C(logsCollection).InsertOne(env.Context(), log)
+	_, err = db.C(logsCollection).InsertOne(env.Context(), log)
 	assert.NoError(err)
 	deletedStats, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
 	assert.NoError(err)
