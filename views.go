@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
@@ -134,7 +134,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Info:     buildInfo,
 	}
 
-	_, err = db.C("builds").InsertOne(db.Context(), newBuild)
+	_, err = env.C("builds").InsertOne(env.Context(), newBuild)
 	if err != nil {
 		lk.logErrorf(r, "inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -197,7 +197,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Info:      testInfo,
 	}
 
-	_, err = db.C("tests").InsertOne(db.Context(), newTest)
+	_, err = env.C("tests").InsertOne(env.Context(), newTest)
 	if err != nil {
 		lk.logErrorf(r, "Error inserting test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -269,7 +269,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = db.C("tests").FindOneAndUpdate(db.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(test)
+	err = env.C("tests").FindOneAndUpdate(env.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(test)
 	if err != nil {
 		lk.logErrorf(r, "updating test sequence: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -284,7 +284,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		_, err := db.C("logs").InsertOne(db.Context(), logEntry)
+		_, err := env.C("logs").InsertOne(env.Context(), logEntry)
 		if err != nil {
 			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -355,7 +355,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = db.C("builds").FindOneAndUpdate(db.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(build)
+	err = env.C("builds").FindOneAndUpdate(env.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(build)
 	if err != nil {
 		lk.logErrorf(r, "updating builds sequence: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -370,7 +370,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		_, err = db.C("logs").InsertOne(db.Context(), logEntry)
+		_, err = env.C("logs").InsertOne(env.Context(), logEntry)
 		if err != nil {
 			lk.logErrorf(r, "inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -541,13 +541,13 @@ func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, mi
 
 		defer close(outputLog)
 		lineNum := 0
-		cur, err := db.C("logs").Find(db.Context(), query, options.Find().SetSort(sort))
+		cur, err := env.C("logs").Find(env.Context(), query, options.Find().SetSort(sort))
 		if err != nil {
 			return
 		}
-		defer cur.Close(db.Context())
+		defer cur.Close(env.Context())
 
-		for cur.Next(db.Context()) {
+		for cur.Next(env.Context()) {
 			var logItem Log
 			if err = cur.Decode(&logItem); err != nil {
 				continue
@@ -587,8 +587,8 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 	// This may not actually contain any global log lines during the test run, if the entry returned
 	// by this query comes from after the *next* test started.
 	var firstGlobalLog Log
-	err := db.C("logs").
-		FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
+	err := env.C("logs").
+		FindOne(env.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
 		Decode(&firstGlobalLog)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
@@ -602,8 +602,8 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 
 	// Find the next test after this one.
 	var nextTest Test
-	err = db.C("tests").
-		FindOne(db.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort(bson.M{"started": 1})).
+	err = env.C("tests").
+		FindOne(env.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort(bson.M{"started": 1})).
 		Decode(&nextTest)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
@@ -616,8 +616,8 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		// Find the last global log entry that covers this test. This may return a global log entry
 		// that started before the test itself.
 		var lastGlobalLog Log
-		err = db.C("logs").
-			FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
+		err = env.C("logs").
+			FindOne(env.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
 			Decode(&lastGlobalLog)
 		if err != nil {
 			if err != mongo.ErrNoDocuments {
@@ -675,7 +675,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		BatchSize:       CleanupBatchSize,
 		NumWorkers:      AmboyWorkers,
 		DurationSeconds: AmboyInterval.Seconds(),
-		CleanupStatus:   db.GetCleanupQueue().Stats(r.Context()),
+		CleanupStatus:   env.GetCleanupQueue().Stats(r.Context()),
 	}
 
 	lk.render.WriteJSON(w, http.StatusOK, &resp)

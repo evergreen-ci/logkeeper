@@ -1,4 +1,4 @@
-package logkeeper
+package env
 
 import (
 	"context"
@@ -124,12 +124,12 @@ func (s *statsCache) loggerLoop(ctx context.Context) {
 	}
 }
 
-func newCache(ctx context.Context) statsCache {
+func NewCache(ctx context.Context) *statsCache {
 	cache := statsCache{
 		lastReset:  time.Now(),
 		changeChan: make(chan func(*statsCache), statChanBufferSize),
 	}
 	go cache.loggerLoop(ctx)
 
-	return cache
+	return &cache
 }

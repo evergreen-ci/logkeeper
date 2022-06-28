@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
@@ -21,7 +21,7 @@ import (
 )
 
 func resetDatabase() {
-	grip.Error(db.DB().Drop(db.Context()))
+	grip.Error(env.DB().Drop(env.Context()))
 }
 
 func init() {
@@ -75,18 +75,18 @@ func TestLogKeeper(t *testing.T) {
 
 			// Test should have seq = 2
 			test := &Test{}
-			err = db.C("tests").FindOne(db.Context(), bson.M{"_id": testObjectID}).Decode(test)
+			err = env.C("tests").FindOne(env.Context(), bson.M{"_id": testObjectID}).Decode(test)
 			So(err, ShouldBeNil)
 			So(test.Seq, ShouldEqual, 2)
 
 			// Test should have two logs
-			numLogs, err := db.C("logs").CountDocuments(db.Context(), bson.M{"test_id": testObjectID})
+			numLogs, err := env.C("logs").CountDocuments(env.Context(), bson.M{"test_id": testObjectID})
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			cur, err := db.C("logs").Find(db.Context(), bson.M{"test_id": testObjectID}, options.Find().SetSort(bson.M{"seq": 1}))
+			cur, err := env.C("logs").Find(env.Context(), bson.M{"test_id": testObjectID}, options.Find().SetSort(bson.M{"seq": 1}))
 			So(err, ShouldBeNil)
 			firstLog := true
 			for cur.Next(ctx) {
@@ -103,7 +103,7 @@ func TestLogKeeper(t *testing.T) {
 				}
 			}
 
-			So(db.DB().Drop(db.Context()), ShouldBeNil)
+			So(env.DB().Drop(env.Context()), ShouldBeNil)
 
 			// Create build
 			r = newTestRequest(lk, "POST", "/build", map[string]interface{}{"builder": "myBuilder", "buildnum": 123})
@@ -118,18 +118,18 @@ func TestLogKeeper(t *testing.T) {
 
 			// Build should have seq = 2
 			build := &LogKeeperBuild{}
-			err = db.C("builds").FindOne(db.Context(), bson.M{"_id": buildId}).Decode(build)
+			err = env.C("builds").FindOne(env.Context(), bson.M{"_id": buildId}).Decode(build)
 			So(err, ShouldBeNil)
 			So(build.Seq, ShouldEqual, 2)
 
 			// Build should have two logs
-			numLogs, err = db.C("logs").CountDocuments(db.Context(), bson.M{"build_id": buildId})
+			numLogs, err = env.C("logs").CountDocuments(env.Context(), bson.M{"build_id": buildId})
 			So(err, ShouldBeNil)
 			So(numLogs, ShouldEqual, 2)
 
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
-			cur, err = db.C("logs").Find(db.Context(), bson.M{"build_id": buildId}, options.Find().SetSort(bson.M{"seq": 1}))
+			cur, err = env.C("logs").Find(env.Context(), bson.M{"build_id": buildId}, options.Find().SetSort(bson.M{"seq": 1}))
 			So(err, ShouldBeNil)
 			firstLog = true
 			for cur.Next(ctx) {
@@ -169,7 +169,7 @@ func TestLogKeeper(t *testing.T) {
 			So(err, ShouldBeNil)
 
 			test := &Test{}
-			err = db.C("tests").FindOne(db.Context(), bson.M{"_id": testObjectID}).Decode(test)
+			err = env.C("tests").FindOne(env.Context(), bson.M{"_id": testObjectID}).Decode(test)
 			So(err, ShouldBeNil)
 			So(test.Info, ShouldNotBeNil)
 			So(test.Info["task_id"], ShouldEqual, "abc123")

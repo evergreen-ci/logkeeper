@@ -1,4 +1,4 @@
-package logkeeper
+package env
 
 import (
 	"testing"
@@ -16,7 +16,7 @@ func TestLoggerLoop(t *testing.T) {
 	defer cancel()
 	defer grip.SetSender(grip.GetSender())
 
-	cache := newCache(ctx)
+	cache := NewCache(ctx)
 	for testName, testCase := range map[string]struct {
 		mutator func() error
 		field   string
