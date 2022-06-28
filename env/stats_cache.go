@@ -33,27 +33,27 @@ type statsCache struct {
 	lastReset  time.Time
 }
 
-func (s *statsCache) buildCreated() error {
+func (s *statsCache) BuildCreated() error {
 	return s.enqueueChange(func(s *statsCache) { s.buildsCreated++ })
 }
 
-func (s *statsCache) testCreated() error {
+func (s *statsCache) TestCreated() error {
 	return s.enqueueChange(func(s *statsCache) { s.testsCreated++ })
 }
 
-func (s *statsCache) logAppended(numBytes int) error {
+func (s *statsCache) LogAppended(numBytes int) error {
 	return s.enqueueChange(func(s *statsCache) { s.logMBs = append(s.logMBs, float64(numBytes)/bytesPerMB) })
 }
 
-func (s *statsCache) buildAccessed() error {
+func (s *statsCache) BuildAccessed() error {
 	return s.enqueueChange(func(s *statsCache) { s.buildsAccessed++ })
 }
 
-func (s *statsCache) testLogAccessed() error {
+func (s *statsCache) TestLogsAccessed() error {
 	return s.enqueueChange(func(s *statsCache) { s.testLogsAccessed++ })
 }
 
-func (s *statsCache) allLogsAccessed() error {
+func (s *statsCache) AllLogsAccessed() error {
 	return s.enqueueChange(func(s *statsCache) { s.allBuildLogsAccessed++ })
 }
 

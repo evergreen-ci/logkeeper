@@ -21,12 +21,12 @@ func TestLoggerLoop(t *testing.T) {
 		mutator func() error
 		field   string
 	}{
-		"BuildCreated":    {mutator: cache.buildCreated, field: "num_builds_created"},
-		"TestCreated":     {mutator: cache.testCreated, field: "num_tests_created"},
-		"Append":          {mutator: func() error { return cache.logAppended(100) }, field: "num_appends"},
-		"BuildsAccessed":  {mutator: cache.buildAccessed, field: "num_builds_accessed"},
-		"TestLogAccessed": {mutator: cache.testLogAccessed, field: "num_test_logs_accessed"},
-		"AllLogsAccessed": {mutator: cache.allLogsAccessed, field: "num_all_build_logs_accessed"},
+		"BuildCreated":    {mutator: cache.BuildCreated, field: "num_builds_created"},
+		"TestCreated":     {mutator: cache.TestCreated, field: "num_tests_created"},
+		"Append":          {mutator: func() error { return cache.LogAppended(100) }, field: "num_appends"},
+		"BuildsAccessed":  {mutator: cache.BuildAccessed, field: "num_builds_accessed"},
+		"TestLogAccessed": {mutator: cache.TestLogsAccessed, field: "num_test_logs_accessed"},
+		"AllLogsAccessed": {mutator: cache.AllLogsAccessed, field: "num_all_build_logs_accessed"},
 	} {
 		t.Run(testName, func(t *testing.T) {
 			sender := send.NewMockSender("")
@@ -61,11 +61,11 @@ func TestChannelFull(t *testing.T) {
 
 	cache := statsCache{changeChan: make(chan func(*statsCache), 5)}
 	for x := 0; x < 5; x++ {
-		cache.buildCreated()
+		cache.BuildCreated()
 	}
 	assert.Len(t, sender.Messages, 0)
 
-	assert.Error(t, cache.buildCreated())
+	assert.Error(t, cache.BuildCreated())
 }
 
 func TestLogSizeStats(t *testing.T) {
