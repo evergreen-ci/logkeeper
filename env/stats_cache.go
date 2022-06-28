@@ -18,7 +18,7 @@ const (
 	bytesPerMB         = 1000000
 )
 
-var histogramDividers = []float64{0, 1, 10, 100, 1000, 10000, 100000, 1000000, 1000000000}
+var histogramDividers = []float64{0, 1, 10, 20, 30, 40}
 
 type statsCache struct {
 	buildsCreated int

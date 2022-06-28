@@ -76,17 +76,17 @@ func TestLogSizeStats(t *testing.T) {
 		grip.SetSender(sender)
 
 		cache := statsCache{
-			logMBs: []float64{0, 50, 100},
+			logMBs: []float64{0, 15, 100},
 		}
 		cache.logStats()
 
 		require.Len(t, sender.Messages, 1)
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.EqualValues(t, 0, msg["append_size_min"])
-		assert.EqualValues(t, 100, msg["append_size_max"])
-		assert.EqualValues(t, 50, msg["append_size_mean"])
-		assert.EqualValues(t, 50, msg["append_size_stddev"])
-		assert.Equal(t, []float64{1, 0, 1, 1, 0, 0, 0, 0}, msg["histogram"])
+		assert.EqualValues(t, 30, msg["append_size_max"])
+		assert.EqualValues(t, 15, msg["append_size_mean"])
+		assert.EqualValues(t, 15, msg["append_size_stddev"])
+		assert.Equal(t, []float64{1, 0, 1, 0, 1}, msg["histogram"])
 	})
 	t.Run("WithoutValues", func(t *testing.T) {
 		sender := send.NewMockSender("")
