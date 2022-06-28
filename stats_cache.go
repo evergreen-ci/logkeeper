@@ -29,63 +29,62 @@ type statsCache struct {
 	allBuildLogsAccessed int
 	testLogsAccessed     int
 
-	changeChan chan func()
+	changeChan chan func(*statsCache)
 	lastReset  time.Time
 }
 
 func (s *statsCache) buildCreated() error {
-	return s.enqueueChange(func() { s.buildsCreated++ })
+	return s.enqueueChange(func(s *statsCache) { s.buildsCreated++ })
 }
 
 func (s *statsCache) testCreated() error {
-	return s.enqueueChange(func() { s.testsCreated++ })
+	return s.enqueueChange(func(s *statsCache) { s.testsCreated++ })
 }
 
 func (s *statsCache) logAppended(numBytes int) error {
-	return s.enqueueChange(func() { s.logMBs = append(s.logMBs, float64(numBytes)/bytesPerMB) })
+	return s.enqueueChange(func(s *statsCache) { s.logMBs = append(s.logMBs, float64(numBytes)/bytesPerMB) })
 }
 
 func (s *statsCache) buildAccessed() error {
-	return s.enqueueChange(func() { s.buildsAccessed++ })
+	return s.enqueueChange(func(s *statsCache) { s.buildsAccessed++ })
 }
 
 func (s *statsCache) testLogAccessed() error {
-	return s.enqueueChange(func() { s.testLogsAccessed++ })
+	return s.enqueueChange(func(s *statsCache) { s.testLogsAccessed++ })
 }
 
 func (s *statsCache) allLogsAccessed() error {
-	return s.enqueueChange(func() { s.allBuildLogsAccessed++ })
+	return s.enqueueChange(func(s *statsCache) { s.allBuildLogsAccessed++ })
 }
 
-func (s *statsCache) enqueueChange(change func()) error {
+func (s *statsCache) enqueueChange(change func(*statsCache)) error {
 	select {
 	case s.changeChan <- change:
 		return nil
 	default:
-		return errors.New("stats cache is full")
+		return errors.New("incoming stats buffer is full")
 	}
 }
 
 func (s *statsCache) logStats() {
-	grip.Info(message.Fields{
-		"message":            "upload stats",
-		"interval_ms":        time.Since(s.lastReset).Milliseconds(),
-		"num_builds_added":   s.buildsCreated,
-		"num_tests_added":    s.testsCreated,
-		"num_log_appends":    len(s.logMBs),
-		"append_size_min":    floats.Min(s.logMBs),
-		"append_size_max":    floats.Max(s.logMBs),
-		"append_size_mean":   stat.Mean(s.logMBs, nil),
-		"append_size_stddev": stat.StdDev(s.logMBs, nil),
-		"histogram":          stat.Histogram(nil, histogramDividers, s.logMBs, nil),
-	})
-
-	grip.Info(message.Fields{
-		"message":                     "download stats",
+	stats := message.Fields{
+		"message":                     "usage stats",
+		"interval_ms":                 time.Since(s.lastReset).Milliseconds(),
+		"num_builds_created":          s.buildsCreated,
+		"num_tests_created":           s.testsCreated,
+		"num_appends":                 len(s.logMBs),
 		"num_builds_accessed":         s.buildsAccessed,
 		"num_all_build_logs_accessed": s.allBuildLogsAccessed,
 		"num_test_logs_accessed":      s.testLogsAccessed,
-	})
+	}
+	if len(s.logMBs) > 0 {
+		stats["append_size_min"] = floats.Min(s.logMBs)
+		stats["append_size_max"] = floats.Max(s.logMBs)
+		stats["append_size_mean"] = stat.Mean(s.logMBs, nil)
+		stats["append_size_stddev"] = stat.StdDev(s.logMBs, nil)
+		stats["histogram"] = stat.Histogram(nil, histogramDividers, s.logMBs, nil)
+	}
+	grip.Info(stats)
 }
 
 func (s *statsCache) resetCache() {
@@ -120,7 +119,7 @@ func (s *statsCache) loggerLoop(ctx context.Context) {
 			s.logStats()
 			s.resetCache()
 		case applyChange := <-s.changeChan:
-			applyChange()
+			applyChange(s)
 		}
 	}
 }
@@ -128,7 +127,7 @@ func (s *statsCache) loggerLoop(ctx context.Context) {
 func newCache(ctx context.Context) statsCache {
 	cache := statsCache{
 		lastReset:  time.Now(),
-		changeChan: make(chan func(), statChanBufferSize),
+		changeChan: make(chan func(*statsCache), statChanBufferSize),
 	}
 	go cache.loggerLoop(ctx)
 
