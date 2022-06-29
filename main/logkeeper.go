@@ -58,7 +58,7 @@ func main() {
 
 	grip.EmergencyFatal(units.StartCleanupCron(ctx, cleanupQueue))
 
-	env.SetStatsCache(env.NewCache(ctx))
+	env.SetStatsCache(env.NewStatsCache(ctx))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),

@@ -26,6 +26,7 @@ func init() {
 	globalEnv = &environment{}
 }
 
+// SetContext caches a context to be available from the environment.
 func SetContext(ctx context.Context) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -33,6 +34,7 @@ func SetContext(ctx context.Context) {
 	globalEnv.ctx = ctx
 }
 
+// Context returns the cached context from the environment.
 func Context() context.Context {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
@@ -40,6 +42,7 @@ func Context() context.Context {
 	return globalEnv.ctx
 }
 
+// SetClient caches a mongo Client to be available from the environment.
 func SetClient(c *mongo.Client) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -47,6 +50,7 @@ func SetClient(c *mongo.Client) {
 	globalEnv.client = c
 }
 
+// Client returns the cached mongo Client from the environment.
 func Client() *mongo.Client {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
@@ -54,6 +58,7 @@ func Client() *mongo.Client {
 	return globalEnv.client
 }
 
+// SetDBName caches a db name to be available from the environment.
 func SetDBName(name string) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -61,6 +66,7 @@ func SetDBName(name string) {
 	globalEnv.dbName = name
 }
 
+// DBName returns the cached db name from the environment.
 func DBName() string {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
@@ -68,6 +74,7 @@ func DBName() string {
 	return globalEnv.dbName
 }
 
+// SetStatsCache caches a stats cache to be available from the environment.
 func SetStatsCache(s *statsCache) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -75,6 +82,7 @@ func SetStatsCache(s *statsCache) {
 	globalEnv.stats = s
 }
 
+// StatsCache returns the cached stats cache from the environment.
 func StatsCache() *statsCache {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
@@ -82,6 +90,7 @@ func StatsCache() *statsCache {
 	return globalEnv.stats
 }
 
+// SetCleanupQueue caches the cleanup queue to be available from the environment.
 func SetCleanupQueue(q amboy.Queue) error {
 	if !q.Info().Started {
 		return errors.New("queue isn't started")
@@ -94,6 +103,7 @@ func SetCleanupQueue(q amboy.Queue) error {
 	return nil
 }
 
+// CleanupQueue returns the cached cleanup queue from the environment.
 func CleanupQueue() amboy.Queue {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()

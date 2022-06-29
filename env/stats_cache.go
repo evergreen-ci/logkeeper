@@ -33,26 +33,38 @@ type statsCache struct {
 	lastReset  time.Time
 }
 
+// BuildCreated records that a build has been created.
+// Returns an error if events are enqueued faster than the cache can process them.
 func (s *statsCache) BuildCreated() error {
 	return s.enqueueChange(func(s *statsCache) { s.buildsCreated++ })
 }
 
+// TestCreated records that a test has been created.
+// Returns an error if events are enqueued faster than the cache can process them.
 func (s *statsCache) TestCreated() error {
 	return s.enqueueChange(func(s *statsCache) { s.testsCreated++ })
 }
 
+// LogAppended records that a log has been appended.
+// Returns an error if events are enqueued faster than the cache can process them.
 func (s *statsCache) LogAppended(numBytes int) error {
 	return s.enqueueChange(func(s *statsCache) { s.logMBs = append(s.logMBs, float64(numBytes)/bytesPerMB) })
 }
 
+// BuildAccessed records that a build has been accessed.
+// Returns an error if events are enqueued faster than the cache can process them.
 func (s *statsCache) BuildAccessed() error {
 	return s.enqueueChange(func(s *statsCache) { s.buildsAccessed++ })
 }
 
+// TestLogsAccessed records that a test's logs have been accessed.
+// Returns an error if events are enqueued faster than the cache can process them.
 func (s *statsCache) TestLogsAccessed() error {
 	return s.enqueueChange(func(s *statsCache) { s.testLogsAccessed++ })
 }
 
+// AllLogsAccessed records that all of a build's logs have been accessed.
+// Returns an error if events are enqueued faster than the cache can process them.
 func (s *statsCache) AllLogsAccessed() error {
 	return s.enqueueChange(func(s *statsCache) { s.allBuildLogsAccessed++ })
 }
@@ -78,6 +90,7 @@ func (s *statsCache) logStats() {
 		"num_test_logs_accessed":      s.testLogsAccessed,
 	}
 	if len(s.logMBs) > 0 {
+		stats["append_size_total"] = floats.Sum(s.logMBs)
 		stats["append_size_min"] = floats.Min(s.logMBs)
 		stats["append_size_max"] = floats.Max(s.logMBs)
 		stats["append_size_mean"] = stat.Mean(s.logMBs, nil)
@@ -124,7 +137,8 @@ func (s *statsCache) loggerLoop(ctx context.Context) {
 	}
 }
 
-func NewCache(ctx context.Context) *statsCache {
+// NewStatsCache returns an initialized stats cache and begins processing incoming events.
+func NewStatsCache(ctx context.Context) *statsCache {
 	cache := statsCache{
 		lastReset:  time.Now(),
 		changeChan: make(chan func(*statsCache), statChanBufferSize),

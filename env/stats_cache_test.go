@@ -16,7 +16,7 @@ func TestLoggerLoop(t *testing.T) {
 	defer cancel()
 	defer grip.SetSender(grip.GetSender())
 
-	cache := NewCache(ctx)
+	cache := NewStatsCache(ctx)
 	for testName, testCase := range map[string]struct {
 		mutator func() error
 		field   string
@@ -82,6 +82,7 @@ func TestLogSizeStats(t *testing.T) {
 
 		require.Len(t, sender.Messages, 1)
 		msg := sender.Messages[0].Raw().(message.Fields)
+		assert.EqualValues(t, 45, msg["append_size_total"])
 		assert.EqualValues(t, 0, msg["append_size_min"])
 		assert.EqualValues(t, 30, msg["append_size_max"])
 		assert.EqualValues(t, 15, msg["append_size_mean"])
