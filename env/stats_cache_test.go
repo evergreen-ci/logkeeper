@@ -23,7 +23,7 @@ func TestLoggerLoop(t *testing.T) {
 	}{
 		"BuildCreated":    {mutator: cache.BuildCreated, field: "num_builds_created"},
 		"TestCreated":     {mutator: cache.TestCreated, field: "num_tests_created"},
-		"Append":          {mutator: func() error { return cache.LogAppended(100) }, field: "num_appends"},
+		"Append":          {mutator: func() error { return cache.LogAppended(5) }, field: "num_appends"},
 		"BuildsAccessed":  {mutator: cache.BuildAccessed, field: "num_builds_accessed"},
 		"TestLogAccessed": {mutator: cache.TestLogsAccessed, field: "num_test_logs_accessed"},
 		"AllLogsAccessed": {mutator: cache.AllLogsAccessed, field: "num_all_build_logs_accessed"},
@@ -76,7 +76,7 @@ func TestLogSizeStats(t *testing.T) {
 		grip.SetSender(sender)
 
 		cache := statsCache{
-			logMBs: []float64{0, 15, 100},
+			logMBs: []float64{0, 15, 30},
 		}
 		cache.logStats()
 
@@ -86,7 +86,7 @@ func TestLogSizeStats(t *testing.T) {
 		assert.EqualValues(t, 30, msg["append_size_max"])
 		assert.EqualValues(t, 15, msg["append_size_mean"])
 		assert.EqualValues(t, 15, msg["append_size_stddev"])
-		assert.Equal(t, []float64{1, 0, 1, 0, 1}, msg["histogram"])
+		assert.Equal(t, []float64{1, 0, 0, 0, 2}, msg["histogram"])
 	})
 	t.Run("WithoutValues", func(t *testing.T) {
 		sender := send.NewMockSender("")
