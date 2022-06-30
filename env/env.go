@@ -42,7 +42,7 @@ func Context() context.Context {
 	return globalEnv.ctx
 }
 
-// SetClient caches a mongo Client to be available from the environment.
+// SetClient caches a Mongo Client to be available from the environment.
 func SetClient(c *mongo.Client) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -50,7 +50,7 @@ func SetClient(c *mongo.Client) {
 	globalEnv.client = c
 }
 
-// Client returns the cached mongo Client from the environment.
+// Client returns the cached Mongo Client from the environment.
 func Client() *mongo.Client {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
@@ -58,7 +58,7 @@ func Client() *mongo.Client {
 	return globalEnv.client
 }
 
-// SetDBName caches a db name to be available from the environment.
+// SetDBName caches a DB name to be available from the environment.
 func SetDBName(name string) {
 	globalEnv.Lock()
 	defer globalEnv.Unlock()
@@ -66,7 +66,7 @@ func SetDBName(name string) {
 	globalEnv.dbName = name
 }
 
-// DBName returns the cached db name from the environment.
+// DBName returns the cached DB name from the environment.
 func DBName() string {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()

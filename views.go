@@ -145,7 +145,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().BuildCreated(), "adding build creation to stats cache"),
+		errors.Wrap(env.StatsCache().BuildCreated(), "caching build creation stats"),
 	)
 
 	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuildId)
@@ -212,7 +212,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().TestCreated(), "adding test creation to stats cache"),
+		errors.Wrap(env.StatsCache().TestCreated(), "caching test creation stats"),
 	)
 
 	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id, newTest.Id.Hex())
@@ -305,7 +305,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "adding test log append to stats cache"),
+		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching test log append stats"),
 	)
 
 	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id, test.Id.Hex())
@@ -396,7 +396,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "adding global log append to stats cache"),
+		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching global log append stats"),
 	)
 
 	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, build.Id)
@@ -429,7 +429,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().BuildAccessed(), "adding build access to stats cache"),
+		errors.Wrap(env.StatsCache().BuildAccessed(), "caching build access stats"),
 	)
 
 	lk.render.WriteHTML(w, http.StatusOK, struct {
@@ -485,7 +485,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().AllLogsAccessed(), "adding all logs access to stats cache"),
+		errors.Wrap(env.StatsCache().AllLogsAccessed(), "caching all logs access stats"),
 	)
 }
 
@@ -564,7 +564,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 	grip.ErrorWhen(
 		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().TestLogsAccessed(), "adding test logs access to stats cache"),
+		errors.Wrap(env.StatsCache().TestLogsAccessed(), "caching test logs access stats"),
 	)
 }
 
