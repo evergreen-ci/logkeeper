@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/stretchr/testify/assert"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -29,7 +30,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 		Id:      "b",
 		Started: buildStart,
 	}
-	_, err := db.C("builds").InsertOne(db.Context(), b)
+	_, err := db.C("builds").InsertOne(env.Context(), b)
 	assert.NoError(err)
 
 	t0 := Test{
@@ -37,7 +38,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 		BuildId: b.Id,
 		Started: buildStart,
 	}
-	_, err = db.C("tests").InsertOne(db.Context(), t0)
+	_, err = db.C("tests").InsertOne(env.Context(), t0)
 	assert.NoError(err)
 
 	t1 := Test{
@@ -45,7 +46,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 		BuildId: b.Id,
 		Started: buildStart.Add(10 * time.Second),
 	}
-	_, err = db.C("tests").InsertOne(db.Context(), t1)
+	_, err = db.C("tests").InsertOne(env.Context(), t1)
 	assert.NoError(err)
 
 	globalLogTime := t0.Started.Add(5 * time.Second)
@@ -59,7 +60,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 			*NewLogLine([]interface{}{float64(globalLogTime.Add(10 * time.Second).Unix()), "during t1"}),
 		},
 	}
-	_, err = db.C("logs").InsertOne(db.Context(), globalLog)
+	_, err = db.C("logs").InsertOne(env.Context(), globalLog)
 	assert.NoError(err)
 
 	t0Log := Log{
@@ -72,7 +73,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 			*NewLogLine([]interface{}{float64(t0.Started.Add(10 * time.Second).Unix()), "t0 - line2"}),
 		},
 	}
-	_, err = db.C("logs").InsertOne(db.Context(), t0Log)
+	_, err = db.C("logs").InsertOne(env.Context(), t0Log)
 	assert.NoError(err)
 
 	t1Log := Log{
@@ -85,7 +86,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 			*NewLogLine([]interface{}{float64(t1.Started.Add(10 * time.Second).Unix()), "t1 - line2"}),
 		},
 	}
-	_, err = db.C("logs").InsertOne(db.Context(), t1Log)
+	_, err = db.C("logs").InsertOne(env.Context(), t1Log)
 	assert.NoError(err)
 
 	t.Run("BuildStartedAfterTest", func(t *testing.T) {
