@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/env"
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
@@ -29,7 +29,7 @@ func StartBackgroundLogging(ctx context.Context) {
 				if IsLeader() {
 					grip.Info(message.Fields{
 						"message": "amboy queue stats",
-						"stats":   env.CleanupQueue().Stats(ctx),
+						"stats":   db.GetCleanupQueue().Stats(ctx),
 					})
 				}
 

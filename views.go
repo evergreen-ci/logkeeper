@@ -10,14 +10,12 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
-	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
-	"github.com/mongodb/grip/sometimes"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -26,8 +24,8 @@ import (
 )
 
 const (
-	maxLogChars             = 4 * 1024 * 1024 // 4 MB
-	statsErrorLogPercentage = 10
+	maxLogChars = 4 * 1024 * 1024 // 4 MB
+
 )
 
 type Options struct {
@@ -136,19 +134,15 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Info:     buildInfo,
 	}
 
-	_, err = db.C("builds").InsertOne(env.Context(), newBuild)
+	_, err = db.C("builds").InsertOne(db.Context(), newBuild)
 	if err != nil {
 		lk.logErrorf(r, "inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().BuildCreated(), "caching build creation stats"),
-	)
-
 	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuildId)
+
 	response := createdResponse{newBuildId, newBuildUri}
 	lk.render.WriteJSON(w, http.StatusCreated, response)
 }
@@ -203,17 +197,12 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Info:      testInfo,
 	}
 
-	_, err = db.C("tests").InsertOne(env.Context(), newTest)
+	_, err = db.C("tests").InsertOne(db.Context(), newTest)
 	if err != nil {
 		lk.logErrorf(r, "Error inserting test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().TestCreated(), "caching test creation stats"),
-	)
 
 	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id, newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
@@ -280,7 +269,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = db.C("tests").FindOneAndUpdate(env.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(test)
+	err = db.C("tests").FindOneAndUpdate(db.Context(), bson.M{"_id": test.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(test)
 	if err != nil {
 		lk.logErrorf(r, "updating test sequence: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -295,18 +284,13 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		_, err := db.C("logs").InsertOne(env.Context(), logEntry)
+		_, err := db.C("logs").InsertOne(db.Context(), logEntry)
 		if err != nil {
 			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching test log append stats"),
-	)
 
 	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, build.Id, test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
@@ -371,7 +355,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	options := options.FindOneAndUpdate().SetReturnDocument(options.After)
-	err = db.C("builds").FindOneAndUpdate(env.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(build)
+	err = db.C("builds").FindOneAndUpdate(db.Context(), bson.M{"_id": build.Id}, bson.M{"$inc": bson.M{"seq": len(lineSets)}}, options).Decode(build)
 	if err != nil {
 		lk.logErrorf(r, "updating builds sequence: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -386,18 +370,13 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		_, err = db.C("logs").InsertOne(env.Context(), logEntry)
+		_, err = db.C("logs").InsertOne(db.Context(), logEntry)
 		if err != nil {
 			lk.logErrorf(r, "inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching global log append stats"),
-	)
 
 	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, build.Id)
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
@@ -427,11 +406,6 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().BuildAccessed(), "caching build access stats"),
-	)
-
 	lk.render.WriteHTML(w, http.StatusOK, struct {
 		Build *LogKeeperBuild
 		Tests []Test
@@ -446,11 +420,6 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
-
-	if lobsterRedirect(r) {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildId), http.StatusFound)
-		return
-	}
 
 	build, err := findBuildById(buildId)
 	if err != nil || build == nil {
@@ -469,6 +438,10 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		return
+	} else if len(r.FormValue("html")) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildId), http.StatusFound)
+		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
@@ -481,16 +454,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
+
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().AllLogsAccessed(), "caching all logs access stats"),
-	)
-}
-
-func lobsterRedirect(r *http.Request) bool {
-	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain"
 }
 
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
@@ -501,12 +466,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 	vars := mux.Vars(r)
 	build_id := vars["build_id"]
-	test_id := vars["test_id"]
-
-	if lobsterRedirect(r) {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
-		return
-	}
 
 	build, err := findBuildById(build_id)
 	if err != nil || build == nil {
@@ -514,6 +473,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	test_id := vars["test_id"]
 	test, err := findTest(test_id)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
@@ -546,6 +506,9 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		if emptyLog {
 			lk.render.WriteJSON(w, http.StatusOK, nil)
 		}
+	} else if len(r.FormValue("html")) == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
+		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
@@ -561,11 +524,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().TestLogsAccessed(), "caching test logs access stats"),
-	)
 }
 
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
@@ -583,13 +541,13 @@ func (lk *logKeeper) findLogs(ctx context.Context, query bson.M, sort bson.D, mi
 
 		defer close(outputLog)
 		lineNum := 0
-		cur, err := db.C("logs").Find(env.Context(), query, options.Find().SetSort(sort))
+		cur, err := db.C("logs").Find(db.Context(), query, options.Find().SetSort(sort))
 		if err != nil {
 			return
 		}
-		defer cur.Close(env.Context())
+		defer cur.Close(db.Context())
 
-		for cur.Next(env.Context()) {
+		for cur.Next(db.Context()) {
 			var logItem Log
 			if err = cur.Decode(&logItem); err != nil {
 				continue
@@ -630,7 +588,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 	// by this query comes from after the *next* test started.
 	var firstGlobalLog Log
 	err := db.C("logs").
-		FindOne(env.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
+		FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
 		Decode(&firstGlobalLog)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
@@ -645,7 +603,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 	// Find the next test after this one.
 	var nextTest Test
 	err = db.C("tests").
-		FindOne(env.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort(bson.M{"started": 1})).
+		FindOne(db.Context(), bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}, options.FindOne().SetSort(bson.M{"started": 1})).
 		Decode(&nextTest)
 	if err != nil {
 		if err != mongo.ErrNoDocuments {
@@ -659,7 +617,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(ctx context.Context, build *LogKee
 		// that started before the test itself.
 		var lastGlobalLog Log
 		err = db.C("logs").
-			FindOne(env.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
+			FindOne(db.Context(), bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}, options.FindOne().SetSort(bson.M{"seq": -1})).
 			Decode(&lastGlobalLog)
 		if err != nil {
 			if err != mongo.ErrNoDocuments {
@@ -717,7 +675,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		BatchSize:       CleanupBatchSize,
 		NumWorkers:      AmboyWorkers,
 		DurationSeconds: AmboyInterval.Seconds(),
-		CleanupStatus:   env.CleanupQueue().Stats(r.Context()),
+		CleanupStatus:   db.GetCleanupQueue().Stats(r.Context()),
 	}
 
 	lk.render.WriteJSON(w, http.StatusOK, &resp)

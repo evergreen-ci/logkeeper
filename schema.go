@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
-	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"go.mongodb.org/mongo-driver/bson"
@@ -54,7 +53,7 @@ func findTest(id string) (*Test, error) {
 	}
 
 	test := &Test{}
-	if err := db.C(testsCollection).FindOne(env.Context(), bson.M{"_id": objectID}).Decode(test); err != nil {
+	if err := db.C(testsCollection).FindOne(db.Context(), bson.M{"_id": objectID}).Decode(test); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -65,13 +64,13 @@ func findTest(id string) (*Test, error) {
 }
 
 func findTestsForBuild(buildID string) ([]Test, error) {
-	cur, err := db.C(testsCollection).Find(env.Context(), bson.M{"build_id": buildID}, options.Find().SetSort(bson.M{"started": 1}))
+	cur, err := db.C(testsCollection).Find(db.Context(), bson.M{"build_id": buildID}, options.Find().SetSort(bson.M{"started": 1}))
 	if err != nil {
 		return nil, errors.Wrapf(err, "finding tests for build '%s'", buildID)
 	}
 
 	var tests []Test
-	if err := cur.All(env.Context(), &tests); err != nil {
+	if err := cur.All(db.Context(), &tests); err != nil {
 		return nil, errors.Wrapf(err, "decoding tests for build '%s'", buildID)
 	}
 
@@ -80,7 +79,7 @@ func findTestsForBuild(buildID string) ([]Test, error) {
 
 func findBuildById(id string) (*LogKeeperBuild, error) {
 	build := &LogKeeperBuild{}
-	if err := db.C(buildsCollection).FindOne(env.Context(), bson.M{"_id": id}).Decode(build); err != nil {
+	if err := db.C(buildsCollection).FindOne(db.Context(), bson.M{"_id": id}).Decode(build); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -92,7 +91,7 @@ func findBuildById(id string) (*LogKeeperBuild, error) {
 
 func findBuildByBuilder(builder string, buildnum int) (*LogKeeperBuild, error) {
 	build := &LogKeeperBuild{}
-	if err := db.C(buildsCollection).FindOne(env.Context(), bson.M{"builder": builder, "buildnum": buildnum}).Decode(build); err != nil {
+	if err := db.C(buildsCollection).FindOne(db.Context(), bson.M{"builder": builder, "buildnum": buildnum}).Decode(build); err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
@@ -103,7 +102,7 @@ func findBuildByBuilder(builder string, buildnum int) (*LogKeeperBuild, error) {
 }
 
 func UpdateFailedBuild(id string) error {
-	_, err := db.C(buildsCollection).UpdateByID(env.Context(), id, bson.M{"$set": bson.M{"failed": true}})
+	_, err := db.C(buildsCollection).UpdateByID(db.Context(), id, bson.M{"$set": bson.M{"failed": true}})
 	return errors.Wrapf(err, "setting failed state on build '%s'", id)
 }
 
@@ -123,13 +122,13 @@ func getOldBuildQuery() bson.M {
 }
 
 func GetOldBuilds(limit int) ([]LogKeeperBuild, error) {
-	cur, err := db.C(buildsCollection).Find(env.Context(), getOldBuildQuery(), options.Find().SetLimit(int64(limit)).SetMaxTime(2*AmboyInterval))
+	cur, err := db.C(buildsCollection).Find(db.Context(), getOldBuildQuery(), options.Find().SetLimit(int64(limit)).SetMaxTime(2*AmboyInterval))
 	if err != nil {
 		return nil, errors.Wrap(err, "finding old builds")
 	}
 
 	var builds []LogKeeperBuild
-	if err := cur.All(env.Context(), &builds); err != nil {
+	if err := cur.All(db.Context(), &builds); err != nil {
 		return nil, errors.Wrap(err, "decoding old builds")
 	}
 
@@ -149,9 +148,9 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan e
 			errOut <- err
 			return
 		}
-		defer cur.Close(env.Context())
+		defer cur.Close(db.Context())
 
-		for cur.Next(env.Context()) {
+		for cur.Next(db.Context()) {
 			build := LogKeeperBuild{}
 			if err := cur.Decode(&build); err != nil {
 				errOut <- err
@@ -180,19 +179,19 @@ type CleanupStats struct {
 
 func CleanupOldLogsAndTestsByBuild(id string) (CleanupStats, error) {
 	var stats CleanupStats
-	result, err := db.C(logsCollection).DeleteMany(env.Context(), bson.M{"build_id": id})
+	result, err := db.C(logsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
 		return stats, errors.Wrap(err, "deleting logs from old builds")
 	}
 	stats.NumLogs += int(result.DeletedCount)
 
-	result, err = db.C(testsCollection).DeleteMany(env.Context(), bson.M{"build_id": id})
+	result, err = db.C(testsCollection).DeleteMany(db.Context(), bson.M{"build_id": id})
 	if err != nil {
 		return stats, errors.Wrap(err, "deleting tests from old builds")
 	}
 	stats.NumTests += int(result.DeletedCount)
 
-	result, err = db.C(buildsCollection).DeleteOne(env.Context(), bson.M{"_id": id})
+	result, err = db.C(buildsCollection).DeleteOne(db.Context(), bson.M{"_id": id})
 	if err != nil {
 		return stats, errors.Wrap(err, "deleting build record")
 	}

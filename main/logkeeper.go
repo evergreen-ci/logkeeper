@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
-	"github.com/evergreen-ci/logkeeper/env"
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/units"
 	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/amboy/pool"
@@ -54,11 +54,9 @@ func main() {
 	grip.EmergencyFatal(errors.Wrap(err, "constructing worker pool"))
 	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
 	grip.EmergencyFatal(cleanupQueue.Start(ctx))
-	grip.EmergencyFatal(env.SetCleanupQueue(cleanupQueue))
+	grip.EmergencyFatal(db.SetCleanupQueue(cleanupQueue))
 
 	grip.EmergencyFatal(units.StartCleanupCron(ctx, cleanupQueue))
-
-	env.SetStatsCache(env.NewStatsCache(ctx))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
@@ -173,9 +171,9 @@ func initDB(ctx context.Context, dbURI, rsName string, maxPoolSize int) error {
 		return errors.Wrap(err, "connecting to the database")
 	}
 
-	env.SetClient(client)
-	env.SetDBName(logkeeper.DBName)
-	env.SetContext(ctx)
+	db.SetClient(client)
+	db.SetDBName(logkeeper.DBName)
+	db.SetContext(ctx)
 
 	return nil
 }
