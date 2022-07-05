@@ -143,7 +143,7 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan e
 		defer close(out)
 		defer recovery.LogStackTraceAndContinue("streaming query")
 
-		cur, err := db.C(buildsCollection).Find(env.Context(), getOldBuildQuery(), options.Find())
+		cur, err := db.C(buildsCollection).Find(db.Context(), getOldBuildQuery(), options.Find())
 		if err != nil {
 			errOut <- err
 			return
