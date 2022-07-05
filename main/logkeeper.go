@@ -41,14 +41,11 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	localQueue := queue.NewLocalLimitedSize(4, 2048)
-	grip.CatchEmergencyFatal(localQueue.Start(ctx))
-
-	sender, err := logkeeper.GetSender(localQueue, *logPath)
-	grip.CatchEmergencyFatal(err)
+	sender, err := logkeeper.GetSender(ctx, *logPath)
+	grip.EmergencyFatal(err)
 	defer sender.Close()
 
-	grip.CatchEmergencyFatal(grip.SetSender(sender))
+	grip.EmergencyFatal(grip.SetSender(sender))
 
 	dialInfo := mgo.DialInfo{
 		Addrs: strings.Split(*dbHost, ","),
@@ -59,31 +56,17 @@ func main() {
 	}
 
 	session, err := mgo.DialWithInfo(&dialInfo)
-	grip.CatchEmergencyFatal(err)
-	grip.CatchEmergencyFatal(db.SetSession(session))
+	grip.EmergencyFatal(err)
+	grip.EmergencyFatal(db.SetSession(session))
 
-	driverOpts := queue.MongoDBOptions{
-		Priority:       true,
-		CheckWaitUntil: true,
-		URI:            fmt.Sprintf("mongodb://%s", *dbHost),
-		DB:             logkeeper.AmboyDBName,
-	}
+	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
+	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
+	grip.EmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
+	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
+	grip.EmergencyFatal(cleanupQueue.Start(ctx))
+	grip.EmergencyFatal(db.SetCleanupQueue(cleanupQueue))
 
-	queueDriver, err := queue.OpenNewMgoDriver(ctx, logkeeper.AmboyMigrationQueueName, driverOpts, db.GetSession())
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem building queue backend"))
-	remoteQueue := queue.NewRemoteUnordered(logkeeper.AmboyWorkers)
-	grip.CatchEmergencyFatal(remoteQueue.SetDriver(queueDriver))
-	grip.CatchEmergencyFatal(remoteQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetQueue(remoteQueue))
-
-	migrationQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, migrationQueue)
-	grip.CatchEmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
-	grip.CatchEmergencyFatal(migrationQueue.SetRunner(runner))
-	grip.CatchEmergencyFatal(migrationQueue.Start(ctx))
-	grip.CatchEmergencyFatal(db.SetMigrationQueue(migrationQueue))
-
-	grip.CatchEmergencyFatal(units.StartCrons(ctx, migrationQueue, remoteQueue, localQueue))
+	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
 	dbName := "buildlogs"
 	lk := logkeeper.New(logkeeper.Options{
@@ -127,7 +110,7 @@ func main() {
 	grip.Notice("waiting for web services to terminate gracefully")
 	gracefulWait.Wait()
 
-	grip.CatchEmergencyFatal(catcher.Resolve())
+	grip.EmergencyFatal(catcher.Resolve())
 }
 
 func listenServeAndHandleErrs(s *http.Server) error {

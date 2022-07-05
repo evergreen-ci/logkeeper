@@ -67,7 +67,7 @@ func main() {
 	gopath, _ = filepath.Abs(gopath)
 
 	flag.StringVar(&lintArgs, "lintArgs", "", "args to pass to golangci-lint")
-	flag.StringVar(&lintBin, "lintBin", filepath.Join(gopath, "bin", "golangci-lint"), "path to golangci-lint")
+	flag.StringVar(&lintBin, "lintBin", "", "path to golangci-lint")
 	flag.StringVar(&packageList, "packages", "", "list of space separated packages")
 	flag.StringVar(&customLintersFlag, "customLinters", "", "list of comma-separated custom linter commands")
 	flag.StringVar(&output, "output", "", "output file for to write results.")
