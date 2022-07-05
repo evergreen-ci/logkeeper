@@ -14,6 +14,7 @@ import (
 
 const (
 	statChanBufferSize = 1000
+	sizesLimit         = 100000
 	logInterval        = 10 * time.Second
 	bytesPerMB         = 1000000
 )
@@ -133,6 +134,12 @@ func (s *statsCache) loggerLoop(ctx context.Context) {
 			s.resetCache()
 		case applyChange := <-s.changeChan:
 			applyChange(s)
+
+			if len(s.logMBs) >= sizesLimit {
+				s.logStats()
+				s.resetCache()
+				ticker.Reset(logInterval)
+			}
 		}
 	}
 }
