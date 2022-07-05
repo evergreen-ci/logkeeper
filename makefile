@@ -6,13 +6,11 @@ orgPath := github.com/evergreen-ci
 projectPath := $(orgPath)/$(name)
 # end project configuration
 
-# several targets assume buildDir already exists
-$(shell mkdir -p $(buildDir))
 
 # start lint setup targets
 lintDeps := $(buildDir)/run-linter $(buildDir)/golangci-lint
 $(buildDir)/golangci-lint:$(buildDir)
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(buildDir) v1.40.0 >/dev/null 2>&1
+	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/76a82c6ed19784036bbf2d4c84d0228ca12381a4/install.sh | sh -s -- -b $(buildDir) v1.23.8 >/dev/null 2>&1
 $(buildDir)/run-linter:buildscripts/run-linter.go $(buildDir)/golangci-lint
 	@go build -o $@ $<
 # end lint setup targets
@@ -74,7 +72,7 @@ phony := lint build race test coverage coverage-html
 
 
 # implementation details for building the binary and creating a
-# convenient link in the working directory
+# convienent link in the working directory
 $(name):$(buildDir)/$(name)
 	@[ -e $@ ] || ln -s $<
 $(buildDir)/$(name):
@@ -95,6 +93,27 @@ coverage-%:$(buildDir)/output.%.coverage
 html-coverage-%:$(buildDir)/output.%.coverage $(buildDir)/output.%.coverage.html
 	@grep -s -q -e "^PASS" $<
 # end convienence targets
+
+
+# start vendoring configuration
+#    begin with configuration of dependencies
+#   targets for the directory components and manipulating vendored files.
+vendor-clean:
+	rm -rf vendor/github.com/mongodb/grip/vendor/golang.org/x/net
+	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/davecgh/go-spew/
+	rm -rf vendor/github.com/mongodb/grip/vendor/github.com/stretchr/testify
+	rm -rf vendor/github.com/mongodb/amboy/vendor/gopkg.in/mgo.v2/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/stretchr/testify/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/mongodb/grip/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/pkg/errors/
+	rm -rf vendor/github.com/mongodb/amboy/vendor/github.com/mongodb/mongo-go-driver/vendor/golang.org/x/net/
+#   targets to build the small programs used to support vendoring.
+#   define dependencies for buildscripts
+#   add phony targets
+phony += vendor vendor-deps vendor-clean vendor-sync change-go-version
+# end vendoring tooling configuration
+
+
 
 # start test and coverage artifacts
 #    tests have compile and runtime deps. This varable has everything

@@ -1,115 +1,109 @@
 package logkeeper
 
 import (
-	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/stretchr/testify/assert"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/stretchr/testify/require"
+	mgo "gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
-func TestFindGlobalLogsDuringTest(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	initTestDB(ctx, t)
-	clearCollections(t, buildsCollection, testsCollection, logsCollection)
-
-	assert := assert.New(t)
+func makeTestLogkeeperApp(t *testing.T) *logKeeper {
+	connInfo := mgo.DialInfo{
+		Addrs:   []string{"localhost"},
+		Timeout: 5 * time.Second,
+	}
+	session, err := mgo.DialWithInfo(&connInfo)
+	require.NoError(t, err)
+	require.NoError(t, db.SetSession(session))
 	lk := New(Options{
-		URL:            "http://localhost:8080",
+		DB:             "logkeeper_test",
+		URL:            fmt.Sprintf("http://localhost:8080"),
 		MaxRequestSize: 1024 * 1024 * 32,
 	})
 
-	buildStart := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	return lk
+}
+
+func TestFindGlobalLogsDuringTest(t *testing.T) {
+	assert := assert.New(t)
+	now := time.Now()
+	lk := makeTestLogkeeperApp(t)
+	_, db := lk.getSession()
 
 	b := LogKeeperBuild{
 		Id:      "b",
-		Started: buildStart,
+		Started: now,
 	}
-	_, err := db.C("builds").InsertOne(db.Context(), b)
-	assert.NoError(err)
-
-	t0 := Test{
-		Id:      primitive.NewObjectID(),
-		BuildId: b.Id,
-		Started: buildStart,
-	}
-	_, err = db.C("tests").InsertOne(db.Context(), t0)
-	assert.NoError(err)
-
+	assert.NoError(db.C("builds").Insert(b))
 	t1 := Test{
-		Id:      primitive.NewObjectID(),
-		BuildId: b.Id,
-		Started: buildStart.Add(10 * time.Second),
+		Id:      bson.NewObjectId(),
+		Started: now.Add(10 * time.Second),
 	}
-	_, err = db.C("tests").InsertOne(db.Context(), t1)
-	assert.NoError(err)
+	assert.NoError(db.C("tests").Insert(t1))
+	t2 := Test{
+		Id:      bson.NewObjectId(),
+		Started: now,
+	}
+	assert.NoError(db.C("tests").Insert(t2))
 
-	globalLogTime := t0.Started.Add(5 * time.Second)
+	globalLogTime := now.Add(5 * time.Second)
 	globalLog := Log{
 		BuildId: b.Id,
 		TestId:  nil,
 		Seq:     3,
 		Started: &globalLogTime,
 		Lines: []LogLine{
-			*NewLogLine([]interface{}{float64(globalLogTime.Unix()), "during t0"}),
-			*NewLogLine([]interface{}{float64(globalLogTime.Add(10 * time.Second).Unix()), "during t1"}),
+			*NewLogLine([]interface{}{float64(globalLogTime.Unix()), "build 1-1"}),
+			*NewLogLine([]interface{}{float64(globalLogTime.Add(10 * time.Second).Unix()), "build 1-2"}),
 		},
 	}
-	_, err = db.C("logs").InsertOne(db.Context(), globalLog)
-	assert.NoError(err)
-
-	t0Log := Log{
-		BuildId: b.Id,
-		TestId:  &t0.Id,
-		Seq:     2,
-		Started: &t0.Started,
-		Lines: []LogLine{
-			*NewLogLine([]interface{}{float64(t0.Started.Unix()), "t0 - line1"}),
-			*NewLogLine([]interface{}{float64(t0.Started.Add(10 * time.Second).Unix()), "t0 - line2"}),
-		},
-	}
-	_, err = db.C("logs").InsertOne(db.Context(), t0Log)
-	assert.NoError(err)
-
-	t1Log := Log{
+	assert.NoError(db.C("logs").Insert(globalLog))
+	testLog1 := Log{
 		BuildId: b.Id,
 		TestId:  &t1.Id,
 		Seq:     1,
 		Started: &t1.Started,
 		Lines: []LogLine{
-			*NewLogLine([]interface{}{float64(t1.Started.Unix()), "t1 - line1"}),
-			*NewLogLine([]interface{}{float64(t1.Started.Add(10 * time.Second).Unix()), "t1 - line2"}),
+			*NewLogLine([]interface{}{float64(t1.Started.Unix()), "test 1-1"}),
+			*NewLogLine([]interface{}{float64(t1.Started.Add(10 * time.Second).Unix()), "test 1-2"}),
 		},
 	}
-	_, err = db.C("logs").InsertOne(db.Context(), t1Log)
+	assert.NoError(db.C("logs").Insert(testLog1))
+	testLog2 := Log{
+		BuildId: b.Id,
+		TestId:  &t2.Id,
+		Seq:     2,
+		Started: &t2.Started,
+		Lines: []LogLine{
+			*NewLogLine([]interface{}{float64(t2.Started.Unix()), "test 2-1"}),
+			*NewLogLine([]interface{}{float64(t2.Started.Add(10 * time.Second).Unix()), "test 2-2"}),
+		},
+	}
+	assert.NoError(db.C("logs").Insert(testLog2))
+
+	// build logs that during a test should be returned as part of the test, even
+	// if the build itself started after the test
+	logChan, err := lk.findGlobalLogsDuringTest(&b, &t2)
 	assert.NoError(err)
+	count := 0
+	for logLine := range logChan {
+		count++
+		assert.Contains(logLine.Data, "build 1")
+	}
+	assert.Equal(2, count)
 
-	t.Run("BuildStartedAfterTest", func(t *testing.T) {
-		// global logs during a test should be returned as part of the test, even
-		// if the build itself started after the test
-		logChan, err := lk.findGlobalLogsDuringTest(ctx, &b, &t0)
-		assert.NoError(err)
-		count := 0
-		for logLine := range logChan {
-			count++
-			assert.Equal("during t0", logLine.Data)
-		}
-		assert.Equal(1, count)
-	})
-
-	t.Run("LogsBeforeTestStarts", func(t *testing.T) {
-		// global logs that start before the first test starts are included in the test's global logs
-		logChan, err := lk.findGlobalLogsDuringTest(ctx, &b, &t1)
-		assert.NoError(err)
-		count := 0
-		for logLine := range logChan {
-			count++
-			assert.Contains("during t1", logLine.Data)
-		}
-		assert.Equal(1, count)
-	})
+	// test that we can correctly find global logs during a test that start before a test starts
+	logChan, err = lk.findGlobalLogsDuringTest(&b, &t1)
+	assert.NoError(err)
+	count = 0
+	for logLine := range logChan {
+		count++
+		assert.Contains(logLine.Data, "build 1-2")
+	}
+	assert.Equal(1, count)
 }

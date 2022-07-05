@@ -9,12 +9,14 @@ const (
 	CleanupBatchSize = 10000
 	QueueSizeCap     = 10 * CleanupBatchSize * 5
 
-	DBName = "buildlogs"
-
 	AmboyInterval      = time.Minute
 	AmboyWorkers       = 16
 	AmboyTargetNumJobs = CleanupBatchSize
-	AmboyLeaderFile    = "/srv/logkeeper/amboy.leader"
+
+	AmboyDBName             = "amboy"
+	AmboyMigrationQueueName = "logkeeper.etl"
+
+	AmboyLeaderFile = "/srv/logkeeper/amboy.leader"
 )
 
 func IsLeader() bool {

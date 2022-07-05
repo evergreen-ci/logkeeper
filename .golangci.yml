@@ -2,18 +2,14 @@
 linters:
   disable-all: true
   enable:
-    - asciicheck
-    - deadcode
     - errcheck
-    - ineffassign
     - goimports
-    - gosimple
     - govet
+    - ineffassign
+    - interfacer
     - misspell
-    - structcheck
     - unconvert
-    - unused
 
 linters-settings:
   govet:
-    check-shadowing: false
+    check-shadowing: true
