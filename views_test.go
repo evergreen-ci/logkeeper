@@ -1,7 +1,6 @@
 package logkeeper
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -22,7 +21,7 @@ func makeTestLogkeeperApp(t *testing.T) *logKeeper {
 	require.NoError(t, db.SetSession(session))
 	lk := New(Options{
 		DB:             "logkeeper_test",
-		URL:            fmt.Sprintf("http://localhost:8080"),
+		URL:            "http://localhost:8080",
 		MaxRequestSize: 1024 * 1024 * 32,
 	})
 

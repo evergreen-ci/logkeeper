@@ -38,14 +38,6 @@ func NewLogger() *Logger {
 	return &Logger{ids}
 }
 
-func getLevel(l int) level.Priority {
-	if l <= 300 {
-		return level.Debug
-	}
-
-	return level.Warning
-}
-
 func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
 	reqID := <-l.ids
