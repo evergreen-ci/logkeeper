@@ -1,6 +1,7 @@
 ---
 linters:
   disable-all: true
+  enable:
     - asciicheck
     - deadcode
     - errcheck
@@ -16,4 +17,3 @@ linters:
 linters-settings:
   govet:
     check-shadowing: false
-
