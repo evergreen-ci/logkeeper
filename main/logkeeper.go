@@ -67,6 +67,7 @@ func main() {
 	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
 	grip.EmergencyFatal(cleanupQueue.Start(ctx))
 	grip.EmergencyFatal(env.SetCleanupQueue(cleanupQueue))
+	env.SetStatsCache(env.NewStatsCache(ctx))
 
 	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
