@@ -1,0 +1,43 @@
+hash: 9c2e7db2961d9a1f03f1125ed4452400c9613d0c4245b64613fb2cd43b7bb1c0
+updated: 2016-12-14T12:20:00.432410436-05:00
+imports:
+- name: github.com/evergreen-ci/render
+  version: 3c404f59c89e3280ae2502e2afe6c1e3f2e3c3e1
+- name: github.com/evergreen-ci/utility
+  version: 919337de206db45e5cb7192bacfcd95645bba2d5
+- name: github.com/gorilla/context
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+- name: gopkg.in/mgo.v2
+  version: 22287bab4379e1fbf6002fb4eb769888f3fb224c
+- name: github.com/smartystreets/goconvey
+  version: 75bc4a2dad71e5c5b51c5009b33eba766ec57051
+- name: github.com/urfave/negroni
+  version: 22c5532ea862c34fdad414e90f8cc00b4f6f4cab
+- name: github.com/evergreen-ci/render
+  version: c9e0e54c798fc15217c09d382e207644402bf004
+- name: github.com/gorilla/mux
+  version: 0ef595e787efa95d68151570ead5c85dc2e05f91
+- name: github.com/phyber/negroni-gzip
+  version: ef6356a5d02936b65ca8e60b604ed6b078aac8d3
+- name: golang.org/x/net
+  version: 7dbad50ab5b31073856416cdcfeb2796d682f844
+- name: github.com/jacobsa/oglematchers
+  version: 4fc24f97b5b74022c2a3f4ca7eed57ca29083d3e
+- name: github.com/mongodb/grip
+  version: d07e4b4315431972625195cb03f8dc7ecdc6b8be
+- name: github.com/mongodb/amboy
+  version: 45ee6f1e790a2fdf28a7d6acaf61c2ffc1da9629
+- name: github.com/pkg/errors
+  version: ff09b135c25aae272398c51a07235b90a75aa4f0
+- name: github.com/stretchr/testify
+  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
+
+- name: github.com/PuerkitoBio/rehttp
+  version: 11cf6ea5d3e9afda34846e1db511aa218049471c
+- name: golang.org/x/oauth2
+  version: f047394b6d14284165300fd82dad67edb3a4d7f6
+- name: gopkg.in/yaml.v2
+  version: 1be3d31502d6eabc0dd7ce5b0daab022e14a5538
+
+
+devImports: []

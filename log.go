@@ -1,14 +1,13 @@
 package logkeeper
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/mongodb/amboy"
 	"github.com/mongodb/amboy/logger"
-	"github.com/mongodb/amboy/queue"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/level"
 	"github.com/mongodb/grip/message"
@@ -80,7 +79,7 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	next(rw, r)
 }
 
-func GetSender(ctx context.Context, fn string) (send.Sender, error) {
+func GetSender(queue amboy.Queue, fn string) (send.Sender, error) {
 	const (
 		name        = "logkeeper"
 		interval    = 20 * time.Second
@@ -100,13 +99,22 @@ func GetSender(ctx context.Context, fn string) (send.Sender, error) {
 	if splunk := send.GetSplunkConnectionInfo(); splunk.Populated() {
 		sender, err = send.NewSplunkLogger(name, splunk, send.LevelInfo{Default: level.Info, Threshold: level.Info})
 		if err != nil {
-			return nil, errors.Wrap(err, "creating the splunk logger")
+			return nil, errors.Wrap(err, "problem creating the splunk logger")
 		}
-		bufferedSender, err := send.NewBufferedSender(ctx, sender, send.BufferedSenderOptions{FlushInterval: interval, BufferSize: bufferCount})
+
+		senders = append(senders, send.NewBufferedSender(sender, interval, bufferCount))
+	}
+
+	if endpoint := os.Getenv("GRIP_SUMO_ENDPOINT"); endpoint != "" {
+		sender, err = send.NewSumo(name, endpoint)
 		if err != nil {
-			return nil, errors.Wrap(err, "creating the buffered splunk logger")
+			return nil, errors.Wrap(err, "problem creating the sumo logic sender")
 		}
-		senders = append(senders, bufferedSender)
+		if err = sender.SetLevel(baseLevel); err != nil {
+			return nil, errors.Wrap(err, "problem setting level for alert remote object")
+		}
+
+		senders = append(senders, send.NewBufferedSender(sender, interval, bufferCount))
 	}
 
 	// configure slack logger for alerts and panics
@@ -132,11 +140,8 @@ func GetSender(ctx context.Context, fn string) (send.Sender, error) {
 			return nil, errors.Wrap(err, "problem creating the slack sender")
 		}
 
-		localQueue := queue.NewLocalLimitedSize(4, 2048)
-		if err = localQueue.Start(ctx); err != nil {
-			return nil, errors.Wrap(err, "starting local queue for Splunk logger")
-		}
-		senders = append(senders, logger.MakeQueueSender(ctx, localQueue, sender))
+		// TODO use the amboy.Queue backed sender in this case.
+		senders = append(senders, logger.MakeQueueSender(queue, sender))
 	}
 
 	// setup file logger, defaulting first to the system logger,

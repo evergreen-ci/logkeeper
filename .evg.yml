@@ -48,7 +48,7 @@ functions:
 
          # Run make, called with proper environment variables set,
          # running the target.
-         ${build_env} make ${make_args|} ${target}
+         ${build_env} make ${make_args|} vendor ${target}
   set-up-mongodb:
     - command: shell.exec
       type: setup
@@ -168,36 +168,35 @@ post:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
-  - name: ubuntu1804
-    display_name: Ubuntu 18.04
+  - name: rhel70
+    display_name: RHEL 7.0
     expansions:
-      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
-      mongodb_url: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-5.0.9.tgz
+      build_env: "GOROOT=/opt/go1.8/go PATH=/opt/go1.8/go/bin:$PATH"
+      mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
     run_on:
-      - ubuntu1804-small
+      - rhel70-small
     tasks:
       - ".dist"
       - ".test"
-      - ".report"
-
 
   - name: race-detector
-    display_name: Race Detector
+    display_name: Race Detector (Arch Linux)
     expansions:
-      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
-      mongodb_url: https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-5.0.9.tgz
+      build_env: "GOROOT=/opt/go1.13/go PATH=/opt/go1.13/go/bin/go:$PATH"
+      mongodb_url: http://fastdl.mongodb.org/linux/mongodb-linux-x86_64-3.2.6.tgz
     run_on:
-      - ubuntu1804-small
+      - archlinux-test
     tasks:
       - ".race"
+      - ".report"
 
   - name: macos
-    display_name: macOS
+    display_name: macOS 10.12
     expansions:
-      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
-      mongodb_url: https://fastdl.mongodb.org/osx/mongodb-macos-x86_64-5.0.9.tgz
+      build_env: "GOROOT=/usr/local/go1.8/go PATH=/usr/local/go1.8/go/bin:$PATH"
+      mongodb_url: http://fastdl.mongodb.org/osx/mongodb-osx-x86_64-3.2.6.tgz
     run_on:
-      - macos-1014
+      - macos-1012
     tasks:
       - ".dist"
       - ".test"

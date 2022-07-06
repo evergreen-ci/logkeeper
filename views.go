@@ -687,14 +687,14 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		BatchSize       int              `json:"batch_size"`
 		NumWorkers      int              `json:"workers"`
 		DurationSeconds float64          `json:"dur_secs"`
-		CleanupStatus   amboy.QueueStats `json:"cleanup_queue_stats"`
+		MigrationStatus amboy.QueueStats `json:"migration_queue_stats"`
 	}{
 		Build:           BuildRevision,
 		MaxRequestSize:  lk.opts.MaxRequestSize,
 		BatchSize:       CleanupBatchSize,
 		NumWorkers:      AmboyWorkers,
 		DurationSeconds: AmboyInterval.Seconds(),
-		CleanupStatus:   db.GetCleanupQueue().Stats(r.Context()),
+		MigrationStatus: db.GetMigrationQueue().Stats(),
 	}
 
 	if err := ses.Ping(); err != nil {

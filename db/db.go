@@ -10,10 +10,10 @@ import (
 )
 
 type sessionCache struct {
-	s            *mgo.Session
-	cleanupQueue amboy.Queue
-	dbName       string
-
+	s      *mgo.Session
+	mq     amboy.Queue
+	rq     amboy.Queue
+	dbName string
 	sync.RWMutex
 }
 
@@ -66,21 +66,40 @@ func SetDatabase(name string) {
 	session.dbName = name
 }
 
-func SetCleanupQueue(q amboy.Queue) error {
-	if !q.Info().Started {
+func SetMigrationQueue(q amboy.Queue) error {
+	if !q.Started() {
 		return errors.New("queue isn't started")
 	}
 
 	session.Lock()
 	defer session.Unlock()
 
-	session.cleanupQueue = q
+	session.mq = q
 	return nil
 }
 
-func GetCleanupQueue() amboy.Queue {
+func GetMigrationQueue() amboy.Queue {
 	session.RLock()
 	defer session.RUnlock()
 
-	return session.cleanupQueue
+	return session.mq
+}
+
+func SetQueue(q amboy.Queue) error {
+	if !q.Started() {
+		return errors.New("queue isn't started")
+	}
+
+	session.Lock()
+	defer session.Unlock()
+
+	session.rq = q
+	return nil
+}
+
+func GetQueue() amboy.Queue {
+	session.RLock()
+	defer session.RUnlock()
+
+	return session.rq
 }

@@ -21,12 +21,12 @@ func StartBackgroundLogging(ctx context.Context) {
 				return
 			case <-ticker.C:
 				grip.Info(message.CollectSystemInfo())
-				grip.Info(message.CollectBasicGoStats())
+				grip.Info(message.CollectGoStats())
 
 				if IsLeader() {
 					grip.Info(message.Fields{
 						"message": "amboy queue stats",
-						"stats":   db.GetCleanupQueue().Stats(ctx),
+						"stats":   db.GetMigrationQueue().Stats(),
 					})
 				}
 
