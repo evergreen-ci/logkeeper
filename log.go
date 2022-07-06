@@ -100,11 +100,11 @@ func GetSender(ctx context.Context, fn string) (send.Sender, error) {
 	if splunk := send.GetSplunkConnectionInfo(); splunk.Populated() {
 		sender, err = send.NewSplunkLogger(name, splunk, send.LevelInfo{Default: level.Info, Threshold: level.Info})
 		if err != nil {
-			return nil, errors.Wrap(err, "creating the splunk logger")
+			return nil, errors.Wrap(err, "creating the Splunk logger")
 		}
 		bufferedSender, err := send.NewBufferedSender(ctx, sender, send.BufferedSenderOptions{FlushInterval: interval, BufferSize: bufferCount})
 		if err != nil {
-			return nil, errors.Wrap(err, "creating the buffered splunk logger")
+			return nil, errors.Wrap(err, "creating the buffered Splunk logger")
 		}
 		senders = append(senders, bufferedSender)
 	}
