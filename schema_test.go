@@ -12,7 +12,7 @@ import (
 
 func insertBuilds(t *testing.T) []interface{} {
 	assert := assert.New(t)
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 	_, err := db.C(buildsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
@@ -47,7 +47,7 @@ func insertBuilds(t *testing.T) []interface{} {
 
 func insertTests(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 	_, err := db.C(testsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func insertTests(t *testing.T, ids []interface{}) {
 
 func insertLogs(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 	_, err := db.C(logsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestGetOldTests(t *testing.T) {
 
 func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	assert := assert.New(t)
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 
 	ids := insertBuilds(t)
@@ -125,7 +125,7 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 
 func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	assert := assert.New(t)
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 	_, err := db.C(testsName).RemoveAll(bson.M{})
 	require.NoError(t, err)

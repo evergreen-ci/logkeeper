@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
-	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/units"
 	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/amboy/pool"
@@ -25,6 +25,8 @@ import (
 	"github.com/urfave/negroni"
 	"gopkg.in/mgo.v2"
 )
+
+const dbName = "buildlogs"
 
 func main() {
 	defer recovery.LogStackTraceAndExit("logkeeper.main")
@@ -57,24 +59,22 @@ func main() {
 
 	session, err := mgo.DialWithInfo(&dialInfo)
 	grip.EmergencyFatal(err)
-	grip.EmergencyFatal(db.SetSession(session))
+	grip.EmergencyFatal(env.SetSession(session))
 
 	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
 	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
 	grip.EmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
 	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
 	grip.EmergencyFatal(cleanupQueue.Start(ctx))
-	grip.EmergencyFatal(db.SetCleanupQueue(cleanupQueue))
+	grip.EmergencyFatal(env.SetCleanupQueue(cleanupQueue))
 
 	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
-	dbName := "buildlogs"
 	lk := logkeeper.New(logkeeper.Options{
-		DB:             dbName,
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
 	})
-	db.SetDatabase(dbName)
+	env.SetDBName(dbName)
 	logkeeper.StartBackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()

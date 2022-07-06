@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
@@ -20,13 +21,9 @@ import (
 
 const (
 	maxLogChars = 4 * 1024 * 1024 // 4 MB
-
 )
 
 type Options struct {
-	// Name of DB in mongod to use for reading/writing log data
-	DB string
-
 	//Base URL to append to relative paths
 	URL string
 
@@ -72,18 +69,7 @@ func New(opts Options) *logKeeper {
 		},
 	})
 
-	// Set default values for options
-	if opts.DB == "" {
-		opts.DB = "logkeeper"
-	}
-
 	return &logKeeper{render, opts}
-}
-
-func (lk *logKeeper) getSession() (*mgo.Session, *mgo.Database) {
-	session := db.GetSession()
-
-	return session, session.DB(lk.opts.DB)
 }
 
 type apiError struct {
@@ -113,8 +99,8 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, close := db.DB()
+	defer close()
 
 	existingBuild, err := findBuildByBuilder(db, buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
@@ -174,8 +160,8 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 
 	build, err := findBuildById(db, buildId)
 	if err != nil {
@@ -238,8 +224,8 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 
 	build, err := findBuildById(db, buildId)
 	if err != nil || build == nil {
@@ -290,7 +276,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
-	_, err = db.C("tests").With(ses).Find(bson.M{"_id": test.Id}).Apply(change, test)
+	_, err = db.C("tests").Find(bson.M{"_id": test.Id}).Apply(change, test)
 
 	if err != nil {
 		lk.logErrorf(r, "Error updating tests: %v", err)
@@ -306,7 +292,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		err = db.C("logs").With(ses).Insert(logEntry)
+		err = db.C("logs").Insert(logEntry)
 		if err != nil {
 			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -330,8 +316,8 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 
 	build, err := findBuildById(db, buildId)
 	if err != nil {
@@ -380,7 +366,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
-	_, err = db.C("builds").With(ses).Find(bson.M{"_id": build.Id}).Apply(change, build)
+	_, err = db.C("builds").Find(bson.M{"_id": build.Id}).Apply(change, build)
 	if err != nil {
 		lk.logErrorf(r, "Error updating builds entry: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -395,7 +381,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 			Lines:   lines,
 			Started: earliestLogTime(lines),
 		}
-		err = db.C("logs").With(ses).Insert(logEntry)
+		err = db.C("logs").Insert(logEntry)
 		if err != nil {
 			lk.logErrorf(r, "Error inserting logs entry: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -414,8 +400,8 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 
 	build, err := findBuildById(db, buildId)
 	if err != nil {
@@ -447,8 +433,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 
 	build, err := findBuildById(db, buildId)
 	if err != nil || build == nil {
@@ -494,8 +480,8 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	vars := mux.Vars(r)
 	build_id := vars["build_id"]
 
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 
 	build, err := findBuildById(db, build_id)
 	if err != nil || build == nil {
@@ -565,13 +551,13 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 }
 
 func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
-	ses, db := lk.getSession()
-
 	outputLog := make(chan *LogLineItem)
 	logItem := &Log{}
 
 	go func() {
-		defer ses.Close()
+		db, closer := db.DB()
+		defer closer()
+
 		defer close(outputLog)
 		lineNum := 0
 		log := db.C("logs").Find(query).Sort(sort...).Iter()
@@ -597,8 +583,8 @@ func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *tim
 }
 
 func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test) (chan *LogLineItem, error) {
-	ses, db := lk.getSession()
-	defer ses.Close()
+	db, closer := db.DB()
+	defer closer()
 	globalSeqFirst, globalSeqLast := new(int), new(int)
 
 	minTime := &(test.Started)
@@ -676,9 +662,6 @@ func (lk *logKeeper) logWarningf(r *http.Request, format string, v ...interface{
 func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
-	ses, _ := lk.getSession()
-	defer ses.Close()
-
 	resp := struct {
 		Err             string           `json:"err"`
 		MaxRequestSize  int              `json:"maxRequestSize"`
@@ -694,14 +677,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 		BatchSize:       CleanupBatchSize,
 		NumWorkers:      AmboyWorkers,
 		DurationSeconds: AmboyInterval.Seconds(),
-		CleanupStatus:   db.GetCleanupQueue().Stats(r.Context()),
-	}
-
-	if err := ses.Ping(); err != nil {
-		resp.Err = err.Error()
-
-		lk.render.WriteJSON(w, http.StatusServiceUnavailable, &resp)
-		return
+		CleanupStatus:   env.CleanupQueue().Stats(r.Context()),
 	}
 
 	resp.DB = true
