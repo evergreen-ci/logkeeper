@@ -15,12 +15,15 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/mongodb/grip/sometimes"
+	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
 const (
-	maxLogChars = 4 * 1024 * 1024 // 4 MB
+	maxLogChars             = 4 * 1024 * 1024 // 4 MB
+	statsErrorLogPercentage = 10
 )
 
 type Options struct {
@@ -146,6 +149,11 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	response := createdResponse{newBuildId, newBuildUri}
 	lk.render.WriteJSON(w, http.StatusCreated, response)
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().BuildCreated(), "caching build creation stats"),
+	)
 }
 
 func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
@@ -211,6 +219,11 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().TestCreated(), "caching test creation stats"),
+	)
 }
 
 func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
@@ -302,6 +315,11 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching test log append stats"),
+	)
 }
 
 func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +409,11 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, stringifyId(build.Id))
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching global log append stats"),
+	)
 }
 
 func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
@@ -424,6 +447,11 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 		Build *LogKeeperBuild
 		Tests []Test
 	}{build, tests}, "base", "build.html")
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().BuildAccessed(), "caching build access stats"),
+	)
 }
 
 func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
@@ -432,6 +460,11 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 
 	vars := mux.Vars(r)
 	buildId := vars["build_id"]
+
+	if lobsterRedirect(r) {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildId), http.StatusFound)
+		return
+	}
 
 	db, closer := db.DB()
 	defer closer()
@@ -454,9 +487,6 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return
-	} else if len(r.FormValue("html")) == 0 {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildId), http.StatusFound)
-		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
@@ -469,8 +499,12 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
-
 	}
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().AllLogsAccessed(), "caching all logs access stats"),
+	)
 }
 
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
@@ -479,6 +513,12 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 	vars := mux.Vars(r)
 	build_id := vars["build_id"]
+	test_id := vars["test_id"]
+
+	if lobsterRedirect(r) {
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
+		return
+	}
 
 	db, closer := db.DB()
 	defer closer()
@@ -489,7 +529,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	test_id := vars["test_id"]
 	test, err := findTest(db, test_id)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
@@ -522,9 +561,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		if emptyLog {
 			lk.render.WriteJSON(w, http.StatusOK, nil)
 		}
-	} else if len(r.FormValue("html")) == 0 {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
-		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *LogLineItem
@@ -540,6 +576,15 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
 	}
+
+	grip.ErrorWhen(
+		sometimes.Percent(statsErrorLogPercentage),
+		errors.Wrap(env.StatsCache().TestLogsAccessed(), "caching test logs access stats"),
+	)
+}
+
+func lobsterRedirect(r *http.Request) bool {
+	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain"
 }
 
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
