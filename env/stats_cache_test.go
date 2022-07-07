@@ -78,7 +78,7 @@ func TestLogSizeStats(t *testing.T) {
 		cache := statsCache{
 			logMBs: []float64{0, 15, 30},
 		}
-		cache.logStats()
+		cache.flushStats()
 
 		require.Len(t, sender.Messages, 1)
 		msg := sender.Messages[0].Raw().(message.Fields)
@@ -94,7 +94,7 @@ func TestLogSizeStats(t *testing.T) {
 		grip.SetSender(sender)
 
 		cache := statsCache{}
-		cache.logStats()
+		cache.flushStats()
 		require.Len(t, sender.Messages, 1)
 		_, ok := sender.Messages[0].Raw().(message.Fields)["append_size_min"]
 		assert.False(t, ok)

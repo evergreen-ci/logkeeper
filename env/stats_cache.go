@@ -79,7 +79,7 @@ func (s *statsCache) enqueueChange(change func(*statsCache)) error {
 	}
 }
 
-func (s *statsCache) logStats() {
+func (s *statsCache) flushStats() {
 	stats := message.Fields{
 		"message":                     "usage stats",
 		"interval_ms":                 time.Since(s.lastReset).Milliseconds(),
@@ -99,6 +99,8 @@ func (s *statsCache) logStats() {
 		stats["histogram"] = stat.Histogram(nil, histogramDividers, s.logMBs, nil)
 	}
 	grip.Info(stats)
+
+	s.resetCache()
 }
 
 func (s *statsCache) resetCache() {
@@ -130,14 +132,12 @@ func (s *statsCache) loggerLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.logStats()
-			s.resetCache()
+			s.flushStats()
 		case applyChange := <-s.changeChan:
 			applyChange(s)
 
 			if len(s.logMBs) >= sizesLimit {
-				s.logStats()
-				s.resetCache()
+				s.flushStats()
 				ticker.Reset(logInterval)
 			}
 		}
