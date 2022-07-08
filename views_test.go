@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	mgo "gopkg.in/mgo.v2"
@@ -18,9 +19,9 @@ func makeTestLogkeeperApp(t *testing.T) *logKeeper {
 	}
 	session, err := mgo.DialWithInfo(&connInfo)
 	require.NoError(t, err)
-	require.NoError(t, db.SetSession(session))
+	require.NoError(t, env.SetSession(session))
+	env.SetDBName("logkeeper_test")
 	lk := New(Options{
-		DB:             "logkeeper_test",
 		URL:            "http://localhost:8080",
 		MaxRequestSize: 1024 * 1024 * 32,
 	})
@@ -32,7 +33,8 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
 	lk := makeTestLogkeeperApp(t)
-	_, db := lk.getSession()
+	db, closer := db.DB()
+	defer closer()
 
 	b := LogKeeperBuild{
 		Id:      "b",

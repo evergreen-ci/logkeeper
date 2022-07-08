@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
@@ -32,13 +33,15 @@ func TestLogKeeper(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err = db.SetSession(session); err != nil {
+	env.SetDBName("logkeeper_test")
+	if err = env.SetSession(session); err != nil {
 		t.Fatal(err)
 	}
+	db, closer := db.DB()
+	defer closer()
 
 	Convey("LogKeeper instance running on testdatabase", t, func() {
-		lk := New(Options{DB: "logkeeper_test", MaxRequestSize: 1024 * 1024 * 10})
-		db := session.DB("logkeeper_test")
+		lk := New(Options{MaxRequestSize: 1024 * 1024 * 10})
 		router := lk.NewRouter()
 
 		Convey("Call POST /build creates a build with the given builder/buildnum", func() {

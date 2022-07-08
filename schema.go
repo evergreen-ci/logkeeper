@@ -124,7 +124,7 @@ func UpdateFailedBuild(id interface{}) error {
 		return errors.New("no build id defined")
 	}
 
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 
 	err := db.C(buildsName).UpdateId(id, bson.M{"$set": bson.M{"failed": true}})
@@ -133,7 +133,7 @@ func UpdateFailedBuild(id interface{}) error {
 }
 
 func GetOldBuilds(limit int) ([]LogKeeperBuild, error) {
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 	query := getOldBuildQuery()
 
@@ -163,7 +163,7 @@ func getOldBuildQuery() bson.M {
 }
 
 func StreamingGetOldBuilds(ctx context.Context) (<-chan LogKeeperBuild, <-chan error) {
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 
 	errOut := make(chan error)
 	out := make(chan LogKeeperBuild)
@@ -199,7 +199,7 @@ func CleanupOldLogsAndTestsByBuild(id interface{}) (int, error) {
 		return 0, errors.New("no build ID defined")
 	}
 
-	db, closer := db.GetDatabase()
+	db, closer := db.DB()
 	defer closer()
 
 	var err error
