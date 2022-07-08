@@ -2,6 +2,7 @@ package env
 
 import (
 	"testing"
+	"time"
 
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -52,6 +53,60 @@ func TestLoggerLoop(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFlushStats(t *testing.T) {
+	defer grip.SetSender(grip.GetSender())
+	sender := send.NewMockSender("")
+	grip.SetSender(sender)
+
+	testStart := time.Now()
+
+	s := statsCache{
+		buildsCreated:        1,
+		testsCreated:         1,
+		logMBs:               []float64{1},
+		buildsAccessed:       1,
+		allBuildLogsAccessed: 1,
+		testLogsAccessed:     1,
+		lastReset:            testStart,
+	}
+
+	s.flushStats()
+
+	require.Len(t, sender.Messages, 1)
+	assert.Equal(t, s.buildsCreated, 0)
+	assert.Equal(t, s.testsCreated, 0)
+	assert.Len(t, s.logMBs, 0)
+	assert.Equal(t, s.buildsAccessed, 0)
+	assert.Equal(t, s.allBuildLogsAccessed, 0)
+	assert.Equal(t, s.testLogsAccessed, 0)
+	assert.Greater(t, s.lastReset, testStart)
+}
+
+func TestSizesLimit(t *testing.T) {
+	defer grip.SetSender(grip.GetSender())
+	sender := send.NewMockSender("")
+	grip.SetSender(sender)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	changeChan := make(chan func(*statsCache), statChanBufferSize)
+	cache := statsCache{changeChan: changeChan}
+	go cache.loggerLoop(ctx)
+
+	for i := 0; i < sizesLimit+1; i++ {
+		select {
+		case <-ctx.Done():
+			return
+		case changeChan <- func(sc *statsCache) { sc.logMBs = append(sc.logMBs, 1) }:
+		}
+	}
+
+	require.Eventually(t, func() bool { return len(sender.Messages) > 0 }, 10*time.Second, time.Second)
+	msg := sender.Messages[0].Raw().(message.Fields)
+	assert.EqualValues(t, 1, msg["append_size_mean"])
 }
 
 func TestChannelFull(t *testing.T) {

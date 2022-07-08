@@ -9,7 +9,7 @@ import (
 
 const defaultSocketTimeout = 90 * time.Second
 
-// DB returns an mgo Database for the global DBName.
+// DB returns an mgo Database for the global DBName and the mgo session closer func.
 func DB() (*mgo.Database, func()) {
 	s := env.Session().Copy()
 	s.SetSocketTimeout(defaultSocketTimeout)
