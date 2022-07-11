@@ -22,7 +22,7 @@ func TestDurationLoggerLoop(t *testing.T) {
 		grip.SetSender(sender)
 		logger := NewLogger(ctx)
 
-		logger.newDurations <- routeDuration{route: "test_route", duration: time.Second}
+		logger.newDurations <- routeResponse{route: "test_route", duration: time.Second}
 		require.Eventually(t, func() bool { return len(sender.Messages) >= 1 }, 2*loggerStatsInterval, loggerStatsInterval/2)
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.Equal(t, "test_route", msg["route"])
@@ -37,9 +37,9 @@ func TestDurationLoggerLoop(t *testing.T) {
 		grip.SetSender(sender)
 		logger := NewLogger(ctx)
 
-		logger.newDurations <- routeDuration{route: "test_route", duration: 0}
-		logger.newDurations <- routeDuration{route: "test_route", duration: 5 * time.Second}
-		logger.newDurations <- routeDuration{route: "test_route", duration: 10 * time.Second}
+		logger.newDurations <- routeResponse{route: "test_route", duration: 0}
+		logger.newDurations <- routeResponse{route: "test_route", duration: 5 * time.Second}
+		logger.newDurations <- routeResponse{route: "test_route", duration: 10 * time.Second}
 		require.Eventually(t, func() bool { return len(sender.Messages) >= 1 }, 2*loggerStatsInterval, loggerStatsInterval/2)
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.Equal(t, "test_route", msg["route"])
@@ -59,8 +59,8 @@ func TestDurationLoggerLoop(t *testing.T) {
 		logger := NewLogger(ctx)
 
 		routes := []string{"r0", "r1"}
-		logger.newDurations <- routeDuration{route: routes[0], duration: time.Second}
-		logger.newDurations <- routeDuration{route: routes[1], duration: time.Second}
+		logger.newDurations <- routeResponse{route: routes[0], duration: time.Second}
+		logger.newDurations <- routeResponse{route: routes[1], duration: time.Second}
 
 		require.Eventually(t, func() bool { return len(sender.Messages) >= 2 }, 2*loggerStatsInterval, loggerStatsInterval/2)
 		for _, msg := range sender.Messages {
@@ -77,25 +77,25 @@ func TestCacheIsFull(t *testing.T) {
 	sender := send.NewMockSender("")
 	grip.SetSender(sender)
 	logger := NewLogger(ctx)
-	for i := 0; i < durationsLimit+1; i++ {
+	for i := 0; i < statsLimit+1; i++ {
 		select {
 		case <-ctx.Done():
 			t.FailNow()
-		case logger.newDurations <- routeDuration{}:
+		case logger.newDurations <- routeResponse{}:
 		}
 
 	}
 
 	require.Eventually(t, func() bool { return len(sender.Messages) > 0 }, loggerStatsInterval, loggerStatsInterval/10)
-	assert.Equal(t, durationsLimit, sender.Messages[0].Raw().(message.Fields)["count"])
+	assert.Equal(t, statsLimit, sender.Messages[0].Raw().(message.Fields)["count"])
 }
 
 func TestRecordDuration(t *testing.T) {
 	logger := Logger{}
-	for i := 0; i < durationsLimit+1; i++ {
-		logger.recordDuration(routeDuration{})
+	for i := 0; i < statsLimit+1; i++ {
+		logger.recordDuration(routeResponse{})
 	}
-	assert.Len(t, logger.durationsByRoute, durationsLimit)
+	assert.Len(t, logger.statsByRoute, statsLimit)
 	assert.True(t, logger.cacheIsFull)
 }
 
@@ -107,7 +107,7 @@ func TestFlushStats(t *testing.T) {
 	testStart := time.Now()
 	routes := []string{"route0", "route1"}
 	logger := Logger{
-		durationsByRoute: map[string][]float64{
+		statsByRoute: map[string][]float64{
 			routes[0]: {1},
 			routes[1]: {2},
 		},
@@ -122,10 +122,10 @@ func TestFlushStats(t *testing.T) {
 		assert.Contains(t, routes, msg.Raw().(message.Fields)["route"])
 	}
 
-	assert.Contains(t, logger.durationsByRoute, routes[0])
-	assert.Len(t, logger.durationsByRoute[routes[0]], 0)
-	assert.Contains(t, logger.durationsByRoute, routes[1])
-	assert.Len(t, logger.durationsByRoute[routes[1]], 0)
+	assert.Contains(t, logger.statsByRoute, routes[0])
+	assert.Len(t, logger.statsByRoute[routes[0]], 0)
+	assert.Contains(t, logger.statsByRoute, routes[1])
+	assert.Len(t, logger.statsByRoute[routes[1]], 0)
 
 	assert.Greater(t, logger.lastReset, testStart)
 	assert.False(t, logger.cacheIsFull)

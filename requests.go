@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 var ErrReadSizeLimitExceeded = errors.New("read size limit exceeded")
@@ -74,18 +75,35 @@ func (lk *logKeeper) checkContentLength(r *http.Request) *apiError {
 
 type ctxKey int
 
-const requestCtxKey ctxKey = iota
+const (
+	requestIDKey ctxKey = iota
+	startAtKey
+)
 
-func SetCtxRequestId(reqID int, r *http.Request) *http.Request {
-	return r.WithContext(context.WithValue(r.Context(), requestCtxKey, reqID))
+func setCtxRequestId(reqID int, r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), requestIDKey, reqID))
 }
 
-func GetCtxRequestId(r *http.Request) int {
-	if val := r.Context().Value(requestCtxKey); val != nil {
+func getCtxRequestId(r *http.Request) int {
+	if val := r.Context().Value(requestIDKey); val != nil {
 		if id, ok := val.(int); ok {
 			return id
 		}
 	}
 
 	return 0
+}
+
+func setStartAtTime(r *http.Request, startAt time.Time) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), startAtKey, startAt))
+}
+
+func getRequestStartAt(ctx context.Context) time.Time {
+	if rv := ctx.Value(startAtKey); rv != nil {
+		if t, ok := rv.(time.Time); ok {
+			return t
+		}
+	}
+
+	return time.Time{}
 }

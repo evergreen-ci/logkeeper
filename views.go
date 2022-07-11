@@ -691,7 +691,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
 	err := fmt.Sprintf(format, v...)
 	grip.Error(message.Fields{
-		"request": GetCtxRequestId(r),
+		"request": getCtxRequestId(r),
 		"error":   err,
 	})
 }
@@ -699,7 +699,7 @@ func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{})
 func (lk *logKeeper) logWarningf(r *http.Request, format string, v ...interface{}) {
 	err := fmt.Sprintf(format, v...)
 	grip.Warning(message.Fields{
-		"request": GetCtxRequestId(r),
+		"request": getCtxRequestId(r),
 		"error":   err,
 	})
 }
