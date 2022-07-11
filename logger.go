@@ -30,14 +30,14 @@ var (
 	sizeBins     = []float64{0, 0.5, 1, 5, 10, 50, math.MaxFloat64}
 )
 
-// Logger is a middleware handler that aggregates statistics on response durations.
+// Logger is a middleware handler that aggregates statistics on responses.
 // If a handler panics Logger will recover the panic and log its error.
 type Logger struct {
 	// ids is a channel producing unique, auto-incrementing request ids.
 	// A request's id can be extracted from its context with GetCtxRequestId.
 	ids chan int
 
-	newDurations chan routeResponse
+	newResponses chan routeResponse
 	statsByRoute map[string]routeStats
 
 	cacheIsFull bool
@@ -59,21 +59,23 @@ type routeResponse struct {
 	status       int
 }
 
-// NewLogger returns a new Logger instance
+// NewLogger returns a new Logger instance and starts its background goroutines.
 func NewLogger(ctx context.Context) *Logger {
 	l := &Logger{
 		ids:          make(chan int, chanBufferSize),
-		newDurations: make(chan routeResponse, chanBufferSize),
+		newResponses: make(chan routeResponse, chanBufferSize),
 		statsByRoute: make(map[string]routeStats),
 		lastReset:    time.Now(),
 	}
 
 	go l.incrementIDLoop(ctx)
-	go l.durationLoggerLoop(ctx)
+	go l.responseLoggerLoop(ctx)
 
 	return l
 }
 
+// ServeHTTP calls the next function and incorporates the reponse into its response cache.
+// If next panics the panic is recovered and logged.
 func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
 	reqID := <-l.ids
@@ -113,14 +115,14 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 		message.WrapError(
 			l.addToCache(rw, r),
 			message.Fields{
-				"message": "adding duration to buffer",
+				"message": "adding response to buffer",
 				"path":    r.URL.Path,
 			},
 		),
 	)
 }
 
-func (l *Logger) durationLoggerLoop(ctx context.Context) {
+func (l *Logger) responseLoggerLoop(ctx context.Context) {
 	ticker := time.NewTicker(loggerStatsInterval)
 	defer ticker.Stop()
 
@@ -130,8 +132,8 @@ func (l *Logger) durationLoggerLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			l.flushStats()
-		case duration := <-l.newDurations:
-			l.recordDuration(duration)
+		case response := <-l.newResponses:
+			l.recordResponse(response)
 
 			if l.cacheIsFull {
 				l.flushStats()
@@ -167,7 +169,7 @@ func (l *Logger) addToCache(rw http.ResponseWriter, r *http.Request) error {
 	}
 
 	select {
-	case l.newDurations <- routeResponse{
+	case l.newResponses <- routeResponse{
 		route:        path,
 		duration:     time.Since(getRequestStartAt(r.Context())),
 		status:       writer.Status(),
@@ -176,11 +178,11 @@ func (l *Logger) addToCache(rw http.ResponseWriter, r *http.Request) error {
 	}:
 		return nil
 	default:
-		return errors.New("durations buffer is full")
+		return errors.New("response buffer is full")
 	}
 }
 
-func (l *Logger) recordDuration(response routeResponse) {
+func (l *Logger) recordResponse(response routeResponse) {
 	stats := l.statsByRoute[response.route]
 
 	stats.durationMS = append(stats.durationMS, float64(response.duration.Milliseconds()))
@@ -213,31 +215,33 @@ func (l *Logger) flushStats() {
 
 func (s *routeStats) makeMessage() message.Fields {
 	msg := message.Fields{
-		"message": "route stats",
-		"count":   len(s.durationMS),
+		"message":  "route stats",
+		"count":    len(s.durationMS),
+		"statuses": s.statusCounts,
 	}
 
-	if len(s.durationMS) > 0 {
-		msg["service_time_ms"] = sliceStats(s.durationMS, durationBins)
-	}
-	if len(s.responseMB) > 0 {
-		msg["response_sizes_mb"] = sliceStats(s.responseMB, sizeBins)
-	}
-	if len(s.requestMB) > 0 {
-		msg["request_sizes_mb"] = sliceStats(s.requestMB, sizeBins)
-	}
-	if len(s.statusCounts) > 0 {
-		msg["statuses"] = s.statusCounts
-	}
+	msg["service_time_ms"] = sliceStats(s.durationMS, durationBins)
+	msg["response_sizes_mb"] = sliceStats(s.responseMB, sizeBins)
+	msg["request_sizes_mb"] = sliceStats(s.requestMB, sizeBins)
 
 	return msg
 }
 
 func sliceStats(sample, histogramBins []float64) message.Fields {
+	if len(sample) == 0 {
+		return message.Fields{}
+	}
+
+	min := floats.Min(sample)
+	max := floats.Max(sample)
+	if len(histogramBins) == 0 || histogramBins[0] > min || histogramBins[len(histogramBins)-1] <= max {
+		return message.Fields{}
+	}
+
 	return message.Fields{
 		"sum":       floats.Sum(sample),
-		"min":       floats.Min(sample),
-		"max":       floats.Max(sample),
+		"min":       min,
+		"max":       max,
 		"mean":      stat.Mean(sample, nil),
 		"std_dev":   stat.StdDev(sample, nil),
 		"histogram": stat.Histogram(nil, histogramBins, sample, nil),
