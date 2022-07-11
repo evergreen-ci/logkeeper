@@ -12,7 +12,6 @@ type environment struct {
 	dbSession    *mgo.Session
 	dbName       string
 	cleanupQueue amboy.Queue
-	stats        *statsCache
 
 	sync.RWMutex
 }
@@ -58,22 +57,6 @@ func DBName() string {
 	defer globalEnv.RUnlock()
 
 	return globalEnv.dbName
-}
-
-// SetStatsCache caches a stats cache to be available from the environment.
-func SetStatsCache(s *statsCache) {
-	globalEnv.Lock()
-	defer globalEnv.Unlock()
-
-	globalEnv.stats = s
-}
-
-// StatsCache returns the cached stats cache from the environment.
-func StatsCache() *statsCache {
-	globalEnv.RLock()
-	defer globalEnv.RUnlock()
-
-	return globalEnv.stats
 }
 
 // SetCleanupQueue caches the cleanup queue to be available from the environment.

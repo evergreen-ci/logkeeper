@@ -15,8 +15,6 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"github.com/mongodb/grip/sometimes"
-	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -149,11 +147,6 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	response := createdResponse{newBuildId, newBuildUri}
 	lk.render.WriteJSON(w, http.StatusCreated, response)
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().BuildCreated(), "caching build creation stats"),
-	)
 }
 
 func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
@@ -219,11 +212,6 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().TestCreated(), "caching test creation stats"),
-	)
 }
 
 func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
@@ -315,11 +303,6 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching test log append stats"),
-	)
 }
 
 func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
@@ -409,11 +392,6 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, stringifyId(build.Id))
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().LogAppended(int(r.ContentLength)), "caching global log append stats"),
-	)
 }
 
 func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
@@ -447,11 +425,6 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 		Build *LogKeeperBuild
 		Tests []Test
 	}{build, tests}, "base", "build.html")
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().BuildAccessed(), "caching build access stats"),
-	)
 }
 
 func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
@@ -500,11 +473,6 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().AllLogsAccessed(), "caching all logs access stats"),
-	)
 }
 
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
@@ -576,11 +544,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
 	}
-
-	grip.ErrorWhen(
-		sometimes.Percent(statsErrorLogPercentage),
-		errors.Wrap(env.StatsCache().TestLogsAccessed(), "caching test logs access stats"),
-	)
 }
 
 func lobsterRedirect(r *http.Request) bool {
