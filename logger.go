@@ -17,14 +17,16 @@ import (
 const (
 	remoteAddrHeaderName = "X-Cluster-Client-Ip"
 	chanBufferSize       = 1000
-	loggerStatsInterval  = time.Second
+	loggerStatsInterval  = 10 * time.Second
 	durationsLimit       = 100000
 	logErrorPercentage   = 10
 )
 
-//  is a middleware handler that logs the request as it goes in and the response as it goes out.
+// Logger is a middleware handler that aggregates statistics on response durations.
+// If a handler panics Logger will recover the panic and log its error.
 type Logger struct {
-	// ids is a channel producing unique, autoincrementing request ids that are included in logs.
+	// ids is a channel producing unique, auto-incrementing request ids.
+	// A request's id can be extracted from its context with GetCtxRequestId.
 	ids chan int
 
 	newDurations     chan routeDuration
@@ -41,9 +43,10 @@ type routeDuration struct {
 // NewLogger returns a new Logger instance
 func NewLogger(ctx context.Context) *Logger {
 	l := &Logger{
-		ids:          make(chan int, chanBufferSize),
-		newDurations: make(chan routeDuration, chanBufferSize),
-		lastReset:    time.Now(),
+		ids:              make(chan int, chanBufferSize),
+		newDurations:     make(chan routeDuration, chanBufferSize),
+		durationsByRoute: make(map[string][]float64),
+		lastReset:        time.Now(),
 	}
 
 	go l.incrementIDLoop(ctx)
@@ -144,7 +147,6 @@ func (l *Logger) addToCache(r *http.Request, duration time.Duration) error {
 	default:
 		return errors.New("durations buffer is full")
 	}
-
 }
 
 func (l *Logger) recordDuration(duration routeDuration) {
@@ -164,10 +166,10 @@ func (l *Logger) flushStats() {
 			"interval": time.Since(l.lastReset),
 		}
 		if len(durations) > 0 {
-			msg["sum"] = floats.Sum(durations)
-			msg["max"] = floats.Max(durations)
-			msg["min"] = floats.Min(durations)
-			msg["mean"] = stat.Mean(durations, nil)
+			msg["sum_ms"] = floats.Sum(durations)
+			msg["max_ms"] = floats.Max(durations)
+			msg["min_ms"] = floats.Min(durations)
+			msg["mean_ms"] = stat.Mean(durations, nil)
 			msg["std_dev"] = stat.StdDev(durations, nil)
 		}
 		grip.Info(msg)
