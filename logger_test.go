@@ -16,7 +16,7 @@ import (
 func TestResponseLoggerLoop(t *testing.T) {
 	defer grip.SetSender(grip.GetSender())
 
-	t.Run("SingleDuration", func(t *testing.T) {
+	t.Run("SingleResponse", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
 		defer cancel()
 		sender := send.NewMockSender("")
@@ -30,7 +30,7 @@ func TestResponseLoggerLoop(t *testing.T) {
 		assert.Equal(t, 1, msg["count"])
 	})
 
-	t.Run("MultipleDurations", func(t *testing.T) {
+	t.Run("MultipleResponses", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
 		defer cancel()
 		sender := send.NewMockSender("")

@@ -26,22 +26,21 @@ const (
 )
 
 var (
-	durationBins = []float64{0, 250, 500, 1000, 5000, 30000, 60000, 300000, math.MaxFloat64}
+	durationBins = []float64{0, 250, 500, 1000, 5000, 30000, 60000, math.MaxFloat64}
 	sizeBins     = []float64{0, 0.5, 1, 5, 10, 50, math.MaxFloat64}
 )
 
-// Logger is a middleware handler that aggregates statistics on responses.
+// Logger is a middleware handler that aggregates statistics on responses. Route statistics are periodically logged.
 // If a handler panics Logger will recover the panic and log its error.
 type Logger struct {
 	// ids is a channel producing unique, auto-incrementing request ids.
-	// A request's id can be extracted from its context with GetCtxRequestId.
+	// A request's id can be extracted from its context with getCtxRequestId.
 	ids chan int
 
 	newResponses chan routeResponse
 	statsByRoute map[string]routeStats
-
-	cacheIsFull bool
-	lastReset   time.Time
+	cacheIsFull  bool
+	lastReset    time.Time
 }
 
 type routeStats struct {
@@ -74,7 +73,7 @@ func NewLogger(ctx context.Context) *Logger {
 	return l
 }
 
-// ServeHTTP calls the next function and incorporates the reponse into its response cache.
+// ServeHTTP calls the next function and incorporates the response into its response cache.
 // If next panics the panic is recovered and logged.
 func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
@@ -221,8 +220,8 @@ func (s *routeStats) makeMessage() message.Fields {
 	}
 
 	msg["service_time_ms"] = sliceStats(s.durationMS, durationBins)
-	msg["response_sizes_mb"] = sliceStats(s.responseMB, sizeBins)
-	msg["request_sizes_mb"] = sliceStats(s.requestMB, sizeBins)
+	msg["response_size_mb"] = sliceStats(s.responseMB, sizeBins)
+	msg["request_size_mb"] = sliceStats(s.requestMB, sizeBins)
 
 	return msg
 }
