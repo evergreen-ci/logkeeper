@@ -20,7 +20,7 @@ func TestResponseLoggerLoop(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
 		defer cancel()
 		sender := send.NewMockSender("")
-		grip.SetSender(sender)
+		require.NoError(t, grip.SetSender(sender))
 		logger := NewLogger(ctx)
 
 		logger.newResponses <- routeResponse{route: "test_route", duration: time.Second}
@@ -34,7 +34,7 @@ func TestResponseLoggerLoop(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
 		defer cancel()
 		sender := send.NewMockSender("")
-		grip.SetSender(sender)
+		require.NoError(t, grip.SetSender(sender))
 		logger := NewLogger(ctx)
 
 		logger.newResponses <- routeResponse{route: "test_route", duration: 0}
@@ -50,7 +50,7 @@ func TestResponseLoggerLoop(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
 		defer cancel()
 		sender := send.NewMockSender("")
-		grip.SetSender(sender)
+		require.NoError(t, grip.SetSender(sender))
 		logger := NewLogger(ctx)
 
 		routes := []string{"r0", "r1"}
@@ -70,7 +70,7 @@ func TestCacheIsFull(t *testing.T) {
 
 	defer grip.SetSender(grip.GetSender())
 	sender := send.NewMockSender("")
-	grip.SetSender(sender)
+	require.NoError(t, grip.SetSender(sender))
 	logger := NewLogger(ctx)
 	for i := 0; i < statsLimit+1; i++ {
 		select {
@@ -98,7 +98,7 @@ func TestRecordResponse(t *testing.T) {
 func TestFlushStats(t *testing.T) {
 	defer grip.SetSender(grip.GetSender())
 	sender := send.NewMockSender("")
-	grip.SetSender(sender)
+	require.NoError(t, grip.SetSender(sender))
 
 	testStart := time.Now()
 	routes := []string{"route0", "route1"}
