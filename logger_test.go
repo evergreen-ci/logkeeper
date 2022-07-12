@@ -14,7 +14,7 @@ import (
 )
 
 func TestResponseLoggerLoop(t *testing.T) {
-	defer grip.SetSender(grip.GetSender())
+	defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
 
 	t.Run("SingleResponse", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
@@ -68,7 +68,7 @@ func TestCacheIsFull(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
 	defer cancel()
 
-	defer grip.SetSender(grip.GetSender())
+	defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
 	sender := send.NewMockSender("")
 	require.NoError(t, grip.SetSender(sender))
 	logger := NewLogger(ctx)
@@ -96,7 +96,7 @@ func TestRecordResponse(t *testing.T) {
 }
 
 func TestFlushStats(t *testing.T) {
-	defer grip.SetSender(grip.GetSender())
+	defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
 	sender := send.NewMockSender("")
 	require.NoError(t, grip.SetSender(sender))
 

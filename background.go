@@ -9,28 +9,28 @@ import (
 	"github.com/mongodb/grip/message"
 )
 
-func StartBackgroundLogging(ctx context.Context) {
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		grip.Debug("starting stats collector")
+const backgroundLoggingInterval = 15 * time.Second
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				grip.Info(message.CollectSystemInfo())
-				grip.Info(message.CollectBasicGoStats())
+func BackgroundLogging(ctx context.Context) {
+	ticker := time.NewTicker(backgroundLoggingInterval)
+	defer ticker.Stop()
+	grip.Debug("starting stats collector")
 
-				if IsLeader() {
-					grip.Info(message.Fields{
-						"message": "amboy queue stats",
-						"stats":   env.CleanupQueue().Stats(ctx),
-					})
-				}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			grip.Info(message.CollectSystemInfo())
+			grip.Info(message.CollectBasicGoStats())
 
+			if IsLeader() {
+				grip.Info(message.Fields{
+					"message": "amboy queue stats",
+					"stats":   env.CleanupQueue().Stats(ctx),
+				})
 			}
+
 		}
-	}()
+	}
 }

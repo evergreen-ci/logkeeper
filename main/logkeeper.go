@@ -75,7 +75,7 @@ func main() {
 		MaxRequestSize: *maxRequestSize,
 	})
 	env.SetDBName(dbName)
-	logkeeper.StartBackgroundLogging(ctx)
+	go logkeeper.BackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()
 	router := lk.NewRouter()
