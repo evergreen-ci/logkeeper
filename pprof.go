@@ -3,6 +3,7 @@ package logkeeper
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"html/template"
 	"io"
@@ -21,7 +22,7 @@ import (
 )
 
 // GetHandlerPprof returns a handler for pprof endpoints.
-func GetHandlerPprof() http.Handler {
+func GetHandlerPprof(ctx context.Context) http.Handler {
 	router := mux.NewRouter()
 
 	root := router.PathPrefix("/debug/pprof").Subrouter()
@@ -37,7 +38,7 @@ func GetHandlerPprof() http.Handler {
 	root.HandleFunc("/trace", http.HandlerFunc(trace))
 
 	n := negroni.New()
-	n.Use(NewLogger())
+	n.Use(NewLogger(ctx))
 	n.UseHandler(router)
 	return n
 }

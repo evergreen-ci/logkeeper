@@ -67,7 +67,6 @@ func main() {
 	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
 	grip.EmergencyFatal(cleanupQueue.Start(ctx))
 	grip.EmergencyFatal(env.SetCleanupQueue(cleanupQueue))
-	env.SetStatsCache(env.NewStatsCache(ctx))
 
 	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
@@ -76,12 +75,12 @@ func main() {
 		MaxRequestSize: *maxRequestSize,
 	})
 	env.SetDBName(dbName)
-	logkeeper.StartBackgroundLogging(ctx)
+	go logkeeper.BackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()
 	router := lk.NewRouter()
 	n := negroni.New()
-	n.Use(logkeeper.NewLogger())                 // includes recovery and logging
+	n.Use(logkeeper.NewLogger(ctx))              // includes recovery and logging
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
 	n.UseHandler(gorillaCtx.ClearHandler(router))
 
@@ -94,7 +93,7 @@ func main() {
 		catcher.Add(listenServeAndHandleErrs(lkService))
 	}()
 
-	pprofService := getService("127.0.0.1:2285", logkeeper.GetHandlerPprof())
+	pprofService := getService("127.0.0.1:2285", logkeeper.GetHandlerPprof(ctx))
 	serviceWait.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("pprof service")
