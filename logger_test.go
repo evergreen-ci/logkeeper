@@ -138,7 +138,7 @@ func TestFlushStats(t *testing.T) {
 	assert.Len(t, logger.statsByRoute[routes[1]].responseMB, 0)
 	assert.Len(t, logger.statsByRoute[routes[1]].statusCounts, 0)
 
-	assert.Greater(t, logger.lastReset, testStart)
+	assert.True(t, logger.lastReset.After(testStart))
 	assert.False(t, logger.cacheIsFull)
 }
 
@@ -181,11 +181,11 @@ func TestMakeMessage(t *testing.T) {
 	require.True(t, ok)
 	assert.EqualValues(t, 6, serviceTimeMap["sum"])
 
-	responseSizesMap, ok := msg["response_sizes_mb"].(message.Fields)
+	responseSizesMap, ok := msg["response_size_mb"].(message.Fields)
 	require.True(t, ok)
 	assert.EqualValues(t, 6, responseSizesMap["sum"])
 
-	requestSizesMap, ok := msg["request_sizes_mb"].(message.Fields)
+	requestSizesMap, ok := msg["request_size_mb"].(message.Fields)
 	require.True(t, ok)
 	assert.EqualValues(t, 6, requestSizesMap["sum"])
 
