@@ -19,10 +19,7 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
-const (
-	maxLogChars             = 4 * 1024 * 1024 // 4 MB
-	statsErrorLogPercentage = 10
-)
+const maxLogChars = 4 * 1024 * 1024 // 4 MB
 
 type Options struct {
 	//Base URL to append to relative paths
