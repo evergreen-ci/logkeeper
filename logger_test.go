@@ -86,11 +86,12 @@ func TestCacheIsFull(t *testing.T) {
 }
 
 func TestRecordResponse(t *testing.T) {
-	logger := Logger{}
-	for i := 0; i < statsLimit+1; i++ {
-		logger.recordResponse(routeResponse{})
+	logger := Logger{statsByRoute: make(map[string]routeStats)}
+	for i := 0; i < statsLimit; i++ {
+		logger.recordResponse(routeResponse{route: "r0"})
 	}
-	assert.Len(t, logger.statsByRoute, statsLimit)
+	require.Len(t, logger.statsByRoute, 1)
+	assert.Len(t, logger.statsByRoute["r0"].durationMS, statsLimit)
 	assert.True(t, logger.cacheIsFull)
 }
 
