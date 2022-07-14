@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/mongodb/grip/recovery"
 	"github.com/mongodb/grip/sometimes"
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
@@ -122,6 +123,8 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 }
 
 func (l *Logger) responseLoggerLoop(ctx context.Context) {
+	defer recovery.LogStackTraceAndContinue("logger loop")
+
 	ticker := time.NewTicker(loggerStatsInterval)
 	defer ticker.Stop()
 
