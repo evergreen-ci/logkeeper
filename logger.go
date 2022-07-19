@@ -69,7 +69,7 @@ func NewLogger(ctx context.Context) *Logger {
 	}
 
 	go l.incrementIDLoop(ctx)
-	go l.responseLoggerLoop(ctx)
+	go l.responseLoggerLoop(ctx, loggerStatsInterval)
 
 	return l
 }
@@ -122,10 +122,10 @@ func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.Ha
 	)
 }
 
-func (l *Logger) responseLoggerLoop(ctx context.Context) {
+func (l *Logger) responseLoggerLoop(ctx context.Context, tickerInterval time.Duration) {
 	defer recovery.LogStackTraceAndContinue("logger loop")
 
-	ticker := time.NewTicker(loggerStatsInterval)
+	ticker := time.NewTicker(tickerInterval)
 	defer ticker.Stop()
 
 	for {
@@ -139,7 +139,7 @@ func (l *Logger) responseLoggerLoop(ctx context.Context) {
 
 			if l.cacheIsFull {
 				l.flushStats()
-				ticker.Reset(loggerStatsInterval)
+				ticker.Reset(tickerInterval)
 			}
 		}
 	}

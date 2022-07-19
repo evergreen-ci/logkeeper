@@ -17,47 +17,52 @@ func TestResponseLoggerLoop(t *testing.T) {
 	defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
 
 	t.Run("SingleResponse", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
-		defer cancel()
 		sender := send.NewMockSender("")
 		require.NoError(t, grip.SetSender(sender))
-		logger := NewLogger(ctx)
 
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		logger := Logger{newResponses: make(chan routeResponse, 1), statsByRoute: make(map[string]routeStats)}
 		logger.newResponses <- routeResponse{route: "test_route", duration: time.Second}
-		require.Eventually(t, func() bool { return len(sender.Messages) >= 1 }, 2*loggerStatsInterval, loggerStatsInterval/2)
+		logger.responseLoggerLoop(ctx, time.Second)
+
+		require.True(t, len(sender.Messages) >= 1)
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.Equal(t, "test_route", msg["route"])
 		assert.Equal(t, 1, msg["count"])
 	})
 
 	t.Run("MultipleResponses", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
-		defer cancel()
 		sender := send.NewMockSender("")
 		require.NoError(t, grip.SetSender(sender))
-		logger := NewLogger(ctx)
 
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		logger := Logger{newResponses: make(chan routeResponse, 3), statsByRoute: make(map[string]routeStats)}
 		logger.newResponses <- routeResponse{route: "test_route", duration: 0}
 		logger.newResponses <- routeResponse{route: "test_route", duration: 5 * time.Second}
 		logger.newResponses <- routeResponse{route: "test_route", duration: 10 * time.Second}
-		require.Eventually(t, func() bool { return len(sender.Messages) >= 1 }, 2*loggerStatsInterval, loggerStatsInterval/2)
+		logger.responseLoggerLoop(ctx, time.Second)
+
+		require.True(t, len(sender.Messages) >= 1)
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.Equal(t, "test_route", msg["route"])
 		assert.Equal(t, 3, msg["count"])
 	})
 
 	t.Run("MultipleRoutes", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
-		defer cancel()
 		sender := send.NewMockSender("")
 		require.NoError(t, grip.SetSender(sender))
-		logger := NewLogger(ctx)
 
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		logger := Logger{newResponses: make(chan routeResponse, 3), statsByRoute: make(map[string]routeStats)}
 		routes := []string{"r0", "r1"}
 		logger.newResponses <- routeResponse{route: routes[0], duration: time.Second}
 		logger.newResponses <- routeResponse{route: routes[1], duration: time.Second}
+		logger.responseLoggerLoop(ctx, time.Second)
 
-		require.Eventually(t, func() bool { return len(sender.Messages) >= 2 }, 2*loggerStatsInterval, loggerStatsInterval/2)
+		require.True(t, len(sender.Messages) >= 2)
 		for _, msg := range sender.Messages {
 			assert.Contains(t, routes, msg.Raw().(message.Fields)["route"])
 		}
@@ -65,23 +70,20 @@ func TestResponseLoggerLoop(t *testing.T) {
 }
 
 func TestCacheIsFull(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*loggerStatsInterval)
-	defer cancel()
-
 	defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
 	sender := send.NewMockSender("")
 	require.NoError(t, grip.SetSender(sender))
-	logger := NewLogger(ctx)
-	for i := 0; i < statsLimit+1; i++ {
-		select {
-		case <-ctx.Done():
-			t.FailNow()
-		case logger.newResponses <- routeResponse{}:
-		}
 
+	logger := Logger{newResponses: make(chan routeResponse, statsLimit+1), statsByRoute: make(map[string]routeStats)}
+	for i := 0; i < statsLimit+1; i++ {
+		logger.newResponses <- routeResponse{}
 	}
 
-	require.Eventually(t, func() bool { return len(sender.Messages) > 0 }, loggerStatsInterval, loggerStatsInterval/10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	logger.responseLoggerLoop(ctx, time.Second)
+
+	require.True(t, len(sender.Messages) > 0)
 	assert.Equal(t, statsLimit, sender.Messages[0].Raw().(message.Fields)["count"])
 }
 
