@@ -74,52 +74,54 @@ func NewLogger(ctx context.Context) *Logger {
 	return l
 }
 
-// ServeHTTP calls the next function and incorporates the response into its response cache.
+// Middleware returns a handler that incorporates the response into its response cache.
 // If next panics the panic is recovered and logged.
-func (l *Logger) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	start := time.Now()
-	reqID := <-l.ids
-	r = setCtxRequestId(reqID, r)
-	r = setStartAtTime(r, start)
+func (l *Logger) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		reqID := <-l.ids
+		r = setCtxRequestId(reqID, r)
+		r = setStartAtTime(r, start)
 
-	remote := r.Header.Get(remoteAddrHeaderName)
-	if remote == "" {
-		remote = r.RemoteAddr
-	}
-
-	defer func() {
-		if err := recover(); err != nil {
-			if rw.Header().Get("Content-Type") == "" {
-				rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			}
-
-			rw.WriteHeader(http.StatusInternalServerError)
-
-			grip.Critical(message.Fields{
-				"stack":    message.NewStack(2, "").Raw(),
-				"panic":    err,
-				"action":   "aborted",
-				"request":  reqID,
-				"duration": time.Since(start),
-				"span":     time.Since(start).String(),
-				"remote":   remote,
-				"path":     r.URL.Path,
-			})
+		remote := r.Header.Get(remoteAddrHeaderName)
+		if remote == "" {
+			remote = r.RemoteAddr
 		}
-	}()
 
-	next(rw, r)
+		defer func() {
+			if err := recover(); err != nil {
+				if rw.Header().Get("Content-Type") == "" {
+					rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+				}
 
-	grip.ErrorWhen(
-		sometimes.Percent(logErrorPercentage),
-		message.WrapError(
-			l.addToCache(rw, r),
-			message.Fields{
-				"message": "adding response to buffer",
-				"path":    r.URL.Path,
-			},
-		),
-	)
+				rw.WriteHeader(http.StatusInternalServerError)
+
+				grip.Critical(message.Fields{
+					"stack":    message.NewStack(2, "").Raw(),
+					"panic":    err,
+					"action":   "aborted",
+					"request":  reqID,
+					"duration": time.Since(start),
+					"span":     time.Since(start).String(),
+					"remote":   remote,
+					"path":     r.URL.Path,
+				})
+			}
+		}()
+
+		next.ServeHTTP(rw, r)
+
+		grip.ErrorWhen(
+			sometimes.Percent(logErrorPercentage),
+			message.WrapError(
+				l.addToCache(rw, r),
+				message.Fields{
+					"message": "adding response to buffer",
+					"path":    r.URL.Path,
+				},
+			),
+		)
+	})
 }
 
 func (l *Logger) responseLoggerLoop(ctx context.Context, tickerInterval time.Duration) {
@@ -160,6 +162,9 @@ func (l *Logger) incrementIDLoop(ctx context.Context) {
 
 func (l *Logger) addToCache(rw http.ResponseWriter, r *http.Request) error {
 	route := mux.CurrentRoute(r)
+	if r == nil {
+		return errors.New("request didn't contain a route")
+	}
 	path, err := route.GetPathTemplate()
 	if err != nil {
 		return errors.Wrap(err, "getting path template")
