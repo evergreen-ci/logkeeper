@@ -17,7 +17,6 @@ require (
 	github.com/smartystreets/goconvey v1.5.1-0.20140605153011-75bc4a2dad71
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/negroni v1.0.0
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	gonum.org/v1/gonum v0.11.0
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 )

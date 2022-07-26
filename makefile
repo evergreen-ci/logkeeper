@@ -13,7 +13,7 @@ $(shell mkdir -p $(buildDir))
 lintDeps := $(buildDir)/run-linter $(buildDir)/golangci-lint
 $(buildDir)/golangci-lint:$(buildDir)
 	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(buildDir) v1.40.0 >/dev/null 2>&1
-$(buildDir)/run-linter:buildscripts/run-linter.go $(buildDir)/golangci-lint
+$(buildDir)/run-linter:buildscripts/run-linter/run-linter.go $(buildDir)/golangci-lint
 	@go build -o $@ $<
 # end lint setup targets
 #
@@ -40,10 +40,7 @@ coverageHtmlOutput := $(foreach target,$(packages),$(buildDir)/output.$(target).
 
 
 # distribution targets and implementation
-$(buildDir)/build-cross-compile:buildscripts/build-cross-compile.go
-	@mkdir -p $(buildDir)
-	go build -o $@ $<
-$(buildDir)/make-tarball:buildscripts/make-tarball.go
+$(buildDir)/make-tarball:buildscripts/make-tarball/make-tarball.go
 	go build -o $@ $<
 dist:$(buildDir)/dist.tar.gz
 distContents := templates public
@@ -123,6 +120,10 @@ $(buildDir)/output.%.coverage: .FORCE
 	@-[ -f $@ ] && go tool cover -func=$@ | sed 's%$(projectPath)/%%' | column -t
 $(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage
 	go tool cover -html=$< -o $@
+smoke-test:$(buildDir)/$(name)
+	./$< &
+	go run ./buildscripts/smoke/smoke.go || (pkill -f $<; exit 1)
+	pkill -f $<
 # end test and coverage artifacts
 
 
