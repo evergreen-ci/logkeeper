@@ -24,6 +24,7 @@ import (
 // GetHandlerPprof returns a handler for pprof endpoints.
 func GetHandlerPprof(ctx context.Context) http.Handler {
 	router := mux.NewRouter()
+	router.Use(NewLogger(ctx).Middleware)
 
 	root := router.PathPrefix("/debug/pprof").Subrouter()
 	root.HandleFunc("/", http.HandlerFunc(index))
@@ -38,7 +39,6 @@ func GetHandlerPprof(ctx context.Context) http.Handler {
 	root.HandleFunc("/trace", http.HandlerFunc(trace))
 
 	n := negroni.New()
-	n.Use(NewLogger(ctx))
 	n.UseHandler(router)
 	return n
 }

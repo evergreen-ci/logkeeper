@@ -5,7 +5,6 @@ go 1.16
 require (
 	github.com/evergreen-ci/render v0.0.0-20141211045555-c9e0e54c798f
 	github.com/evergreen-ci/utility v0.0.0-20220404192535-d16eb64796e6
-	github.com/gorilla/context v1.1.1
 	github.com/gorilla/mux v1.8.0
 	github.com/jacobsa/oglematchers v0.0.0-20140404004215-4fc24f97b5b7 // indirect
 	github.com/jacobsa/oglemock v0.0.0-20150831005832-e94d794d06ff // indirect
@@ -17,7 +16,6 @@ require (
 	github.com/smartystreets/goconvey v1.5.1-0.20140605153011-75bc4a2dad71
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/negroni v1.0.0
-	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	gonum.org/v1/gonum v0.11.0
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22
 )

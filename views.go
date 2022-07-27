@@ -689,7 +689,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	lk.render.WriteJSON(w, http.StatusOK, &resp)
 }
 
-func (lk *logKeeper) NewRouter() http.Handler {
+func (lk *logKeeper) NewRouter() *mux.Router {
 	r := mux.NewRouter().StrictSlash(false)
 
 	//write methods
