@@ -109,7 +109,7 @@ testArgs += -testify.m='$(RUN_CASE)'
 endif
 #  targets to run the tests and report the output
 $(buildDir)/output.%.test: .FORCE
-	$(testRunEnv) go test $(testArgs) ./$(if $(subst $(name),,$*),$(subst -,/,$*,)) | tee $@
+	$(testRunEnv) go test $(testArgs) ./$(if $(subst $(name),,$*),$(subst -,/,$*),) | tee $@
 $(buildDir)/output.%.race: .FORCE
 	$(testRunEnv) go test -race $(testArgs) | tee $@
 #  targets to generate gotest output from the linter.
