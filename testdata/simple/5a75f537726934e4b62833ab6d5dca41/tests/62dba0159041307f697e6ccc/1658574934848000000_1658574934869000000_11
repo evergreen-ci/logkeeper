@@ -1,0 +1,12 @@
+  0       1658560534848First Test Log Line
+  0       1658560534866[js_test:geo_max:CheckReplOplogs] New session started with sessionID: {  "id" : UUID("4983fd5c-898a-4435-8523-2aef47ce91f3") } and options: {  "causalConsistency" : false }
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] Recreating replica set from config {
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] \t"_id" : "rs",
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] \t"version" : 5,
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] \t"term" : 3,
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] \t"members" : [
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] \t\t{
+  0       1658560534868[js_test:geo_max:CheckReplOplogs] \t\t\t"_id" : 0,
+  0       1658560534869[js_test:geo_max:CheckReplOplogs] \t\t\t"host" : "localhost:20000",
+  0       1658560534869Last Test Log Line
+  
