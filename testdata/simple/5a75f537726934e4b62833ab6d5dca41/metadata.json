@@ -1,0 +1,13 @@
+{
+    "_id": "5a75f537726934e4b62833ab6d5dca41",
+    "builder": "MCI_enterprise-rhel_job0",
+    "buildnum": 157865445,
+    "started": "2022-07-23T07:15:05.353Z",
+    "name": "MCI_enterprise-rhel #157865445",
+    "info": {
+      "task_id": "mongodb_mongo_master_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37"
+    },
+    "failed": false,
+    "phases": [],
+    "seq": 79
+ }
