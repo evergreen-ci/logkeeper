@@ -114,7 +114,7 @@ func (l *Logger) Middleware(next http.Handler) http.Handler {
 		grip.ErrorWhen(
 			sometimes.Percent(logErrorPercentage),
 			message.WrapError(
-				l.addToCache(rw, r),
+				l.addToResponseBuffer(rw, r),
 				message.Fields{
 					"message": "adding response to buffer",
 					"path":    r.URL.Path,
@@ -160,7 +160,7 @@ func (l *Logger) incrementIDLoop(ctx context.Context) {
 	}
 }
 
-func (l *Logger) addToCache(rw http.ResponseWriter, r *http.Request) error {
+func (l *Logger) addToResponseBuffer(rw http.ResponseWriter, r *http.Request) error {
 	route := mux.CurrentRoute(r)
 	if r == nil {
 		return errors.New("request didn't contain a route")
