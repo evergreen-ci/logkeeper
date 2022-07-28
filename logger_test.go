@@ -167,6 +167,18 @@ func TestSliceStats(t *testing.T) {
 		bins := []float64{0, 1, 5, 10}
 		assert.Equal(t, message.Fields{}, sliceStats(sample, bins))
 	})
+
+	t.Run("OutOfOrder", func(t *testing.T) {
+		sample := []float64{10, 5, 0}
+		bins := []float64{0, 1, 5, 10, 20}
+		stats := sliceStats(sample, bins)
+		assert.EqualValues(t, stats["sum"], 15)
+		assert.EqualValues(t, stats["min"], 0)
+		assert.EqualValues(t, stats["max"], 10)
+		assert.EqualValues(t, stats["mean"], 5)
+		assert.EqualValues(t, stats["std_dev"], 5)
+		assert.EqualValues(t, stats["histogram"], []float64{1, 0, 1, 1})
+	})
 }
 
 func TestMakeMessage(t *testing.T) {
