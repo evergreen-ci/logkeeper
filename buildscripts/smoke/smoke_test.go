@@ -9,14 +9,15 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	port = 8080
-)
+var port = os.Getenv("PORT")
 
 var (
 	sampleBuild = struct {
@@ -55,7 +56,7 @@ var (
 )
 
 func getStatus() error {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%d/status", port))
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%s/status", port))
 	if err != nil {
 		return errors.Wrap(err, "making request")
 	}
@@ -64,7 +65,7 @@ func getStatus() error {
 
 func createBuild() (string, error) {
 	body, _ := json.Marshal(sampleBuild)
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/build", port), "application/json", bytes.NewBuffer(body))
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build", port), "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return "", errors.Wrap(err, "making request")
 	}
@@ -74,7 +75,7 @@ func createBuild() (string, error) {
 		Id string `json:"id"`
 	}{}
 	if err := json.NewDecoder(resp.Body).Decode(&target); err != nil {
-		return "", errors.Wrap(err, "unmarshaling json response")
+		return "", errors.Wrap(err, "unmarshaling JSON response")
 	}
 
 	return target.Id, nil
@@ -87,7 +88,7 @@ func createTest(buildID string) (string, error) {
 		"phase":         "p0",
 		"task_id":       "t0",
 	})
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/build/%s/test", port, buildID), "application/json", bytes.NewBuffer(body))
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build/%s/test", port, buildID), "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return "", errors.Wrap(err, "making request")
 	}
@@ -105,7 +106,7 @@ func createTest(buildID string) (string, error) {
 
 func uploadGlobalLog(buildID string) error {
 	body, _ := json.Marshal(globalLogs)
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/build/%s", port, buildID), "application/json", bytes.NewBuffer(body))
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build/%s", port, buildID), "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return errors.Wrap(err, "making request")
 	}
@@ -114,7 +115,7 @@ func uploadGlobalLog(buildID string) error {
 
 func uploadTestLog(buildID, testID string) error {
 	body, _ := json.Marshal(testLogs)
-	resp, err := http.Post(fmt.Sprintf("http://localhost:%d/build/%s/test/%s", port, buildID, testID), "application/json", bytes.NewBuffer(body))
+	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build/%s/test/%s", port, buildID, testID), "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		return errors.Wrap(err, "making request")
 	}
@@ -122,11 +123,11 @@ func uploadTestLog(buildID, testID string) error {
 }
 
 func getAllLogs(buildID string) (string, error) {
-	return getLogs(fmt.Sprintf("http://localhost:%d/build/%s/all?raw=1", port, buildID))
+	return getLogs(fmt.Sprintf("http://localhost:%s/build/%s/all?raw=1", port, buildID))
 }
 
 func getTestLogs(buildID, testID string) (string, error) {
-	return getLogs(fmt.Sprintf("http://localhost:%d/build/%s/test/%s?raw=1", port, buildID, testID))
+	return getLogs(fmt.Sprintf("http://localhost:%s/build/%s/test/%s?raw=1", port, buildID, testID))
 }
 
 func getLogs(route string) (string, error) {
@@ -143,53 +144,23 @@ func getLogs(route string) (string, error) {
 	return builder.String(), nil
 }
 
-func main() {
-	if err := getStatus(); err != nil {
-		fmt.Fprint(os.Stderr, errors.Wrap(err, "getting status"))
-		os.Exit(1)
-	}
+func TestSmoke(t *testing.T) {
+	require.NoError(t, getStatus())
 
 	buildID, err := createBuild()
-	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrap(err, "creating build"))
-		os.Exit(1)
-	}
+	require.NoError(t, err)
 
 	testID, err := createTest(buildID)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrap(err, "creating test"))
-		os.Exit(1)
-	}
+	require.NoError(t, err)
 
-	if err := uploadGlobalLog(buildID); err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrap(err, "uploading global log"))
-		os.Exit(1)
-	}
-
-	if err := uploadTestLog(buildID, testID); err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrap(err, "uploading test log"))
-		os.Exit(1)
-	}
+	require.NoError(t, uploadGlobalLog(buildID))
+	require.NoError(t, uploadTestLog(buildID, testID))
 
 	allLogs, err := getAllLogs(buildID)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrap(err, "getting all logs"))
-		os.Exit(1)
-	}
-	if expectedAllLogs != allLogs {
-		fmt.Fprintln(os.Stderr, "all logs received didn't match expected output")
-		os.Exit(1)
-	}
+	assert.NoError(t, err)
+	assert.Equal(t, expectedAllLogs, allLogs)
 
 	testLogs, err := getTestLogs(buildID, testID)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, errors.Wrap(err, "getting test logs"))
-		os.Exit(1)
-	}
-	if expectedTestLogs != testLogs {
-		fmt.Printf("got '%s' expected: '%s'", testLogs, expectedTestLogs)
-		fmt.Fprintln(os.Stderr, "test logs received didn't match expected output")
-		os.Exit(1)
-	}
-
+	assert.NoError(t, err)
+	assert.Equal(t, expectedTestLogs, testLogs)
 }
