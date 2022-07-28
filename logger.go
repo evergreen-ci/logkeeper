@@ -239,7 +239,7 @@ func sliceStats(sample, histogramBins []float64) message.Fields {
 	if len(sample) == 0 {
 		return message.Fields{}
 	}
-	sort.Float64Slice(sample).Sort()
+	sort.Float64s(sample)
 
 	min := sample[0]
 	max := sample[len(sample)-1]
