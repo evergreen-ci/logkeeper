@@ -15,7 +15,6 @@ import (
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/units"
-	gorillaCtx "github.com/gorilla/context"
 	"github.com/mongodb/amboy/pool"
 	"github.com/mongodb/amboy/queue"
 	"github.com/mongodb/grip"
@@ -79,10 +78,10 @@ func main() {
 
 	catcher := grip.NewCatcher()
 	router := lk.NewRouter()
+	router.Use(logkeeper.NewLogger(ctx).Middleware)
 	n := negroni.New()
-	n.Use(logkeeper.NewLogger(ctx))              // includes recovery and logging
 	n.Use(negroni.NewStatic(http.Dir("public"))) // part of negroni Classic settings
-	n.UseHandler(gorillaCtx.ClearHandler(router))
+	n.UseHandler(router)
 
 	serviceWait := &sync.WaitGroup{}
 	lkService := getService(fmt.Sprintf(":%v", *httpPort), n)
