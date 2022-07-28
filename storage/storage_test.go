@@ -11,13 +11,18 @@ import (
 )
 
 func makeTestStorage(t *testing.T, initDir string) Storage {
-	os.RemoveAll("../_bucketdata")
-	os.Mkdir("../_bucketdata", 0755)
+	err := os.RemoveAll("../_bucketdata")
+	require.NoError(t, err)
+	err = os.Mkdir("../_bucketdata", 0755)
+	require.NoError(t, err)
+
 	bucket, err := pail.NewLocalBucket(pail.LocalOptions{
 		Path:   "../_bucketdata",
 		Prefix: "",
 	})
-	bucket.Push(context.Background(), pail.SyncOptions{
+	require.NoError(t, err)
+
+	err = bucket.Push(context.Background(), pail.SyncOptions{
 		Local:  initDir,
 		Remote: "/",
 	})
