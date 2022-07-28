@@ -156,7 +156,7 @@ tasks:
     exec_timeout_secs: 900
     tags: ["test"]
   - <<: *run-test-mongodb
-    name: smoke-test
+    name: test-smoke
     exec_timeout_secs: 900
     tags: ["test"]
   - <<: *run-test-mongodb
