@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -238,9 +239,10 @@ func sliceStats(sample, histogramBins []float64) message.Fields {
 	if len(sample) == 0 {
 		return message.Fields{}
 	}
+	sort.Float64s(sample)
 
-	min := floats.Min(sample)
-	max := floats.Max(sample)
+	min := sample[0]
+	max := sample[len(sample)-1]
 	if len(histogramBins) == 0 || histogramBins[0] > min || histogramBins[len(histogramBins)-1] <= max {
 		return message.Fields{}
 	}
