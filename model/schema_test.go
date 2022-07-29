@@ -1,4 +1,4 @@
-package logkeeper
+package model
 
 import (
 	"testing"
@@ -14,34 +14,34 @@ func insertBuilds(t *testing.T) []interface{} {
 	assert := assert.New(t)
 	db, closer := db.DB()
 	defer closer()
-	_, err := db.C(buildsName).RemoveAll(bson.M{})
+	_, err := db.C(buildsCollection).RemoveAll(bson.M{})
 	require.NoError(t, err)
 
 	info := make(map[string]interface{})
 	info["task_id"] = bson.NewObjectId()
 	now := time.Now()
-	oldBuild1 := LogKeeperBuild{
+	oldBuild1 := Build{
 		Id:      "one",
 		Started: time.Date(2016, time.January, 15, 0, 0, 0, 0, time.Local),
 		Info:    info,
 	}
-	oldBuild2 := LogKeeperBuild{
+	oldBuild2 := Build{
 		Id:      "two",
 		Started: time.Date(2016, time.February, 15, 0, 0, 0, 0, time.Local),
 		Info:    info,
 	}
-	edgeBuild := LogKeeperBuild{
+	edgeBuild := Build{
 		Id:      "three",
 		Started: now.Add(-deletePassedTestCutoff + time.Minute),
 		Failed:  false,
 		Info:    info,
 	}
-	newBuild := LogKeeperBuild{
+	newBuild := Build{
 		Id:      "four",
 		Started: now,
 		Info:    info,
 	}
-	assert.NoError(db.C(buildsName).Insert(oldBuild1, oldBuild2, edgeBuild, newBuild))
+	assert.NoError(db.C(buildsCollection).Insert(oldBuild1, oldBuild2, edgeBuild, newBuild))
 	return []interface{}{oldBuild1.Id, oldBuild2.Id, edgeBuild.Id, newBuild.Id}
 }
 
@@ -75,7 +75,7 @@ func insertLogs(t *testing.T, ids []interface{}) {
 	assert := assert.New(t)
 	db, closer := db.DB()
 	defer closer()
-	_, err := db.C(logsName).RemoveAll(bson.M{})
+	_, err := db.C(logsCollection).RemoveAll(bson.M{})
 	require.NoError(t, err)
 
 	log1 := Log{BuildId: &ids[0]}
@@ -83,7 +83,7 @@ func insertLogs(t *testing.T, ids []interface{}) {
 	log3 := Log{BuildId: &ids[1]}
 	newId := bson.NewObjectId()
 	log4 := Log{BuildId: &newId}
-	assert.NoError(db.C(logsName).Insert(log1, log2, log3, log4))
+	assert.NoError(db.C(logsCollection).Insert(log1, log2, log3, log4))
 }
 
 func TestGetOldTests(t *testing.T) {
@@ -109,7 +109,7 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	count, _ := db.C(testsName).Find(bson.M{}).Count()
 	assert.Equal(4, count)
 
-	count, _ = db.C(logsName).Find(bson.M{}).Count()
+	count, _ = db.C(logsCollection).Find(bson.M{}).Count()
 	assert.Equal(4, count)
 
 	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
@@ -119,7 +119,7 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	count, _ = db.C(testsName).Find(bson.M{}).Count()
 	assert.Equal(3, count)
 
-	count, _ = db.C(logsName).Find(bson.M{}).Count()
+	count, _ = db.C(logsCollection).Find(bson.M{}).Count()
 	assert.Equal(2, count)
 }
 
@@ -135,16 +135,16 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 		BuildId: "incompletebuild",
 		Started: time.Now(),
 	}
-	build := LogKeeperBuild{Id: "incompletebuild"}
-	assert.NoError(db.C(buildsName).Insert(build))
+	build := Build{Id: "incompletebuild"}
+	assert.NoError(db.C(buildsCollection).Insert(build))
 	assert.NoError(db.C(testsName).Insert(test))
 	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
 	assert.NoError(err)
 	assert.Equal(2, count)
 
 	log := Log{BuildId: "incompletebuild"}
-	assert.NoError(db.C(buildsName).Insert(build))
-	assert.NoError(db.C(logsName).Insert(log))
+	assert.NoError(db.C(buildsCollection).Insert(build))
+	assert.NoError(db.C(logsCollection).Insert(log))
 	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
 	assert.NoError(err)
 	assert.Equal(2, count)
