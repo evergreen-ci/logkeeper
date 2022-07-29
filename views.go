@@ -89,9 +89,8 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if existingBuild != nil {
-		buildIdStr := existingBuild.Id
-		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, buildIdStr)
-		response := createdResponse{buildIdStr, existingBuildUri}
+		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, existingBuild.Id)
+		response := createdResponse{existingBuild.Id, existingBuildUri}
 		lk.render.WriteJSON(w, http.StatusOK, response)
 		return
 	}
@@ -230,7 +229,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = model.InsertLogLines(build.Id, &test.Id, test.Seq, chunks); err != nil {
+	if err = model.InsertLogChunks(build.Id, &test.Id, test.Seq, chunks); err != nil {
 		lk.logErrorf(r, "Error inserting logs: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
@@ -289,7 +288,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = model.InsertLogLines(build.Id, nil, build.Seq, chunks); err != nil {
+	if err = model.InsertLogChunks(build.Id, nil, build.Seq, chunks); err != nil {
 		lk.logErrorf(r, "Error inserting logs: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return

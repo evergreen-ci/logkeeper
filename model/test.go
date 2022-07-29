@@ -15,7 +15,7 @@ const (
 
 type Test struct {
 	Id        bson.ObjectId `bson:"_id"`
-	BuildId   interface{}   `bson:"build_id"`
+	BuildId   string        `bson:"build_id"`
 	BuildName string        `bson:"build_name"`
 	Name      string        `bson:"name"`
 	Command   string        `bson:"command"`

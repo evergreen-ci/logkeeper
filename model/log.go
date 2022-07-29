@@ -57,7 +57,7 @@ func RemoveLogsForBuild(buildID string) (int, error) {
 	return info.Removed, nil
 }
 
-func FindLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
+func findLogsInWindow(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
 	db, closeSession := db.DB()
 	defer closeSession()
 
@@ -90,8 +90,8 @@ func FindLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *Lo
 }
 
 func AllLogs(buildID string) (chan *LogLineItem, error) {
-	globalLogs := FindLogs(bson.M{"build_id": buildID, "test_id": nil}, []string{"seq"}, nil, nil)
-	testLogs := FindLogs(bson.M{"build_id": buildID, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
+	globalLogs := findLogsInWindow(bson.M{"build_id": buildID, "test_id": nil}, []string{"seq"}, nil, nil)
+	testLogs := findLogsInWindow(bson.M{"build_id": buildID, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
 	return MergeLogChannels(testLogs, globalLogs), nil
 }
 
@@ -100,7 +100,7 @@ func MergedTestLogs(test *Test) (chan *LogLineItem, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "finding global logs during test")
 	}
-	testLogs := FindLogs(bson.M{"build_id": test.BuildId, "test_id": test.Id}, []string{"seq"}, nil, nil)
+	testLogs := findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": test.Id}, []string{"seq"}, nil, nil)
 
 	return MergeLogChannels(testLogs, globalLogs), nil
 }
@@ -158,7 +158,7 @@ func findGlobalLogsDuringTest(test *Test) (chan *LogLineItem, error) {
 		globalLogsSeq["$lte"] = *globalSeqLast
 	}
 
-	return FindLogs(bson.M{"build_id": test.BuildId, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, &minTime, maxTime), nil
+	return findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, &minTime, maxTime), nil
 }
 
 type LogLine struct {
@@ -201,7 +201,7 @@ func GroupLines(lines []LogLine) ([]LogChunk, error) {
 	return chunks, nil
 }
 
-func InsertLogLines(buildID string, testID *bson.ObjectId, lastSequence int, chunks []LogChunk) error {
+func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, chunks []LogChunk) error {
 	db, closeSession := db.DB()
 	defer closeSession()
 
