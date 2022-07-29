@@ -1,4 +1,4 @@
-package logkeeper
+package models
 
 import (
 	"math"

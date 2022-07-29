@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/models"
 	"github.com/evergreen-ci/pail"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/recovery"
@@ -22,9 +22,9 @@ import (
 // LogIterator is an interface that enables iterating over lines of buildlogger
 // logs.
 type LogIterator interface {
-	Iterator
+	models.Iterator
 	// Item returns the current LogLine item held by the iterator.
-	Item() logkeeper.LogLineItem
+	Item() models.LogLineItem
 	// Reverse returns a reversed copy of the iterator.
 	Reverse() LogIterator
 	// IsReversed returns true if the iterator is in reverse order and
@@ -37,15 +37,15 @@ type LogIterator interface {
 //////////////////////
 type serializedIterator struct {
 	bucket               pail.Bucket
-	chunks               []LogChunkInfo
-	timeRange            TimeRange
+	chunks               []models.LogChunkInfo
+	timeRange            models.TimeRange
 	reverse              bool
 	lineCount            int
 	keyIndex             int
 	currentReadCloser    io.ReadCloser
 	currentReverseReader *reverseLineReader
 	currentReader        *bufio.Reader
-	currentItem          logkeeper.LogLineItem
+	currentItem          models.LogLineItem
 	catcher              grip.Catcher
 	exhausted            bool
 	closed               bool
@@ -53,7 +53,7 @@ type serializedIterator struct {
 
 // NewSerializedLogIterator returns a LogIterator that serially fetches
 // chunks from blob storage while iterating over lines of a buildlogger log.
-func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
+func NewSerializedLogIterator(bucket pail.Bucket, chunks []models.LogChunkInfo, timeRange models.TimeRange) LogIterator {
 	chunks = filterIntersectingChunks(timeRange, chunks)
 
 	return &serializedIterator{
@@ -65,7 +65,7 @@ func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRan
 }
 
 func (i *serializedIterator) Reverse() LogIterator {
-	chunks := make([]LogChunkInfo, len(i.chunks))
+	chunks := make([]models.LogChunkInfo, len(i.chunks))
 	_ = copy(chunks, i.chunks)
 	reverseChunks(chunks)
 
@@ -161,7 +161,7 @@ func (i *serializedIterator) Exhausted() bool { return i.exhausted }
 
 func (i *serializedIterator) Err() error { return i.catcher.Resolve() }
 
-func (i *serializedIterator) Item() logkeeper.LogLineItem { return i.currentItem }
+func (i *serializedIterator) Item() models.LogLineItem { return i.currentItem }
 
 func (i *serializedIterator) Close() error {
 	i.closed = true
@@ -178,16 +178,16 @@ func (i *serializedIterator) Close() error {
 type batchedIterator struct {
 	bucket               pail.Bucket
 	batchSize            int
-	chunks               []LogChunkInfo
+	chunks               []models.LogChunkInfo
 	chunkIndex           int
-	timeRange            TimeRange
+	timeRange            models.TimeRange
 	reverse              bool
 	lineCount            int
 	keyIndex             int
 	readers              map[string]io.ReadCloser
 	currentReverseReader *reverseLineReader
 	currentReader        *bufio.Reader
-	currentItem          logkeeper.LogLineItem
+	currentItem          models.LogLineItem
 	catcher              grip.Catcher
 	exhausted            bool
 	closed               bool
@@ -196,7 +196,7 @@ type batchedIterator struct {
 // NewBatchedLog returns a LogIterator that fetches batches (size set by the
 // caller) of chunks from blob storage in parallel while iterating over lines
 // of a buildlogger log.
-func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize int, timeRange TimeRange) LogIterator {
+func NewBatchedLogIterator(bucket pail.Bucket, chunks []models.LogChunkInfo, batchSize int, timeRange models.TimeRange) LogIterator {
 	chunks = filterIntersectingChunks(timeRange, chunks)
 
 	return &batchedIterator{
@@ -211,7 +211,7 @@ func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize 
 // NewParallelizedLogIterator returns a LogIterator that fetches all chunks
 // from blob storage in parallel while iterating over lines of a buildlogger
 // log.
-func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
+func NewParallelizedLogIterator(bucket pail.Bucket, chunks []models.LogChunkInfo, timeRange models.TimeRange) LogIterator {
 	chunks = filterIntersectingChunks(timeRange, chunks)
 
 	return &batchedIterator{
@@ -224,7 +224,7 @@ func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeR
 }
 
 func (i *batchedIterator) Reverse() LogIterator {
-	chunks := make([]LogChunkInfo, len(i.chunks))
+	chunks := make([]models.LogChunkInfo, len(i.chunks))
 	_ = copy(chunks, i.chunks)
 	reverseChunks(chunks)
 
@@ -253,7 +253,7 @@ func (i *batchedIterator) getNextBatch(ctx context.Context) error {
 	if end > len(i.chunks) {
 		end = len(i.chunks)
 	}
-	work := make(chan LogChunkInfo, end-i.chunkIndex)
+	work := make(chan models.LogChunkInfo, end-i.chunkIndex)
 	for _, chunk := range i.chunks[i.chunkIndex:end] {
 		work <- chunk
 	}
@@ -375,7 +375,7 @@ func (i *batchedIterator) Exhausted() bool { return i.exhausted }
 
 func (i *batchedIterator) Err() error { return i.catcher.Resolve() }
 
-func (i *batchedIterator) Item() logkeeper.LogLineItem { return i.currentItem }
+func (i *batchedIterator) Item() models.LogLineItem { return i.currentItem }
 
 func (i *batchedIterator) Close() error {
 	i.closed = true
@@ -395,7 +395,7 @@ func (i *batchedIterator) Close() error {
 type mergingIterator struct {
 	iterators    []LogIterator
 	iteratorHeap *LogIteratorHeap
-	currentItem  logkeeper.LogLineItem
+	currentItem  models.LogLineItem
 	catcher      grip.Catcher
 	started      bool
 }
@@ -482,7 +482,7 @@ func (i *mergingIterator) init(ctx context.Context) {
 
 func (i *mergingIterator) Err() error { return i.catcher.Resolve() }
 
-func (i *mergingIterator) Item() logkeeper.LogLineItem { return i.currentItem }
+func (i *mergingIterator) Item() models.LogLineItem { return i.currentItem }
 
 func (i *mergingIterator) Close() error {
 	catcher := grip.NewBasicCatcher()
@@ -502,13 +502,13 @@ func (i *mergingIterator) Close() error {
 // Helper functions
 ///////////////////
 
-func parseLogLineString(data string) (logkeeper.LogLineItem, error) {
+func parseLogLineString(data string) (models.LogLineItem, error) {
 	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
 	if err != nil {
-		return logkeeper.LogLineItem{}, err
+		return models.LogLineItem{}, err
 	}
 
-	return logkeeper.LogLineItem{
+	return models.LogLineItem{
 		Timestamp: time.Unix(0, ts*1e6).UTC(),
 		Data:      data[23:],
 	}, nil
@@ -518,10 +518,10 @@ func prependPriorityAndTimestamp(t time.Time, data string) string {
 	return fmt.Sprintf("%3d%20d%s\n", 0, t.UnixMilli(), data)
 }
 
-func filterIntersectingChunks(timeRange TimeRange, chunks []LogChunkInfo) []LogChunkInfo {
-	filteredChunks := []LogChunkInfo{}
+func filterIntersectingChunks(timeRange models.TimeRange, chunks []models.LogChunkInfo) []models.LogChunkInfo {
+	filteredChunks := []models.LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
-		otherTimeRange := TimeRange{
+		otherTimeRange := models.TimeRange{
 			StartAt: chunks[i].Start,
 			EndAt:   chunks[i].End,
 		}
@@ -533,7 +533,7 @@ func filterIntersectingChunks(timeRange TimeRange, chunks []LogChunkInfo) []LogC
 	return filteredChunks
 }
 
-func reverseChunks(chunks []LogChunkInfo) {
+func reverseChunks(chunks []models.LogChunkInfo) {
 	for i, j := 0, len(chunks)-1; i < j; i, j = i+1, j-1 {
 		chunks[i], chunks[j] = chunks[j], chunks[i]
 	}

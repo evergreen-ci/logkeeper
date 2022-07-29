@@ -6,6 +6,7 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/env"
+	"github.com/evergreen-ci/logkeeper/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	mgo "gopkg.in/mgo.v2"
@@ -53,36 +54,36 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(db.C("tests").Insert(t2))
 
 	globalLogTime := now.Add(5 * time.Second)
-	globalLog := Log{
+	globalLog := models.Log{
 		BuildId: b.Id,
 		TestId:  nil,
 		Seq:     3,
 		Started: &globalLogTime,
-		Lines: []LogLine{
-			*NewLogLine([]interface{}{float64(globalLogTime.Unix()), "build 1-1"}),
-			*NewLogLine([]interface{}{float64(globalLogTime.Add(10 * time.Second).Unix()), "build 1-2"}),
+		Lines: []models.LogLine{
+			*models.NewLogLine([]interface{}{float64(globalLogTime.Unix()), "build 1-1"}),
+			*models.NewLogLine([]interface{}{float64(globalLogTime.Add(10 * time.Second).Unix()), "build 1-2"}),
 		},
 	}
 	assert.NoError(db.C("logs").Insert(globalLog))
-	testLog1 := Log{
+	testLog1 := models.Log{
 		BuildId: b.Id,
 		TestId:  &t1.Id,
 		Seq:     1,
 		Started: &t1.Started,
-		Lines: []LogLine{
-			*NewLogLine([]interface{}{float64(t1.Started.Unix()), "test 1-1"}),
-			*NewLogLine([]interface{}{float64(t1.Started.Add(10 * time.Second).Unix()), "test 1-2"}),
+		Lines: []models.LogLine{
+			*models.NewLogLine([]interface{}{float64(t1.Started.Unix()), "test 1-1"}),
+			*models.NewLogLine([]interface{}{float64(t1.Started.Add(10 * time.Second).Unix()), "test 1-2"}),
 		},
 	}
 	assert.NoError(db.C("logs").Insert(testLog1))
-	testLog2 := Log{
+	testLog2 := models.Log{
 		BuildId: b.Id,
 		TestId:  &t2.Id,
 		Seq:     2,
 		Started: &t2.Started,
-		Lines: []LogLine{
-			*NewLogLine([]interface{}{float64(t2.Started.Unix()), "test 2-1"}),
-			*NewLogLine([]interface{}{float64(t2.Started.Add(10 * time.Second).Unix()), "test 2-2"}),
+		Lines: []models.LogLine{
+			*models.NewLogLine([]interface{}{float64(t2.Started.Unix()), "test 2-1"}),
+			*models.NewLogLine([]interface{}{float64(t2.Started.Add(10 * time.Second).Unix()), "test 2-2"}),
 		},
 	}
 	assert.NoError(db.C("logs").Insert(testLog2))
