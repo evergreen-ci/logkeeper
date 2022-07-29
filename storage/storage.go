@@ -57,31 +57,31 @@ func (storage *Storage) getAllChunks(context context.Context, buildId string) ([
 		}
 		if strings.Contains(iterator.Item().Name(), "/tests/") {
 			keyParts := strings.Split(iterator.Item().Name(), "/")
-			buildId := keyParts[1]
-			test_id := keyParts[3]
+			buildID := keyParts[1]
+			testID := keyParts[3]
 			name := keyParts[4]
 			start, end, numLines, nameErr := parseName(name)
 			if nameErr != nil {
 				return nil, nameErr
 			}
 			buildChunks = append(buildChunks, models.LogChunkInfo{
-				BuildId:  buildId,
-				TestId:   test_id,
+				BuildID:  buildID,
+				TestID:   testID,
 				Start:    start,
 				End:      end,
 				NumLines: int(numLines),
 			})
 		} else {
 			keyParts := strings.Split(iterator.Item().Name(), "/")
-			buildId := keyParts[1]
+			buildID := keyParts[1]
 			name := keyParts[2]
 			start, end, numLines, nameErr := parseName(name)
 			if nameErr != nil {
 				return nil, nameErr
 			}
 			buildChunks = append(buildChunks, models.LogChunkInfo{
-				BuildId:  buildId,
-				TestId:   "",
+				BuildID:  buildID,
+				TestID:   "",
 				Start:    start,
 				End:      end,
 				NumLines: int(numLines),
@@ -100,7 +100,7 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 	testChunks := []models.LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
 		// Find our test id
-		if chunks[i].TestId == testId {
+		if chunks[i].TestID == testId {
 			testChunks = append(testChunks, chunks[i])
 		}
 	}
@@ -125,7 +125,7 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 		// check if the global build chunk's time range intersects the test's time range, and if so
 		// add it to our list of build chunks, but constrained to the test's time range to only
 		// include entries during that time.
-		if chunks[i].TestId == "" && testTimeRange.Intersects(chunkTimeRange) {
+		if chunks[i].TestID == "" && testTimeRange.Intersects(chunkTimeRange) {
 			buildChunks = append(buildChunks, chunks[i])
 		}
 	}
