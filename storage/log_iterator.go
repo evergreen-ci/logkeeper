@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"container/heap"
 	"context"
-	"fmt"
 	"io"
 	"runtime"
 	"strconv"
@@ -512,10 +511,6 @@ func parseLogLineString(data string) (models.LogLineItem, error) {
 		Timestamp: time.Unix(0, ts*1e6).UTC(),
 		Data:      data[23:],
 	}, nil
-}
-
-func prependPriorityAndTimestamp(t time.Time, data string) string {
-	return fmt.Sprintf("%3d%20d%s\n", 0, t.UnixMilli(), data)
 }
 
 func filterIntersectingChunks(timeRange models.TimeRange, chunks []models.LogChunkInfo) []models.LogChunkInfo {
