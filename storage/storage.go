@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/models"
 	"github.com/evergreen-ci/pail"
 )
 
@@ -43,11 +42,11 @@ func parseName(name string) (start time.Time, end time.Time, numLines int64, err
 	return
 }
 
-func (storage *Storage) getAllChunks(context context.Context, buildId string) ([]models.LogChunkInfo, error) {
+func (storage *Storage) getAllChunks(context context.Context, buildId string) ([]LogChunkInfo, error) {
 	buildPrefix := fmt.Sprintf("/%s/", buildId)
 
 	iterator, listErr := storage.bucket.List(context, buildPrefix)
-	buildChunks := []models.LogChunkInfo{}
+	buildChunks := []LogChunkInfo{}
 	if listErr != nil {
 		return nil, listErr
 	}
@@ -64,7 +63,7 @@ func (storage *Storage) getAllChunks(context context.Context, buildId string) ([
 			if nameErr != nil {
 				return nil, nameErr
 			}
-			buildChunks = append(buildChunks, models.LogChunkInfo{
+			buildChunks = append(buildChunks, LogChunkInfo{
 				BuildID:  buildID,
 				TestID:   testID,
 				Start:    start,
@@ -79,7 +78,7 @@ func (storage *Storage) getAllChunks(context context.Context, buildId string) ([
 			if nameErr != nil {
 				return nil, nameErr
 			}
-			buildChunks = append(buildChunks, models.LogChunkInfo{
+			buildChunks = append(buildChunks, LogChunkInfo{
 				BuildID:  buildID,
 				TestID:   "",
 				Start:    start,
@@ -97,7 +96,7 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 		return nil, err
 	}
 
-	testChunks := []models.LogChunkInfo{}
+	testChunks := []LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
 		// Find our test id
 		if chunks[i].TestID == testId {
@@ -115,17 +114,17 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 		}
 	}
 
-	testTimeRange := models.TimeRange{
+	testTimeRange := TimeRange{
 		StartAt: testChunks[0].Start,
 		EndAt:   testChunks[len(testChunks)-1].End,
 	}
 
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)
 
-	buildChunks := []models.LogChunkInfo{}
+	buildChunks := []LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
 		// Include any build logs that are in the time range of our test
-		chunkTimeRange := models.TimeRange{
+		chunkTimeRange := TimeRange{
 			StartAt: chunks[i].Start,
 			EndAt:   chunks[i].End,
 		}

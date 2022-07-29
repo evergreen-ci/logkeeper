@@ -10,7 +10,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/env"
-	"github.com/evergreen-ci/logkeeper/models"
 
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
@@ -41,7 +40,7 @@ type createdResponse struct {
 	URI string `json:"uri"`
 }
 
-func earliestLogTime(logs []models.LogLine) *time.Time {
+func earliestLogTime(logs []LogLine) *time.Time {
 	var earliest *time.Time
 	for _, v := range logs {
 		if earliest == nil || v.Time().Before(*earliest) {
@@ -253,12 +252,12 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lineSets := make([][]models.LogLine, 1, len(info))
-	lineSets[0] = make([]models.LogLine, 0, len(info))
+	lineSets := make([][]LogLine, 1, len(info))
+	lineSets[0] = make([]LogLine, 0, len(info))
 	log := 0
 	logChars := 0
 	for _, v := range info {
-		line := *models.NewLogLine(v)
+		line := *NewLogLine(v)
 
 		if len(line.Msg()) > maxLogChars {
 			lk.render.WriteJSON(w, http.StatusBadRequest, "Log line exceeded 4MB")
@@ -267,7 +266,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 		if len(line.Msg())+logChars > maxLogChars {
 			log++
-			lineSets = append(lineSets, make([]models.LogLine, 0, len(info)))
+			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
 			logChars = 0
 		}
 
@@ -285,7 +284,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i, lines := range lineSets {
-		logEntry := models.Log{
+		logEntry := Log{
 			BuildId: build.Id,
 			TestId:  &(test.Id),
 			Seq:     test.Seq - len(lineSets) + i + 1,
@@ -343,12 +342,12 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lineSets := make([][]models.LogLine, 1, len(info))
-	lineSets[0] = make([]models.LogLine, 0, len(info))
+	lineSets := make([][]LogLine, 1, len(info))
+	lineSets[0] = make([]LogLine, 0, len(info))
 	log := 0
 	logChars := 0
 	for _, v := range info {
-		line := *models.NewLogLine(v)
+		line := *NewLogLine(v)
 
 		if len(line.Msg()) > maxLogChars {
 			lk.render.WriteJSON(w, http.StatusBadRequest, "Log line exceeded 4MB")
@@ -357,7 +356,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 		if len(line.Msg())+logChars > maxLogChars {
 			log++
-			lineSets = append(lineSets, make([]models.LogLine, 0, len(info)))
+			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
 			logChars = 0
 		}
 
@@ -374,7 +373,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for i, lines := range lineSets {
-		logEntry := models.Log{
+		logEntry := Log{
 			BuildId: build.Id,
 			TestId:  nil,
 			Seq:     build.Seq - len(lineSets) + i + 1,
@@ -449,7 +448,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 
 	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, []string{"seq"}, nil, nil)
 	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
-	merged := models.MergeLog(testLogs, globalLogs)
+	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range merged {
@@ -461,7 +460,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *models.LogLineItem
+			LogLines chan *LogLineItem
 			BuildId  string
 			Builder  string
 			TestId   string
@@ -512,7 +511,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 
 	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, []string{"seq"}, nil, nil)
 
-	merged := models.MergeLog(testLogs, globalLogs)
+	merged := MergeLog(testLogs, globalLogs)
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true
@@ -530,7 +529,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		}
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *models.LogLineItem
+			LogLines chan *LogLineItem
 			BuildId  string
 			Builder  string
 			TestId   string
@@ -557,9 +556,9 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *models.LogLineItem {
-	outputLog := make(chan *models.LogLineItem)
-	logItem := &models.Log{}
+func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
+	outputLog := make(chan *LogLineItem)
+	logItem := &Log{}
 
 	go func() {
 		db, closer := db.DB()
@@ -576,7 +575,7 @@ func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *tim
 				if maxTime != nil && v.Time().After(*maxTime) {
 					continue
 				}
-				outputLog <- &models.LogLineItem{
+				outputLog <- &LogLineItem{
 					LineNum:   lineNum,
 					Timestamp: v.Time(),
 					Data:      v.Msg(),
@@ -589,7 +588,7 @@ func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *tim
 	return outputLog
 }
 
-func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test) (chan *models.LogLineItem, error) {
+func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test) (chan *LogLineItem, error) {
 	db, closer := db.DB()
 	defer closer()
 	globalSeqFirst, globalSeqLast := new(int), new(int)
@@ -600,7 +599,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 	// Find the first global log entry before this test started.
 	// This may not actually contain any global log lines during the test run, if the entry returned
 	// by this query comes from after the *next* test stared.
-	firstGlobalLog := &models.Log{}
+	firstGlobalLog := &Log{}
 	err := db.C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}).Sort("-seq").Limit(1).One(firstGlobalLog)
 	if err != nil {
 		if err != mgo.ErrNotFound {
@@ -612,7 +611,7 @@ func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test)
 		*globalSeqFirst = firstGlobalLog.Seq
 	}
 
-	lastGlobalLog := &models.Log{}
+	lastGlobalLog := &Log{}
 	// Find the next test after this one.
 	nextTest := &Test{}
 	err = db.C("tests").Find(bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}).Sort("started").Limit(1).One(nextTest)

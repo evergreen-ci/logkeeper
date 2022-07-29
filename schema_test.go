@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
-	"github.com/evergreen-ci/logkeeper/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/mgo.v2/bson"
@@ -79,11 +78,11 @@ func insertLogs(t *testing.T, ids []interface{}) {
 	_, err := db.C(logsName).RemoveAll(bson.M{})
 	require.NoError(t, err)
 
-	log1 := models.Log{BuildId: &ids[0]}
-	log2 := models.Log{BuildId: &ids[0]}
-	log3 := models.Log{BuildId: &ids[1]}
+	log1 := Log{BuildId: &ids[0]}
+	log2 := Log{BuildId: &ids[0]}
+	log3 := Log{BuildId: &ids[1]}
 	newId := bson.NewObjectId()
-	log4 := models.Log{BuildId: &newId}
+	log4 := Log{BuildId: &newId}
 	assert.NoError(db.C(logsName).Insert(log1, log2, log3, log4))
 }
 
@@ -143,7 +142,7 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(2, count)
 
-	log := models.Log{BuildId: "incompletebuild"}
+	log := Log{BuildId: "incompletebuild"}
 	assert.NoError(db.C(buildsName).Insert(build))
 	assert.NoError(db.C(logsName).Insert(log))
 	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)

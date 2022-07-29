@@ -12,7 +12,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/env"
-	"github.com/evergreen-ci/logkeeper/models"
 	"github.com/mongodb/grip"
 	. "github.com/smartystreets/goconvey/convey"
 	"github.com/smartystreets/goconvey/convey/reporting"
@@ -91,7 +90,7 @@ func TestLogKeeper(t *testing.T) {
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
 			logs := db.C("logs").Find(bson.M{"test_id": idFromString(testId)}).Sort("seq").Iter()
-			log := &models.Log{}
+			log := &Log{}
 			firstLog := true
 			for logs.Next(log) {
 				if firstLog {
@@ -131,7 +130,7 @@ func TestLogKeeper(t *testing.T) {
 			// First log should have two lines and seq=1
 			// Second log should have one line and seq=2
 			logs = db.C("logs").Find(bson.M{"build_id": idFromString(buildId)}).Sort("seq").Iter()
-			log = &models.Log{}
+			log = &Log{}
 			firstLog = true
 			for logs.Next(log) {
 				if firstLog {
