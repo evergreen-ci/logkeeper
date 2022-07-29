@@ -16,18 +16,6 @@ const (
 	buildsCollection       = "builds"
 )
 
-var oldBuildsQuery = bson.M{
-	"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
-	"$or": []bson.M{
-		{"failed": bson.M{"$exists": false}},
-		{"failed": bson.M{"$eq": false}},
-	},
-	"$and": []bson.M{
-		{"info.task_id": bson.M{"$exists": true}},
-		{"info.task_id": bson.M{"$ne": ""}},
-	},
-}
-
 type Build struct {
 	Id       string    `bson:"_id"`
 	Builder  string    `bson:"builder"`
@@ -110,7 +98,17 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan Build, <-chan error) {
 		defer close(out)
 		defer recovery.LogStackTraceAndContinue("streaming query")
 
-		iter := db.C(buildsCollection).Find(oldBuildsQuery).Iter()
+		iter := db.C(buildsCollection).Find(bson.M{
+			"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
+			"$or": []bson.M{
+				{"failed": bson.M{"$exists": false}},
+				{"failed": bson.M{"$eq": false}},
+			},
+			"$and": []bson.M{
+				{"info.task_id": bson.M{"$exists": true}},
+				{"info.task_id": bson.M{"$ne": ""}},
+			},
+		}).Iter()
 		build := Build{}
 		for iter.Next(&build) {
 			out <- build
