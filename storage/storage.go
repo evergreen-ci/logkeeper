@@ -108,6 +108,13 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 		return testChunks[i].Start.Before(testChunks[j].Start)
 	})
 
+	var latestTime = testChunks[len(testChunks)-1].End
+	for _, chunk := range testChunks {
+		if chunk.End.After(latestTime) {
+			latestTime = chunk.End
+		}
+	}
+
 	testTimeRange := models.TimeRange{
 		StartAt: testChunks[0].Start,
 		EndAt:   testChunks[len(testChunks)-1].End,
