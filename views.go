@@ -197,7 +197,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	testID := vars["test_id"]
-	test, err := model.FindTest(testID)
+	test, err := model.FindTestByID(testID)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
@@ -395,7 +395,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	test, err := model.FindTest(testID)
+	test, err := model.FindTestByID(testID)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return

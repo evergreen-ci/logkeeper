@@ -51,20 +51,20 @@ func RemoveLogsForBuild(buildID string) (int, error) {
 
 	info, err := db.C(logsCollection).RemoveAll(bson.M{"build_id": buildID})
 	if err != nil {
-		return 0, errors.Wrapf(err, "deleting logs for build", buildID)
+		return 0, errors.Wrapf(err, "deleting logs for build '%s'", buildID)
 	}
 
 	return info.Removed, nil
 }
 
 func findLogsInWindow(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
-	db, closeSession := db.DB()
-	defer closeSession()
-
 	outputLog := make(chan *LogLineItem)
 	logItem := &Log{}
 
 	go func() {
+		db, closeSession := db.DB()
+		defer closeSession()
+
 		defer close(outputLog)
 		lineNum := 0
 		log := db.C("logs").Find(query).Sort(sort...).Iter()
@@ -176,21 +176,21 @@ func GroupLines(lines []LogLine) ([]LogChunk, error) {
 	var currentChunk LogChunk
 
 	logChars := 0
-	for _, line := range lines {
-		if len(line.Msg) > maxLogChars {
+	for i := range lines {
+		if len(lines[i].Msg) > maxLogChars {
 			return nil, errors.New("Log line exceeded 4MB")
 		}
 
-		if len(line.Msg)+logChars > maxLogChars {
+		if len(lines[i].Msg)+logChars > maxLogChars {
 			logChars = 0
 			chunks = append(chunks, currentChunk)
 			currentChunk = LogChunk{}
 		}
 
-		logChars += len(line.Msg)
-		currentChunk.Lines = append(currentChunk.Lines, line)
-		if currentChunk.EarliestTime != nil && line.Time.Before(*currentChunk.EarliestTime) {
-			currentChunk.EarliestTime = &line.Time
+		logChars += len(lines[i].Msg)
+		currentChunk.Lines = append(currentChunk.Lines, lines[i])
+		if currentChunk.EarliestTime == nil || lines[i].Time.Before(*currentChunk.EarliestTime) {
+			currentChunk.EarliestTime = &lines[i].Time
 		}
 	}
 
@@ -202,9 +202,6 @@ func GroupLines(lines []LogLine) ([]LogChunk, error) {
 }
 
 func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, chunks []LogChunk) error {
-	db, closeSession := db.DB()
-	defer closeSession()
-
 	for i, chunk := range chunks {
 		logEntry := Log{
 			BuildId: buildID,
@@ -214,12 +211,20 @@ func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, ch
 			Started: chunk.EarliestTime,
 		}
 
-		if err := db.C("logs").Insert(logEntry); err != nil {
+		if err := logEntry.Insert(); err != nil {
 			return errors.Wrap(err, "inserting log entry")
 		}
 	}
 
 	return nil
+}
+
+func (l *Log) Insert() error {
+	db, closeSession := db.DB()
+	defer closeSession()
+
+	return errors.Wrap(db.C("logs").Insert(l), "inserting log entry")
+
 }
 
 func (ll *LogLine) UnmarshalJSON(data []byte) error {

@@ -1,4 +1,4 @@
-package model
+package units
 
 import (
 	"testing"
@@ -9,6 +9,59 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/mgo.v2/bson"
 )
+
+func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
+	assert := assert.New(t)
+	db, closer := db.DB()
+	defer closer()
+
+	ids := insertBuilds(t)
+	insertTests(t, ids)
+	insertLogs(t, ids)
+
+	count, _ := db.C(testsName).Find(bson.M{}).Count()
+	assert.Equal(4, count)
+
+	count, _ = db.C(logsCollection).Find(bson.M{}).Count()
+	assert.Equal(4, count)
+
+	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
+	assert.NoError(err)
+	assert.Equal(4, numDeleted)
+
+	count, _ = db.C(testsName).Find(bson.M{}).Count()
+	assert.Equal(3, count)
+
+	count, _ = db.C(logsCollection).Find(bson.M{}).Count()
+	assert.Equal(2, count)
+}
+
+func TestNoErrorWithNoLogsOrTests(t *testing.T) {
+	assert := assert.New(t)
+	db, closer := db.DB()
+	defer closer()
+	_, err := db.C(testsName).RemoveAll(bson.M{})
+	require.NoError(t, err)
+
+	test := Test{
+		Id:      bson.NewObjectId(),
+		BuildId: "incompletebuild",
+		Started: time.Now(),
+	}
+	build := Build{Id: "incompletebuild"}
+	assert.NoError(db.C(buildsCollection).Insert(build))
+	assert.NoError(db.C(testsName).Insert(test))
+	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
+	assert.NoError(err)
+	assert.Equal(2, count)
+
+	log := Log{BuildId: "incompletebuild"}
+	assert.NoError(db.C(buildsCollection).Insert(build))
+	assert.NoError(db.C(logsCollection).Insert(log))
+	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
+	assert.NoError(err)
+	assert.Equal(2, count)
+}
 
 func insertBuilds(t *testing.T) []interface{} {
 	assert := assert.New(t)
@@ -84,85 +137,4 @@ func insertLogs(t *testing.T, ids []interface{}) {
 	newId := bson.NewObjectId()
 	log4 := Log{BuildId: &newId}
 	assert.NoError(db.C(logsCollection).Insert(log1, log2, log3, log4))
-}
-
-func TestGetOldTests(t *testing.T) {
-	assert := assert.New(t)
-	ids := insertBuilds(t)
-	insertTests(t, ids)
-	insertLogs(t, ids)
-
-	builds, err := GetOldBuilds(CleanupBatchSize)
-	assert.NoError(err)
-	assert.Len(builds, 2)
-}
-
-func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
-	assert := assert.New(t)
-	db, closer := db.DB()
-	defer closer()
-
-	ids := insertBuilds(t)
-	insertTests(t, ids)
-	insertLogs(t, ids)
-
-	count, _ := db.C(testsName).Find(bson.M{}).Count()
-	assert.Equal(4, count)
-
-	count, _ = db.C(logsCollection).Find(bson.M{}).Count()
-	assert.Equal(4, count)
-
-	numDeleted, err := CleanupOldLogsAndTestsByBuild(ids[0])
-	assert.NoError(err)
-	assert.Equal(4, numDeleted)
-
-	count, _ = db.C(testsName).Find(bson.M{}).Count()
-	assert.Equal(3, count)
-
-	count, _ = db.C(logsCollection).Find(bson.M{}).Count()
-	assert.Equal(2, count)
-}
-
-func TestNoErrorWithNoLogsOrTests(t *testing.T) {
-	assert := assert.New(t)
-	db, closer := db.DB()
-	defer closer()
-	_, err := db.C(testsName).RemoveAll(bson.M{})
-	require.NoError(t, err)
-
-	test := Test{
-		Id:      bson.NewObjectId(),
-		BuildId: "incompletebuild",
-		Started: time.Now(),
-	}
-	build := Build{Id: "incompletebuild"}
-	assert.NoError(db.C(buildsCollection).Insert(build))
-	assert.NoError(db.C(testsName).Insert(test))
-	count, err := CleanupOldLogsAndTestsByBuild(test.BuildId)
-	assert.NoError(err)
-	assert.Equal(2, count)
-
-	log := Log{BuildId: "incompletebuild"}
-	assert.NoError(db.C(buildsCollection).Insert(build))
-	assert.NoError(db.C(logsCollection).Insert(log))
-	count, err = CleanupOldLogsAndTestsByBuild(log.BuildId)
-	assert.NoError(err)
-	assert.Equal(2, count)
-}
-
-func TestUpdateFailedTest(t *testing.T) {
-	assert := assert.New(t)
-	ids := insertBuilds(t)
-	insertTests(t, ids)
-	insertLogs(t, ids)
-
-	builds, err := GetOldBuilds(CleanupBatchSize)
-	assert.NoError(err)
-	assert.Len(builds, 2)
-
-	err = UpdateFailedBuild(ids[1])
-	assert.NoError(err)
-	builds, err = GetOldBuilds(CleanupBatchSize)
-	assert.NoError(err)
-	assert.Len(builds, 1)
 }

@@ -47,7 +47,7 @@ func (t *Test) IncrementSequence(count int) error {
 	return errors.Wrap(err, "incrementing test sequence number")
 }
 
-func FindTest(id string) (*Test, error) {
+func FindTestByID(id string) (*Test, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
 
