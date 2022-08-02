@@ -24,8 +24,8 @@ func TestRemoveLogsForBuild(t *testing.T) {
 
 	t.Run("MixOfBuilds", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(logsCollection))
-		(&Log{BuildId: "b0"}).Insert()
-		(&Log{BuildId: "b1"}).Insert()
+		require.NoError(t, (&Log{BuildId: "b0"}).Insert())
+		require.NoError(t, (&Log{BuildId: "b1"}).Insert())
 		count, err := RemoveLogsForBuild("b0")
 		assert.NoError(t, err)
 		assert.Equal(t, 1, count)
@@ -38,14 +38,14 @@ func TestFindLogsInWindow(t *testing.T) {
 
 	earliestTime := time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)
 	latestTime := time.Date(2009, time.November, 10, 23, 2, 0, 0, time.UTC)
-	(&Log{Seq: 0, Lines: []LogLine{
+	require.NoError(t, (&Log{Seq: 0, Lines: []LogLine{
 		{Time: earliestTime.Add(-time.Hour), Msg: "line0"},
 		{Time: earliestTime, Msg: "line1"},
-	}}).Insert()
-	(&Log{Seq: 1, Lines: []LogLine{
+	}}).Insert())
+	require.NoError(t, (&Log{Seq: 1, Lines: []LogLine{
 		{Time: latestTime, Msg: "line2"},
 		{Time: latestTime.Add(time.Hour), Msg: "line3"},
-	}}).Insert()
+	}}).Insert())
 
 	logChan := findLogsInWindow(bson.M{}, []string{"seq"}, &earliestTime, &latestTime)
 	var lines []*LogLineItem
@@ -202,22 +202,22 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 
 	// build logs from during a test should be returned as part of the test, even
 	// if the build itself started after the test
-	logChan, err := findGlobalLogsDuringTest(&t1)
+	logChan, err := findGlobalLogsDuringTest(&t0)
 	assert.NoError(t, err)
 	count := 0
 	for logLine := range logChan {
 		count++
-		assert.True(t, strings.HasPrefix(logLine.Data, "build 0"))
+		assert.Equal(t, "build 0-0", logLine.Data)
 	}
 	assert.Equal(t, 1, count)
 
-	// test that we can correctly find global logs during a test that start before a test starts
-	logChan, err = findGlobalLogsDuringTest(&t0)
+	// test that we can correctly find global logs during a test that start before the test starts
+	logChan, err = findGlobalLogsDuringTest(&t1)
 	assert.NoError(t, err)
 	count = 0
 	for logLine := range logChan {
 		count++
-		assert.Equal(t, "build 0-0", logLine.Data)
+		assert.Equal(t, "build 0-1", logLine.Data)
 	}
 	assert.Equal(t, 1, count)
 }

@@ -109,7 +109,7 @@ func findGlobalLogsDuringTest(test *Test) (chan *LogLineItem, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	globalSeqFirst, globalSeqLast := new(int), new(int)
+	var globalSeqFirst, globalSeqLast *int
 
 	minTime, maxTime, err := test.GetExecutionWindow()
 	if err != nil {
@@ -128,7 +128,7 @@ func findGlobalLogsDuringTest(test *Test) (chan *LogLineItem, error) {
 		// There are no global entries after this test started.
 		globalSeqFirst = nil
 	} else {
-		*globalSeqFirst = firstGlobalLog.Seq
+		globalSeqFirst = &firstGlobalLog.Seq
 	}
 
 	lastGlobalLog := &Log{}
@@ -143,7 +143,7 @@ func findGlobalLogsDuringTest(test *Test) (chan *LogLineItem, error) {
 			}
 			globalSeqLast = nil
 		} else {
-			*globalSeqLast = lastGlobalLog.Seq
+			globalSeqLast = &lastGlobalLog.Seq
 		}
 	}
 
