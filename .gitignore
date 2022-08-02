@@ -5,5 +5,7 @@ fab_common.py
 *.pyc
 buildscripts/.lobster-temp/
 logkeeperapp.log
-vendor/
 _bucketdata
+.DS_Store
+vendor/
+
