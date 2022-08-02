@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	testsCollection = "tests"
+	TestsCollection = "tests"
 )
 
 type Test struct {
@@ -35,7 +35,7 @@ func (t *Test) Insert() error {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	return db.C(testsCollection).Insert(t)
+	return db.C(TestsCollection).Insert(t)
 }
 
 func (t *Test) IncrementSequence(count int) error {
@@ -56,7 +56,7 @@ func FindTestByID(id string) (*Test, error) {
 	}
 	test := &Test{}
 
-	err := db.C(testsCollection).Find(bson.M{"_id": bson.ObjectIdHex(id)}).One(test)
+	err := db.C(TestsCollection).Find(bson.M{"_id": bson.ObjectIdHex(id)}).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
@@ -71,7 +71,7 @@ func FindTestsForBuild(buildID string) ([]Test, error) {
 	defer closeSession()
 
 	tests := []Test{}
-	err := db.C(testsCollection).Find(bson.M{"build_id": buildID}).Sort("started").All(&tests)
+	err := db.C(TestsCollection).Find(bson.M{"build_id": buildID}).Sort("started").All(&tests)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func RemoveTestsForBuild(buildID string) (int, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	info, err := db.C(testsCollection).RemoveAll(bson.M{"build_id": buildID})
+	info, err := db.C(TestsCollection).RemoveAll(bson.M{"build_id": buildID})
 	if err != nil {
 		return 0, errors.Wrapf(err, "deleting tests for build '%s'", buildID)
 	}

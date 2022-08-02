@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	deletePassedTestCutoff = 30 * (24 * time.Hour)
-	buildsCollection       = "builds"
+	DeletePassedTestCutoff = 30 * (24 * time.Hour)
+	BuildsCollection       = "builds"
 )
 
 type Build struct {
@@ -36,7 +36,7 @@ func (b *Build) Insert() error {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	return db.C(buildsCollection).Insert(b)
+	return db.C(BuildsCollection).Insert(b)
 }
 
 func FindBuildById(id string) (*Build, error) {
@@ -44,7 +44,7 @@ func FindBuildById(id string) (*Build, error) {
 	defer closeSession()
 
 	build := &Build{}
-	err := db.C(buildsCollection).Find(bson.M{"_id": id}).One(build)
+	err := db.C(BuildsCollection).Find(bson.M{"_id": id}).One(build)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
@@ -59,7 +59,7 @@ func FindBuildByBuilder(builder string, buildnum int) (*Build, error) {
 	defer closeSession()
 
 	build := &Build{}
-	err := db.C(buildsCollection).Find(bson.M{"builder": builder, "buildnum": buildnum}).One(build)
+	err := db.C(BuildsCollection).Find(bson.M{"builder": builder, "buildnum": buildnum}).One(build)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
@@ -73,7 +73,7 @@ func UpdateFailedBuild(id string) error {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	err := db.C(buildsCollection).UpdateId(id, bson.M{"$set": bson.M{"failed": true}})
+	err := db.C(BuildsCollection).UpdateId(id, bson.M{"$set": bson.M{"failed": true}})
 	return errors.Wrapf(err, "problem setting failed state on build %v", id)
 }
 
@@ -98,8 +98,8 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan Build, <-chan error) {
 		defer close(out)
 		defer recovery.LogStackTraceAndContinue("streaming query")
 
-		iter := db.C(buildsCollection).Find(bson.M{
-			"started": bson.M{"$lte": time.Now().Add(-deletePassedTestCutoff)},
+		iter := db.C(BuildsCollection).Find(bson.M{
+			"started": bson.M{"$lte": time.Now().Add(-DeletePassedTestCutoff)},
 			"$or": []bson.M{
 				{"failed": bson.M{"$exists": false}},
 				{"failed": bson.M{"$eq": false}},
@@ -132,5 +132,5 @@ func RemoveBuild(buildID string) error {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	return errors.Wrap(db.C(buildsCollection).RemoveId(buildID), "deleting build record")
+	return errors.Wrap(db.C(BuildsCollection).RemoveId(buildID), "deleting build record")
 }

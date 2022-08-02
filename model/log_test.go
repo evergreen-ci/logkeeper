@@ -16,14 +16,14 @@ func TestRemoveLogsForBuild(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 
 	t.Run("NoLogs", func(t *testing.T) {
-		require.NoError(t, testutil.ClearCollections(logsCollection))
+		require.NoError(t, testutil.ClearCollections(LogsCollection))
 		count, err := RemoveLogsForBuild("")
 		assert.NoError(t, err)
 		assert.Zero(t, count)
 	})
 
 	t.Run("MixOfBuilds", func(t *testing.T) {
-		require.NoError(t, testutil.ClearCollections(logsCollection))
+		require.NoError(t, testutil.ClearCollections(LogsCollection))
 		require.NoError(t, (&Log{BuildId: "b0"}).Insert())
 		require.NoError(t, (&Log{BuildId: "b1"}).Insert())
 		count, err := RemoveLogsForBuild("b0")
@@ -34,7 +34,7 @@ func TestRemoveLogsForBuild(t *testing.T) {
 
 func TestFindLogsInWindow(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(logsCollection))
+	require.NoError(t, testutil.ClearCollections(LogsCollection))
 
 	earliestTime := time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)
 	latestTime := time.Date(2009, time.November, 10, 23, 2, 0, 0, time.UTC)
@@ -147,7 +147,7 @@ func TestMergeLogChannels(t *testing.T) {
 
 func TestFindGlobalLogsDuringTest(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(logsCollection))
+	require.NoError(t, testutil.ClearCollections(LogsCollection))
 
 	t0Start := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 

@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	logsCollection = "logs"
+	LogsCollection = "logs"
 	maxLogChars    = 4 * 1024 * 1024 // 4 MB
 )
 
@@ -38,7 +38,7 @@ var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 }*/
 
 type Log struct {
-	BuildId interface{}    `bson:"build_id"`
+	BuildId string         `bson:"build_id"`
 	TestId  *bson.ObjectId `bson:"test_id"`
 	Seq     int            `bson:"seq"`
 	Started *time.Time     `bson:"started"`
@@ -49,7 +49,7 @@ func RemoveLogsForBuild(buildID string) (int, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	info, err := db.C(logsCollection).RemoveAll(bson.M{"build_id": buildID})
+	info, err := db.C(LogsCollection).RemoveAll(bson.M{"build_id": buildID})
 	if err != nil {
 		return 0, errors.Wrapf(err, "deleting logs for build '%s'", buildID)
 	}
