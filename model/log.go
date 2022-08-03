@@ -15,8 +15,9 @@ import (
 )
 
 const (
+	// LogsCollection is the name of the logs collection in the database.
 	LogsCollection = "logs"
-	maxLogChars    = 4 * 1024 * 1024 // 4 MB
+	maxLogBytes    = 4 * 1024 * 1024 // 4 MB
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
@@ -37,6 +38,7 @@ var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 	]
 }*/
 
+// Log is a slice of lines and metadata about them.
 type Log struct {
 	BuildId string         `bson:"build_id"`
 	TestId  *bson.ObjectId `bson:"test_id"`
@@ -45,6 +47,7 @@ type Log struct {
 	Lines   []LogLine      `bson:"lines"`
 }
 
+// RemoveLogsForBuild removes all logs created by the specificed build.
 func RemoveLogsForBuild(buildID string) (int, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -89,12 +92,14 @@ func findLogsInWindow(query bson.M, sort []string, minTime, maxTime *time.Time) 
 	return outputLog
 }
 
+// AllLogs returns a channel with all build and test logs for the build merged together by timestamp.
 func AllLogs(buildID string) (chan *LogLineItem, error) {
 	globalLogs := findLogsInWindow(bson.M{"build_id": buildID, "test_id": nil}, []string{"seq"}, nil, nil)
 	testLogs := findLogsInWindow(bson.M{"build_id": buildID, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
 	return MergeLogChannels(testLogs, globalLogs), nil
 }
 
+// MergedTetsLogs returns a channel with the test's logs merged with the concurrent global logs.
 func MergedTestLogs(test *Test) (chan *LogLineItem, error) {
 	globalLogs, err := findGlobalLogsDuringTest(test)
 	if err != nil {
@@ -161,27 +166,31 @@ func findGlobalLogsDuringTest(test *Test) (chan *LogLineItem, error) {
 	return findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, &minTime, maxTime), nil
 }
 
+// LogLine is a single line and its timestamp.
 type LogLine struct {
 	Time time.Time
 	Msg  string
 }
 
+// LogChunk is a grouping of lines and the earliest timestamp in the grouping.
 type LogChunk struct {
 	Lines        []LogLine
 	EarliestTime *time.Time
 }
 
+// GroupLines breaks up a slice of LogLines into chunks. The sum of the sizes of all messages in each chunk is
+// less than or equal to maxLogBytes.
 func GroupLines(lines []LogLine) ([]LogChunk, error) {
 	var chunks []LogChunk
 	var currentChunk LogChunk
 
 	logChars := 0
 	for i := range lines {
-		if len(lines[i].Msg) > maxLogChars {
+		if len(lines[i].Msg) > maxLogBytes {
 			return nil, errors.New("Log line exceeded 4MB")
 		}
 
-		if len(lines[i].Msg)+logChars > maxLogChars {
+		if len(lines[i].Msg)+logChars > maxLogBytes {
 			logChars = 0
 			chunks = append(chunks, currentChunk)
 			currentChunk = LogChunk{}
@@ -201,6 +210,7 @@ func GroupLines(lines []LogLine) ([]LogChunk, error) {
 	return chunks, nil
 }
 
+// InsertLogChunks inserts log chunks as Logs in the logs collection.
 func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, chunks []LogChunk) error {
 	for i, chunk := range chunks {
 		logEntry := Log{
@@ -219,6 +229,7 @@ func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, ch
 	return nil
 }
 
+// Insert inserts the log into the logs collection.
 func (l *Log) Insert() error {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -227,6 +238,7 @@ func (l *Log) Insert() error {
 
 }
 
+// UnmarshalJSON implements the json.Unmarshaler interface.
 func (ll *LogLine) UnmarshalJSON(data []byte) error {
 	var line []interface{}
 	if err := json.Unmarshal(data, &line); err != nil {
@@ -253,6 +265,7 @@ func (ll *LogLine) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// LogLineItem represents a single line in a log.
 type LogLineItem struct {
 	LineNum   int
 	Timestamp time.Time

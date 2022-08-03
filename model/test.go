@@ -10,9 +10,11 @@ import (
 )
 
 const (
+	// TestsCollection is the name of the tests collection in the database.
 	TestsCollection = "tests"
 )
 
+// Test contains metadata about a test's logs.
 type Test struct {
 	Id        bson.ObjectId `bson:"_id"`
 	BuildId   string        `bson:"build_id"`
@@ -27,10 +29,13 @@ type Test struct {
 	Seq       int           `bson:"seq"`
 }
 
+// TestInfo contains additional metadata about a test.
 type TestInfo struct {
+	// TaskID is the ID of the task in Evergreen that generated this test.
 	TaskID string `bson:"task_id"`
 }
 
+// Insert inserts the test into the test collection.
 func (t *Test) Insert() error {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -38,6 +43,7 @@ func (t *Test) Insert() error {
 	return db.C(TestsCollection).Insert(t)
 }
 
+// IncrementSequence increments the test's sequence number by the given count.
 func (t *Test) IncrementSequence(count int) error {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -47,6 +53,7 @@ func (t *Test) IncrementSequence(count int) error {
 	return errors.Wrap(err, "incrementing test sequence number")
 }
 
+// FindTestByID returns the test with the specified ID.
 func FindTestByID(id string) (*Test, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -66,6 +73,7 @@ func FindTestByID(id string) (*Test, error) {
 	return test, nil
 }
 
+// FindTestsForBuild returns all the tests that are part of the given build.
 func FindTestsForBuild(buildID string) ([]Test, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -78,6 +86,7 @@ func FindTestsForBuild(buildID string) ([]Test, error) {
 	return tests, nil
 }
 
+// RemoveTestsForBuild removes all tests that are part of the given build.
 func RemoveTestsForBuild(buildID string) (int, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -105,6 +114,7 @@ func (t *Test) findNext() (*Test, error) {
 	return nextTest, nil
 }
 
+// GetExecutionWindow returns the extents of the test.
 func (t *Test) GetExecutionWindow() (time.Time, *time.Time, error) {
 	var maxTime *time.Time
 	nextTest, err := t.findNext()

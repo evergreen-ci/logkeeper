@@ -12,10 +12,13 @@ import (
 )
 
 const (
+	// DeletePassedTestCutoff is the TTL for passed tests.
 	DeletePassedTestCutoff = 30 * (24 * time.Hour)
-	BuildsCollection       = "builds"
+	// BuildsCollection is the name of the builds collection in the database.
+	BuildsCollection = "builds"
 )
 
+// Build contains metadata about a build.
 type Build struct {
 	Id       string    `bson:"_id"`
 	Builder  string    `bson:"builder"`
@@ -28,10 +31,13 @@ type Build struct {
 	Seq      int       `bson:"seq"`
 }
 
+// BuildInfo contains additional metadata about a build.
 type BuildInfo struct {
+	// TaskID is the ID of the task in Evergreen that generated this build.
 	TaskID string `bson:"task_id" json:"task_id"`
 }
 
+// Insert inserts the build into the builds collection.
 func (b *Build) Insert() error {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -39,6 +45,7 @@ func (b *Build) Insert() error {
 	return db.C(BuildsCollection).Insert(b)
 }
 
+// FindBuildById returns the build with the given id.
 func FindBuildById(id string) (*Build, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -54,6 +61,7 @@ func FindBuildById(id string) (*Build, error) {
 	return build, nil
 }
 
+// FindBuildByBuilder returns the build corresponding to the builder and buildnum.
 func FindBuildByBuilder(builder string, buildnum int) (*Build, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -69,6 +77,7 @@ func FindBuildByBuilder(builder string, buildnum int) (*Build, error) {
 	return build, nil
 }
 
+// UpdateFailedBuild sets the failed field for the build with the given id.
 func UpdateFailedBuild(id string) error {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -77,6 +86,7 @@ func UpdateFailedBuild(id string) error {
 	return errors.Wrapf(err, "problem setting failed state on build %v", id)
 }
 
+// IncrementSequence increments the build's sequence number by the given count.
 func (b *Build) IncrementSequence(count int) error {
 	db, closeSession := db.DB()
 	defer closeSession()
@@ -86,6 +96,9 @@ func (b *Build) IncrementSequence(count int) error {
 	return errors.Wrapf(err, "incrementing sequence number for build '%s'", b.Id)
 }
 
+// StreamingGetOldBuilds returns a channel containing builds that are ready to be deleted
+// and a channel for any errors encountered.
+// The channels are closed when all the matching builds have been returned or we encounter an error.
 func StreamingGetOldBuilds(ctx context.Context) (<-chan Build, <-chan error) {
 	db, closeSession := db.DB()
 
@@ -128,6 +141,7 @@ func StreamingGetOldBuilds(ctx context.Context) (<-chan Build, <-chan error) {
 	return out, errOut
 }
 
+// RemoveBuild removes the build with the given ID from the database.
 func RemoveBuild(buildID string) error {
 	db, closeSession := db.DB()
 	defer closeSession()

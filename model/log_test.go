@@ -99,12 +99,12 @@ func TestGroupLines(t *testing.T) {
 	})
 
 	t.Run("SingleLineOverThreshold", func(t *testing.T) {
-		_, err := GroupLines(makeLines(maxLogChars+1, 2))
+		_, err := GroupLines(makeLines(maxLogBytes+1, 2))
 		assert.Error(t, err)
 	})
 
 	t.Run("MultipleGroups", func(t *testing.T) {
-		chunks, err := GroupLines(makeLines(maxLogChars/10, 20))
+		chunks, err := GroupLines(makeLines(maxLogBytes/10, 20))
 		assert.NoError(t, err)
 		require.Len(t, chunks, 2)
 		assert.Len(t, chunks[0].Lines, 10)
