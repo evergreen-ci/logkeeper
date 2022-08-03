@@ -6,7 +6,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/model"
-	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/mgo.v2/bson"
@@ -14,7 +13,6 @@ import (
 
 func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 	assert := assert.New(t)
-	require.NoError(t, testutil.InitDB())
 	db, closer := db.DB()
 	defer closer()
 
@@ -41,7 +39,6 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 
 func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	assert := assert.New(t)
-	require.NoError(t, testutil.InitDB())
 	db, closer := db.DB()
 	defer closer()
 	_, err := db.C(model.TestsCollection).RemoveAll(bson.M{})

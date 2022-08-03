@@ -17,7 +17,6 @@ import (
 const (
 	// LogsCollection is the name of the logs collection in the database.
 	LogsCollection = "logs"
-	maxLogBytes    = 4 * 1024 * 1024 // 4 MB
 )
 
 var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
@@ -172,38 +171,32 @@ type LogLine struct {
 	Msg  string
 }
 
-// LogChunk is a grouping of lines and the earliest timestamp in the grouping.
-type LogChunk struct {
-	Lines        []LogLine
-	EarliestTime *time.Time
-}
+// LogChunk is a grouping of lines.
+type LogChunk []LogLine
 
 // GroupLines breaks up a slice of LogLines into chunks. The sum of the sizes of all messages in each chunk is
-// less than or equal to maxLogBytes.
-func GroupLines(lines []LogLine) ([]LogChunk, error) {
+// less than or equal to maxSize.
+func GroupLines(lines []LogLine, maxSize int) ([]LogChunk, error) {
 	var chunks []LogChunk
 	var currentChunk LogChunk
 
 	logChars := 0
-	for i := range lines {
-		if len(lines[i].Msg) > maxLogBytes {
+	for _, line := range lines {
+		if len(line.Msg) > maxSize {
 			return nil, errors.New("Log line exceeded 4MB")
 		}
 
-		if len(lines[i].Msg)+logChars > maxLogBytes {
+		if len(line.Msg)+logChars > maxSize {
 			logChars = 0
 			chunks = append(chunks, currentChunk)
 			currentChunk = LogChunk{}
 		}
 
-		logChars += len(lines[i].Msg)
-		currentChunk.Lines = append(currentChunk.Lines, lines[i])
-		if currentChunk.EarliestTime == nil || lines[i].Time.Before(*currentChunk.EarliestTime) {
-			currentChunk.EarliestTime = &lines[i].Time
-		}
+		logChars += len(line.Msg)
+		currentChunk = append(currentChunk, line)
 	}
 
-	if len(currentChunk.Lines) > 0 {
+	if len(currentChunk) > 0 {
 		chunks = append(chunks, currentChunk)
 	}
 
@@ -213,12 +206,16 @@ func GroupLines(lines []LogLine) ([]LogChunk, error) {
 // InsertLogChunks inserts log chunks as Logs in the logs collection.
 func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, chunks []LogChunk) error {
 	for i, chunk := range chunks {
+		if len(chunk) == 0 {
+			continue
+		}
+
 		logEntry := Log{
 			BuildId: buildID,
 			TestId:  testID,
 			Seq:     lastSequence - len(chunks) + i + 1,
-			Lines:   chunk.Lines,
-			Started: chunk.EarliestTime,
+			Lines:   chunk,
+			Started: &chunk[0].Time,
 		}
 
 		if err := logEntry.Insert(); err != nil {

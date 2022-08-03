@@ -13,8 +13,6 @@ import (
 )
 
 func TestRemoveLogsForBuild(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-
 	t.Run("NoLogs", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(LogsCollection))
 		count, err := RemoveLogsForBuild("")
@@ -33,7 +31,6 @@ func TestRemoveLogsForBuild(t *testing.T) {
 }
 
 func TestFindLogsInWindow(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(LogsCollection))
 
 	earliestTime := time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)
@@ -64,19 +61,6 @@ func TestFindLogsInWindow(t *testing.T) {
 }
 
 func TestGroupLines(t *testing.T) {
-	t.Run("EarliestTime", func(t *testing.T) {
-		chunks, err := GroupLines([]LogLine{
-			{Time: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)},
-			{Time: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)},
-		})
-
-		assert.NoError(t, err)
-		require.Len(t, chunks, 1)
-		require.NotNil(t, chunks[0].EarliestTime)
-		earliestTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		assert.True(t, chunks[0].EarliestTime.Equal(earliestTime))
-	})
-
 	makeLines := func(lineSize, numLines int) []LogLine {
 		builder := strings.Builder{}
 		for i := 0; i < lineSize; i++ {
@@ -92,23 +76,23 @@ func TestGroupLines(t *testing.T) {
 	}
 
 	t.Run("UnderThreshold", func(t *testing.T) {
-		chunks, err := GroupLines(makeLines(10, 2))
+		chunks, err := GroupLines(makeLines(5, 2), 10)
 		assert.NoError(t, err)
 		require.Len(t, chunks, 1)
-		assert.Len(t, chunks[0].Lines, 2)
+		assert.Len(t, chunks[0], 2)
 	})
 
 	t.Run("SingleLineOverThreshold", func(t *testing.T) {
-		_, err := GroupLines(makeLines(maxLogBytes+1, 2))
+		_, err := GroupLines(makeLines(11, 1), 10)
 		assert.Error(t, err)
 	})
 
 	t.Run("MultipleGroups", func(t *testing.T) {
-		chunks, err := GroupLines(makeLines(maxLogBytes/10, 20))
+		chunks, err := GroupLines(makeLines(1, 20), 10)
 		assert.NoError(t, err)
 		require.Len(t, chunks, 2)
-		assert.Len(t, chunks[0].Lines, 10)
-		assert.Len(t, chunks[1].Lines, 10)
+		assert.Len(t, chunks[0], 10)
+		assert.Len(t, chunks[1], 10)
 	})
 }
 
@@ -146,7 +130,6 @@ func TestMergeLogChannels(t *testing.T) {
 }
 
 func TestFindGlobalLogsDuringTest(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(LogsCollection))
 
 	t0Start := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)

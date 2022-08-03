@@ -11,7 +11,6 @@ import (
 )
 
 func TestFindBuildByBuilder(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(BuildsCollection))
 
 	b0 := Build{
@@ -34,7 +33,6 @@ func TestFindBuildByBuilder(t *testing.T) {
 }
 
 func TestFindBuildById(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(BuildsCollection))
 
 	b0 := Build{Id: "b0"}
@@ -49,7 +47,6 @@ func TestFindBuildById(t *testing.T) {
 }
 
 func TestUpdateFailedBuild(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(BuildsCollection))
 
 	buildID := "b0"
@@ -63,7 +60,6 @@ func TestUpdateFailedBuild(t *testing.T) {
 }
 
 func TestIncrementBuildSequence(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(BuildsCollection))
 
 	buildID := "b0"
@@ -79,7 +75,6 @@ func TestIncrementBuildSequence(t *testing.T) {
 }
 
 func TestStreamingGetOldBuilds(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(BuildsCollection))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

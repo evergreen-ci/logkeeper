@@ -11,7 +11,6 @@ import (
 )
 
 func TestIncrementTestSequence(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
 	testID := bson.NewObjectId()
@@ -27,7 +26,6 @@ func TestIncrementTestSequence(t *testing.T) {
 }
 
 func TestFindTestsForBuild(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
 	require.NoError(t, (&Test{Id: bson.NewObjectId(), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}).Insert())
@@ -42,7 +40,6 @@ func TestFindTestsForBuild(t *testing.T) {
 }
 
 func TestRemoveTestsForBuild(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
 	require.NoError(t, (&Test{Id: bson.NewObjectId(), BuildId: "b0"}).Insert())
@@ -55,7 +52,6 @@ func TestRemoveTestsForBuild(t *testing.T) {
 }
 
 func TestFindNext(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
 	t0 := Test{Id: bson.NewObjectId(), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
@@ -69,8 +65,6 @@ func TestFindNext(t *testing.T) {
 }
 
 func TestGetExecutionWindow(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-
 	t.Run("NoLaterTest", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(TestsCollection))
 
