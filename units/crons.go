@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -40,67 +41,36 @@ func StartCrons(ctx context.Context, cleaupQueue amboy.Queue) error {
 // Queue Population Tasks
 
 func PopulateCleanupOldLogDataJobs(ctx context.Context) amboy.QueueOperation {
-	var lastDuration time.Duration
-	var lastCompleted time.Time
-
-	const useStreamingMethod = true
-
 	return func(ctx context.Context, queue amboy.Queue) error {
+		grip.Info("starting streaming creation")
 		startAt := time.Now()
 		catcher := grip.NewBasicCatcher()
 
-		var (
-			err    error
-			builds []logkeeper.LogKeeperBuild
-			seen   int
-		)
-
-		if useStreamingMethod {
-			grip.Info("starting streaming creation")
-			builds, errs := logkeeper.StreamingGetOldBuilds(ctx)
-		addLoop:
-			for {
-				select {
-				case <-ctx.Done():
-					break addLoop
-				case err := <-errs:
-					catcher.Add(err)
-					break addLoop
-				case build := <-builds:
-					catcher.Add(queue.Put(ctx, NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
-					seen++
-					continue
-				}
-			}
-		} else {
-			stats := queue.Stats(ctx)
-			if stats.Pending == 0 || stats.Pending < logkeeper.CleanupBatchSize/5 || time.Since(lastCompleted) >= lastDuration {
-				builds, err = logkeeper.GetOldBuilds(logkeeper.CleanupBatchSize)
+		seen := 0
+		builds, errs := model.StreamingGetOldBuilds(ctx)
+	addLoop:
+		for {
+			select {
+			case <-ctx.Done():
+				break addLoop
+			case err := <-errs:
 				catcher.Add(err)
-				lastDuration = time.Since(startAt)
+				break addLoop
+			case build := <-builds:
+				catcher.Add(queue.Put(ctx, NewCleanupOldLogDataJob(build.Id, build.Info.TaskID)))
+				seen++
+				continue
 			}
-
-			for _, build := range builds {
-				catcher.Add(queue.Put(ctx, NewCleanupOldLogDataJob(build.Id, build.Info["task_id"])))
-			}
-			lastCompleted = time.Now()
 		}
 
 		m := message.Fields{
 			"message":    "completed adding cleanup job",
-			"streaming":  useStreamingMethod,
-			"num":        len(builds),
 			"iters":      seen,
 			"errors":     catcher.HasErrors(),
 			"num_errors": catcher.Len(),
 			"dur_secs":   time.Since(startAt).Seconds(),
 			"queue":      fmt.Sprintf("%T", queue),
 			"stats":      queue.Stats(ctx),
-		}
-
-		if len(builds) > 0 {
-			build := builds[len(builds)-1]
-			m["last_started_at"] = build.Started.Format("2006-01-02.15:04:05")
 		}
 
 		if catcher.HasErrors() {

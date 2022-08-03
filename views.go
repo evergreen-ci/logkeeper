@@ -8,19 +8,17 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/env"
-
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
-	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
-const maxLogChars = 4 * 1024 * 1024 // 4 MB
+const maxLogBytes = 4 * 1024 * 1024 // 4 MB
 
 type Options struct {
 	//Base URL to append to relative paths
@@ -40,22 +38,10 @@ type createdResponse struct {
 	URI string `json:"uri"`
 }
 
-func earliestLogTime(logs []LogLine) *time.Time {
-	var earliest *time.Time
-	for _, v := range logs {
-		if earliest == nil || v.Time().Before(*earliest) {
-			t := v.Time()
-			earliest = &t
-		}
-	}
-	return earliest
-}
-
 func New(opts Options) *logKeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
 		Funcs: template.FuncMap{
-			"StringifyId": stringifyId,
 			"MutableVar": func() interface{} {
 				return &MutableVar{""}
 			},
@@ -98,24 +84,18 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	db, close := db.DB()
-	defer close()
-
-	existingBuild, err := findBuildByBuilder(db, buildParameters.Builder, buildParameters.BuildNum)
+	existingBuild, err := model.FindBuildByBuilder(buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
 		lk.logErrorf(r, "Error finding build by builder: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 	if existingBuild != nil {
-		buildIdStr := stringifyId(existingBuild.Id)
-		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, buildIdStr)
-		response := createdResponse{buildIdStr, existingBuildUri}
+		existingBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, existingBuild.Id)
+		response := createdResponse{existingBuild.Id, existingBuildUri}
 		lk.render.WriteJSON(w, http.StatusOK, response)
 		return
 	}
-
-	buildInfo := map[string]interface{}{"task_id": buildParameters.TaskId}
 
 	hasher := md5.New()
 	if _, err = hasher.Write([]byte(bson.NewObjectId().Hex())); err != nil {
@@ -124,18 +104,15 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newBuildId := hex.EncodeToString(hasher.Sum(nil))
-	newBuild := LogKeeperBuild{
+	newBuild := model.Build{
 		Id:       newBuildId,
 		Builder:  buildParameters.Builder,
 		BuildNum: buildParameters.BuildNum,
 		Name:     fmt.Sprintf("%v #%v", buildParameters.Builder, buildParameters.BuildNum),
 		Started:  time.Now(),
-		Info:     buildInfo,
+		Info:     model.BuildInfo{TaskID: buildParameters.TaskId},
 	}
-
-	err = db.C("builds").Insert(newBuild)
-
-	if err != nil {
+	if err = newBuild.Insert(); err != nil {
 		lk.logErrorf(r, "Error inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
@@ -157,12 +134,9 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	buildId := vars["build_id"]
+	buildID := vars["build_id"]
 
-	db, closer := db.DB()
-	defer closer()
-
-	build, err := findBuildById(db, buildId)
+	build, err := model.FindBuildById(buildID)
 	if err != nil {
 		lk.logErrorf(r, "error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -186,10 +160,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// create info
-	testInfo := map[string]interface{}{"task_id": testParams.TaskId}
-
-	newTest := Test{
+	newTest := model.Test{
 		Id:        bson.NewObjectId(),
 		BuildId:   build.Id,
 		BuildName: build.Name,
@@ -197,18 +168,15 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Command:   testParams.Command,
 		Started:   time.Now(),
 		Phase:     testParams.Phase,
-		Info:      testInfo,
+		Info:      model.TestInfo{TaskID: testParams.TaskId},
 	}
-
-	err = db.C("tests").Insert(newTest)
-
-	if err != nil {
+	if err := newTest.Insert(); err != nil {
 		lk.logErrorf(r, "Error inserting test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	testUri := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), newTest.Id.Hex())
+	testUri := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, newTest.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
 }
 
@@ -222,84 +190,54 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	buildId := vars["build_id"]
-	db, closer := db.DB()
-	defer closer()
+	buildID := vars["build_id"]
 
-	build, err := findBuildById(db, buildId)
+	build, err := model.FindBuildById(buildID)
 	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "appending log: build not found"})
 		return
 	}
 
-	test_id := vars["test_id"]
-	test, err := findTest(db, test_id)
+	testID := vars["test_id"]
+	test, err := model.FindTestByID(testID)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
 	}
 
-	var info [][]interface{}
-	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &info); err != nil {
+	var lines []model.LogLine
+	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
 		lk.logErrorf(r, "Bad request to appendLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 
-	if len(info) == 0 {
+	if len(lines) == 0 {
 		// no need to insert anything, so stop here
 		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
 
-	lineSets := make([][]LogLine, 1, len(info))
-	lineSets[0] = make([]LogLine, 0, len(info))
-	log := 0
-	logChars := 0
-	for _, v := range info {
-		line := *NewLogLine(v)
-
-		if len(line.Msg()) > maxLogChars {
-			lk.render.WriteJSON(w, http.StatusBadRequest, "Log line exceeded 4MB")
-			return
-		}
-
-		if len(line.Msg())+logChars > maxLogChars {
-			log++
-			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
-			logChars = 0
-		}
-
-		lineSets[log] = append(lineSets[log], line)
-		logChars += len(line.Msg())
+	chunks, err := model.GroupLines(lines, maxLogBytes)
+	if err != nil {
+		lk.logErrorf(r, "unmarshaling log lines: %v", err)
+		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
+		return
 	}
 
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
-	_, err = db.C("tests").Find(bson.M{"_id": test.Id}).Apply(change, test)
-
-	if err != nil {
+	if err = test.IncrementSequence(len(chunks)); err != nil {
 		lk.logErrorf(r, "Error updating tests: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	for i, lines := range lineSets {
-		logEntry := Log{
-			BuildId: build.Id,
-			TestId:  &(test.Id),
-			Seq:     test.Seq - len(lineSets) + i + 1,
-			Lines:   lines,
-			Started: earliestLogTime(lines),
-		}
-		err = db.C("logs").Insert(logEntry)
-		if err != nil {
-			lk.logErrorf(r, "Error inserting logs entry: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
-			return
-		}
+	if err = model.InsertLogChunks(build.Id, &test.Id, test.Seq, chunks); err != nil {
+		lk.logErrorf(r, "Error inserting logs: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
 	}
 
-	testUrl := fmt.Sprintf("%vbuild/%v/test/%v", lk.opts.URL, stringifyId(build.Id), test.Id.Hex())
+	testUrl := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -313,12 +251,9 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	buildId := vars["build_id"]
+	buildID := vars["build_id"]
 
-	db, closer := db.DB()
-	defer closer()
-
-	build, err := findBuildById(db, buildId)
+	build, err := model.FindBuildById(buildID)
 	if err != nil {
 		lk.logErrorf(r, "Error finding builds entry: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding builds in append global log:" + err.Error()})
@@ -329,66 +264,39 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var info [][]interface{}
-	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &info); err != nil {
+	var lines []model.LogLine
+	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
 		lk.logErrorf(r, "Bad request to appendGlobalLog: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 
-	if len(info) == 0 {
+	if len(lines) == 0 {
 		// no need to insert anything, so stop here
 		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
 
-	lineSets := make([][]LogLine, 1, len(info))
-	lineSets[0] = make([]LogLine, 0, len(info))
-	log := 0
-	logChars := 0
-	for _, v := range info {
-		line := *NewLogLine(v)
-
-		if len(line.Msg()) > maxLogChars {
-			lk.render.WriteJSON(w, http.StatusBadRequest, "Log line exceeded 4MB")
-			return
-		}
-
-		if len(line.Msg())+logChars > maxLogChars {
-			log++
-			lineSets = append(lineSets, make([]LogLine, 0, len(info)))
-			logChars = 0
-		}
-
-		lineSets[log] = append(lineSets[log], line)
-		logChars += len(line.Msg())
+	chunks, err := model.GroupLines(lines, maxLogBytes)
+	if err != nil {
+		lk.logErrorf(r, "unmarshaling log lines: %v", err)
+		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
+		return
 	}
 
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": len(lineSets)}}, ReturnNew: true}
-	_, err = db.C("builds").Find(bson.M{"_id": build.Id}).Apply(change, build)
-	if err != nil {
-		lk.logErrorf(r, "Error updating builds entry: %v", err)
+	if err = build.IncrementSequence(len(chunks)); err != nil {
+		lk.logErrorf(r, "Error updating tests: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	for i, lines := range lineSets {
-		logEntry := Log{
-			BuildId: build.Id,
-			TestId:  nil,
-			Seq:     build.Seq - len(lineSets) + i + 1,
-			Lines:   lines,
-			Started: earliestLogTime(lines),
-		}
-		err = db.C("logs").Insert(logEntry)
-		if err != nil {
-			lk.logErrorf(r, "Error inserting logs entry: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
-			return
-		}
+	if err = model.InsertLogChunks(build.Id, nil, build.Seq, chunks); err != nil {
+		lk.logErrorf(r, "Error inserting logs: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
 	}
 
-	testUrl := fmt.Sprintf("%vbuild/%v/", lk.opts.URL, stringifyId(build.Id))
+	testUrl := fmt.Sprintf("%s/build/%s/", lk.opts.URL, build.Id)
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -397,12 +305,9 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
-	buildId := vars["build_id"]
+	buildID := vars["build_id"]
 
-	db, closer := db.DB()
-	defer closer()
-
-	build, err := findBuildById(db, buildId)
+	build, err := model.FindBuildById(buildID)
 	if err != nil {
 		lk.logErrorf(r, "Error finding build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "failed to find build:" + err.Error()})
@@ -412,7 +317,7 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view build: build not found"})
 		return
 	}
-	tests, err := findTestsForBuild(db, buildId)
+	tests, err := model.FindTestsForBuild(buildID)
 	if err != nil {
 		lk.logErrorf(r, "Error finding tests for build: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
@@ -420,8 +325,8 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lk.render.WriteHTML(w, http.StatusOK, struct {
-		Build *LogKeeperBuild
-		Tests []Test
+		Build *model.Build
+		Tests []model.Test
 	}{build, tests}, "base", "build.html")
 }
 
@@ -430,28 +335,28 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
-	buildId := vars["build_id"]
+	buildID := vars["build_id"]
 
 	if lobsterRedirect(r) {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildId), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildID), http.StatusFound)
 		return
 	}
 
-	db, closer := db.DB()
-	defer closer()
-
-	build, err := findBuildById(db, buildId)
+	build, err := model.FindBuildById(buildID)
 	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view all logs: build not found"})
 		return
 	}
 
-	globalLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil}, []string{"seq"}, nil, nil)
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": bson.M{"$ne": nil}}, []string{"build_id", "started"}, nil, nil)
-	merged := MergeLog(testLogs, globalLogs)
+	logsChannel, err := model.AllLogs(build.Id)
+	if err != nil {
+		lk.logErrorf(r, "Error finding logs: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
+	}
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
-		for line := range merged {
+		for line := range logsChannel {
 			_, err = w.Write([]byte(line.Data + "\n"))
 			if err != nil {
 				return
@@ -460,13 +365,13 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *LogLineItem
+			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
 			TestId   string
 			TestName string
-			Info     map[string]interface{}
-		}{merged, stringifyId(build.Id), build.Builder, "", "All logs", build.Info}, "base", "test.html")
+			Info     model.BuildInfo
+		}{logsChannel, build.Id, build.Builder, "", "All logs", build.Info}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "Error rendering template: %v", err)
 		}
@@ -478,44 +383,36 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
-	build_id := vars["build_id"]
-	test_id := vars["test_id"]
+	buildID := vars["build_id"]
+	testID := vars["test_id"]
 
 	if lobsterRedirect(r) {
-		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", build_id, test_id), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", buildID, testID), http.StatusFound)
 		return
 	}
 
-	db, closer := db.DB()
-	defer closer()
-
-	build, err := findBuildById(db, build_id)
+	build, err := model.FindBuildById(buildID)
 	if err != nil || build == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view test by id: build not found"})
 		return
 	}
 
-	test, err := findTest(db, test_id)
+	test, err := model.FindTestByID(testID)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
 	}
 
-	globalLogs, err := lk.findGlobalLogsDuringTest(build, test)
-
+	logsChan, err := model.MergedTestLogs(test)
 	if err != nil {
-		lk.logErrorf(r, "Error finding global logs during test: %v", err)
+		lk.logErrorf(r, "Error finding test logs: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	testLogs := lk.findLogs(bson.M{"build_id": build.Id, "test_id": test.Id}, []string{"seq"}, nil, nil)
-
-	merged := MergeLog(testLogs, globalLogs)
-
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true
-		for line := range merged {
+		for line := range logsChan {
 			emptyLog = false
 			_, err = w.Write([]byte(line.Data + "\n"))
 			if err != nil {
@@ -529,13 +426,13 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		}
 	} else {
 		err = lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *LogLineItem
+			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
 			TestId   string
 			TestName string
-			Info     map[string]interface{}
-		}{merged, stringifyId(build.Id), build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
+			Info     model.TestInfo
+		}{logsChan, build.Id, build.Builder, test.Id.Hex(), test.Name, test.Info}, "base", "test.html")
 		// If there was an error, it won't show up in the UI since it's being streamed, so log it here
 		// instead
 		if err != nil {
@@ -554,99 +451,6 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		lk.logErrorf(r, "Error rendering template: %v", err)
 	}
-}
-
-func (lk *logKeeper) findLogs(query bson.M, sort []string, minTime, maxTime *time.Time) chan *LogLineItem {
-	outputLog := make(chan *LogLineItem)
-	logItem := &Log{}
-
-	go func() {
-		db, closer := db.DB()
-		defer closer()
-
-		defer close(outputLog)
-		lineNum := 0
-		log := db.C("logs").Find(query).Sort(sort...).Iter()
-		for log.Next(logItem) {
-			for _, v := range logItem.Lines {
-				if minTime != nil && v.Time().Before(*minTime) {
-					continue
-				}
-				if maxTime != nil && v.Time().After(*maxTime) {
-					continue
-				}
-				outputLog <- &LogLineItem{
-					LineNum:   lineNum,
-					Timestamp: v.Time(),
-					Data:      v.Msg(),
-					TestId:    logItem.TestId,
-				}
-				lineNum++
-			}
-		}
-	}()
-	return outputLog
-}
-
-func (lk *logKeeper) findGlobalLogsDuringTest(build *LogKeeperBuild, test *Test) (chan *LogLineItem, error) {
-	db, closer := db.DB()
-	defer closer()
-	globalSeqFirst, globalSeqLast := new(int), new(int)
-
-	minTime := &(test.Started)
-	var maxTime *time.Time
-
-	// Find the first global log entry before this test started.
-	// This may not actually contain any global log lines during the test run, if the entry returned
-	// by this query comes from after the *next* test stared.
-	firstGlobalLog := &Log{}
-	err := db.C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": test.Started}}).Sort("-seq").Limit(1).One(firstGlobalLog)
-	if err != nil {
-		if err != mgo.ErrNotFound {
-			return nil, err
-		}
-		// There are no global entries after this test started.
-		globalSeqFirst = nil
-	} else {
-		*globalSeqFirst = firstGlobalLog.Seq
-	}
-
-	lastGlobalLog := &Log{}
-	// Find the next test after this one.
-	nextTest := &Test{}
-	err = db.C("tests").Find(bson.M{"build_id": build.Id, "started": bson.M{"$gt": test.Started}}).Sort("started").Limit(1).One(nextTest)
-	if err != nil {
-		if err != mgo.ErrNotFound {
-			return nil, err
-		}
-		// no next test exists
-		globalSeqLast = nil
-	} else {
-		maxTime = &(nextTest.Started)
-		// Find the last global log entry that covers this test. This may return a global log entry
-		// that started before the test itself.
-		err = db.C("logs").Find(bson.M{"build_id": build.Id, "test_id": nil, "started": bson.M{"$lt": nextTest.Started}}).Sort("-seq").Limit(1).One(lastGlobalLog)
-		if err != nil {
-			if err != mgo.ErrNotFound {
-				return nil, err
-			}
-			globalSeqLast = nil
-		} else {
-			*globalSeqLast = lastGlobalLog.Seq
-		}
-	}
-
-	var globalLogsSeq bson.M
-	if globalSeqFirst == nil {
-		globalLogsSeq = bson.M{"$gte": test.Seq}
-	} else {
-		globalLogsSeq = bson.M{"$gte": *globalSeqFirst}
-	}
-	if globalSeqLast != nil {
-		globalLogsSeq["$lte"] = *globalSeqLast
-	}
-
-	return lk.findLogs(bson.M{"build_id": build.Id, "test_id": nil, "seq": globalLogsSeq}, []string{"seq"}, minTime, maxTime), nil
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/pail"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/recovery"
@@ -23,7 +23,7 @@ import (
 type LogIterator interface {
 	Iterator
 	// Item returns the current LogLine item held by the iterator.
-	Item() logkeeper.LogLineItem
+	Item() model.LogLineItem
 	// Reverse returns a reversed copy of the iterator.
 	Reverse() LogIterator
 	// IsReversed returns true if the iterator is in reverse order and
@@ -44,7 +44,7 @@ type serializedIterator struct {
 	currentReadCloser    io.ReadCloser
 	currentReverseReader *reverseLineReader
 	currentReader        *bufio.Reader
-	currentItem          logkeeper.LogLineItem
+	currentItem          model.LogLineItem
 	catcher              grip.Catcher
 	exhausted            bool
 	closed               bool
@@ -160,7 +160,7 @@ func (i *serializedIterator) Exhausted() bool { return i.exhausted }
 
 func (i *serializedIterator) Err() error { return i.catcher.Resolve() }
 
-func (i *serializedIterator) Item() logkeeper.LogLineItem { return i.currentItem }
+func (i *serializedIterator) Item() model.LogLineItem { return i.currentItem }
 
 func (i *serializedIterator) Close() error {
 	i.closed = true
@@ -186,7 +186,7 @@ type batchedIterator struct {
 	readers              map[string]io.ReadCloser
 	currentReverseReader *reverseLineReader
 	currentReader        *bufio.Reader
-	currentItem          logkeeper.LogLineItem
+	currentItem          model.LogLineItem
 	catcher              grip.Catcher
 	exhausted            bool
 	closed               bool
@@ -374,7 +374,7 @@ func (i *batchedIterator) Exhausted() bool { return i.exhausted }
 
 func (i *batchedIterator) Err() error { return i.catcher.Resolve() }
 
-func (i *batchedIterator) Item() logkeeper.LogLineItem { return i.currentItem }
+func (i *batchedIterator) Item() model.LogLineItem { return i.currentItem }
 
 func (i *batchedIterator) Close() error {
 	i.closed = true
@@ -394,7 +394,7 @@ func (i *batchedIterator) Close() error {
 type mergingIterator struct {
 	iterators    []LogIterator
 	iteratorHeap *LogIteratorHeap
-	currentItem  logkeeper.LogLineItem
+	currentItem  model.LogLineItem
 	catcher      grip.Catcher
 	started      bool
 }
@@ -481,7 +481,7 @@ func (i *mergingIterator) init(ctx context.Context) {
 
 func (i *mergingIterator) Err() error { return i.catcher.Resolve() }
 
-func (i *mergingIterator) Item() logkeeper.LogLineItem { return i.currentItem }
+func (i *mergingIterator) Item() model.LogLineItem { return i.currentItem }
 
 func (i *mergingIterator) Close() error {
 	catcher := grip.NewBasicCatcher()
@@ -501,13 +501,13 @@ func (i *mergingIterator) Close() error {
 // Helper functions
 ///////////////////
 
-func parseLogLineString(data string) (logkeeper.LogLineItem, error) {
+func parseLogLineString(data string) (model.LogLineItem, error) {
 	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
 	if err != nil {
-		return logkeeper.LogLineItem{}, err
+		return model.LogLineItem{}, err
 	}
 
-	return logkeeper.LogLineItem{
+	return model.LogLineItem{
 		Timestamp: time.Unix(0, ts*1e6).UTC(),
 		Data:      data[23:],
 	}, nil

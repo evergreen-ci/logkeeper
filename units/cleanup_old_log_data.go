@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/utility"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/amboy/dependency"
@@ -33,12 +33,12 @@ func init() {
 }
 
 type cleanupOldLogDataJob struct {
-	BuildID  interface{} `bson:"build_id" json:"build_id" yaml:"build_id"`
-	TaskID   interface{} `bson:"task_id" json:"task_id" yaml:"task_id"`
+	BuildID  string `bson:"build_id" json:"build_id" yaml:"build_id"`
+	TaskID   string `bson:"task_id" json:"task_id" yaml:"task_id"`
 	job.Base `bson:"job_base" json:"job_base" yaml:"job_base"`
 }
 
-func NewCleanupOldLogDataJob(buildID, taskID interface{}) amboy.Job {
+func NewCleanupOldLogDataJob(buildID, taskID string) amboy.Job {
 	j := makeCleanupOldLogDataJob()
 	j.BuildID = buildID
 	j.TaskID = taskID
@@ -119,12 +119,12 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 	var num int
 
 	if taskInfo.Status != "success" {
-		err = logkeeper.UpdateFailedBuild(j.BuildID)
+		err = model.UpdateFailedBuild(j.BuildID)
 		if err != nil {
 			j.AddError(errors.Wrapf(err, "error updating failed status of build %v", j.BuildID))
 		}
 	} else {
-		num, err = logkeeper.CleanupOldLogsAndTestsByBuild(j.BuildID)
+		num, err = cleanupOldLogsAndTestsByBuild(j.BuildID)
 		if err != nil {
 			j.AddError(errors.Wrapf(err, "error cleaning up old logs [%d]", num))
 		}
@@ -141,4 +141,27 @@ func (j *cleanupOldLogDataJob) Run(ctx context.Context) {
 		"status":   taskInfo.Status,
 		"code":     resp.StatusCode,
 	})
+}
+
+func cleanupOldLogsAndTestsByBuild(buildID string) (int, error) {
+	docsRemoved := 0
+
+	removedCount, err := model.RemoveLogsForBuild(buildID)
+	if err != nil {
+		return docsRemoved, errors.Wrap(err, "error deleting logs from old builds")
+	}
+	docsRemoved += removedCount
+
+	removedCount, err = model.RemoveTestsForBuild(buildID)
+	if err != nil {
+		return docsRemoved, errors.Wrap(err, "error deleting tests from old builds")
+	}
+	docsRemoved += removedCount
+
+	if err = model.RemoveBuild(buildID); err != nil {
+		return docsRemoved, errors.Wrap(err, "error deleting build record")
+	}
+	docsRemoved++
+
+	return docsRemoved, nil
 }
