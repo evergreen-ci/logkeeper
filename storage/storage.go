@@ -177,19 +177,39 @@ func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
 	return testChunks
 }
 
+// Gets the first chunk in the list with a start time after "target", otherwise falls back to the
+// fallback time if there are no such chunks.
+func getFirstTestChunkAfter(allTestChunks []LogChunkInfo, target time.Time, fallback time.Time) time.Time {
+	for _, chunk := range allTestChunks {
+		if chunk.Start.After(target) {
+			return chunk.Start
+		}
+	}
+	return fallback
+}
+
 func (storage *Storage) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
 	buildChunks, allTestChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
 	}
 
+	sortByStartTime(allTestChunks)
+
 	testChunks := testChunksWithId(allTestChunks, testId)
 
 	sortByStartTime(testChunks)
 
+	// We want to get all logs up to the next test chunk after the chunks in our queried test.
+	// If there are no test chunks after our queried test, then this should set the end time
+	// to the latest end time of all the chunks we have.
+	lastTestChunkEnd := getLatestTime(testChunks)
+	maxPossibleTime := maxTime(getLatestTime(buildChunks), lastTestChunkEnd)
+	logEndTime := getFirstTestChunkAfter(allTestChunks, lastTestChunkEnd, maxPossibleTime)
+
 	testTimeRange := TimeRange{
 		StartAt: testChunks[0].Start,
-		EndAt:   getLatestTime(testChunks),
+		EndAt:   logEndTime,
 	}
 
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)
