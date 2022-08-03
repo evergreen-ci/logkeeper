@@ -115,14 +115,19 @@ func TestStreamingGetOldBuilds(t *testing.T) {
 		}
 	}, time.Second, 10*time.Millisecond)
 
-	var b Build
+	var builds []Build
 	require.Eventually(t, func() bool {
 		select {
-		case b = <-buildsChan:
-			return true
+		case b, ok := <-buildsChan:
+			if !ok {
+				return true
+			}
+			builds = append(builds, b)
+			return false
 		default:
 			return false
 		}
 	}, time.Second, 10*time.Millisecond)
-	assert.Equal(t, oldBuild.Id, b.Id)
+	require.Len(t, builds, 1)
+	assert.Equal(t, oldBuild.Id, builds[0].Id)
 }
