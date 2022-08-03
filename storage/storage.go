@@ -90,6 +90,29 @@ func (storage *Storage) getAllChunks(context context.Context, buildId string) ([
 	return buildChunks, nil
 }
 
+func (storage *Storage) getBuildAndTestChunks(context context.Context, buildId string) ([]LogChunkInfo, []LogChunkInfo, error) {
+	chunks, err := storage.getAllChunks(context, buildId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	buildChunks := []LogChunkInfo{}
+	for i := 0; i < len(chunks); i++ {
+		if chunks[i].TestID == "" {
+			buildChunks = append(buildChunks, chunks[i])
+		}
+	}
+
+	testChunks := []LogChunkInfo{}
+	for i := 0; i < len(chunks); i++ {
+		// Find our test id
+		if chunks[i].TestID != "" {
+			testChunks = append(testChunks, chunks[i])
+		}
+	}
+	return buildChunks, testChunks, nil
+}
+
 func getLatestTime(chunks []LogChunkInfo) time.Time {
 	var latestTime = chunks[len(chunks)-1].End
 	for _, chunk := range chunks {
@@ -106,17 +129,47 @@ func sortByStartTime(chunks []LogChunkInfo) {
 	})
 }
 
-func (storage *Storage) GetGlobalLogLines(context context.Context, buildId string) (LogIterator, error) {
-	chunks, err := storage.getAllChunks(context, buildId)
+func minTime(first time.Time, second time.Time) time.Time {
+	if first.Before(second) {
+		return first
+	} else {
+		return second
+	}
+}
+
+func maxTime(first time.Time, second time.Time) time.Time {
+	if first.Before(second) {
+		return second
+	} else {
+		return first
+	}
+}
+
+func (storage *Storage) GetAllLogLines(context context.Context, buildId string) (LogIterator, error) {
+	buildChunks, testChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
 	}
 
-	buildChunks := []LogChunkInfo{}
-	for i := 0; i < len(chunks); i++ {
-		if chunks[i].TestID == "" {
-			buildChunks = append(buildChunks, chunks[i])
-		}
+	sortByStartTime(buildChunks)
+	sortByStartTime(testChunks)
+
+	timeRange := TimeRange{
+		StartAt: minTime(buildChunks[0].Start, testChunks[0].Start),
+		EndAt:   maxTime(getLatestTime(buildChunks), getLatestTime(testChunks)),
+	}
+
+	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, timeRange)
+	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, timeRange)
+
+	// Merge test and build logs
+	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+}
+
+func (storage *Storage) GetGlobalLogLines(context context.Context, buildId string) (LogIterator, error) {
+	buildChunks, _, err := storage.getBuildAndTestChunks(context, buildId)
+	if err != nil {
+		return nil, err
 	}
 
 	sortByStartTime(buildChunks)
@@ -132,19 +185,24 @@ func (storage *Storage) GetGlobalLogLines(context context.Context, buildId strin
 	return buildChunkIterator, nil
 }
 
+func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
+	testChunks := []LogChunkInfo{}
+	for i := 0; i < len(chunks); i++ {
+		// Find our test id
+		if chunks[i].TestID == testID {
+			testChunks = append(testChunks, chunks[i])
+		}
+	}
+	return testChunks
+}
+
 func (storage *Storage) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
-	chunks, err := storage.getAllChunks(context, buildId)
+	buildChunks, allTestChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
 	}
 
-	testChunks := []LogChunkInfo{}
-	for i := 0; i < len(chunks); i++ {
-		// Find our test id
-		if chunks[i].TestID == testId {
-			testChunks = append(testChunks, chunks[i])
-		}
-	}
+	testChunks := testChunksWithId(allTestChunks, testId)
 
 	sortByStartTime(testChunks)
 
@@ -155,24 +213,8 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)
 
-	buildChunks := []LogChunkInfo{}
-	for i := 0; i < len(chunks); i++ {
-		// Include any build logs that are in the time range of our test
-		chunkTimeRange := TimeRange{
-			StartAt: chunks[i].Start,
-			EndAt:   chunks[i].End,
-		}
-		// check if the global build chunk's time range intersects the test's time range, and if so
-		// add it to our list of build chunks, but constrained to the test's time range to only
-		// include entries during that time.
-		if chunks[i].TestID == "" && testTimeRange.Intersects(chunkTimeRange) {
-			buildChunks = append(buildChunks, chunks[i])
-		}
-	}
-
-	sort.Slice(buildChunks, func(i, j int) bool {
-		return buildChunks[i].Start.Before(buildChunks[j].Start)
-	})
+	sortByStartTime(buildChunks)
+	// This batchedlogiterator will filter out buildChunks that don't intestect with testTimeRange
 	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, testTimeRange)
 
 	// Merge everything together
