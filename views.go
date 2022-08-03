@@ -18,6 +18,8 @@ import (
 	"gopkg.in/mgo.v2/bson"
 )
 
+const maxLogBytes = 4 * 1024 * 1024 // 4 MB
+
 type Options struct {
 	//Base URL to append to relative paths
 	URL string
@@ -216,7 +218,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chunks, err := model.GroupLines(lines)
+	chunks, err := model.GroupLines(lines, maxLogBytes)
 	if err != nil {
 		lk.logErrorf(r, "unmarshaling log lines: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
@@ -275,7 +277,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	chunks, err := model.GroupLines(lines)
+	chunks, err := model.GroupLines(lines, maxLogBytes)
 	if err != nil {
 		lk.logErrorf(r, "unmarshaling log lines: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
