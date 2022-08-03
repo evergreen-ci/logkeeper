@@ -166,25 +166,6 @@ func (storage *Storage) GetAllLogLines(context context.Context, buildId string) 
 	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
 }
 
-func (storage *Storage) GetGlobalLogLines(context context.Context, buildId string) (LogIterator, error) {
-	buildChunks, _, err := storage.getBuildAndTestChunks(context, buildId)
-	if err != nil {
-		return nil, err
-	}
-
-	sortByStartTime(buildChunks)
-
-	timeRange := TimeRange{
-		StartAt: buildChunks[0].Start,
-		EndAt:   getLatestTime(buildChunks),
-	}
-
-	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, timeRange)
-
-	// Merge everything together
-	return buildChunkIterator, nil
-}
-
 func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
 	testChunks := []LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
