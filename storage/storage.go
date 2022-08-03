@@ -90,6 +90,48 @@ func (storage *Storage) getAllChunks(context context.Context, buildId string) ([
 	return buildChunks, nil
 }
 
+func getLatestTime(chunks []LogChunkInfo) time.Time {
+	var latestTime = chunks[len(chunks)-1].End
+	for _, chunk := range chunks {
+		if chunk.End.After(latestTime) {
+			latestTime = chunk.End
+		}
+	}
+	return latestTime
+}
+
+func sortByStartTime(chunks []LogChunkInfo) {
+	sort.Slice(chunks, func(i, j int) bool {
+		return chunks[i].Start.Before(chunks[j].Start)
+	})
+}
+
+func (storage *Storage) GetGlobalLogLines(context context.Context, buildId string) (LogIterator, error) {
+	chunks, err := storage.getAllChunks(context, buildId)
+	if err != nil {
+		return nil, err
+	}
+
+	buildChunks := []LogChunkInfo{}
+	for i := 0; i < len(chunks); i++ {
+		if chunks[i].TestID == "" {
+			buildChunks = append(buildChunks, chunks[i])
+		}
+	}
+
+	sortByStartTime(buildChunks)
+
+	timeRange := TimeRange{
+		StartAt: buildChunks[0].Start,
+		EndAt:   getLatestTime(buildChunks),
+	}
+
+	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, timeRange)
+
+	// Merge everything together
+	return buildChunkIterator, nil
+}
+
 func (storage *Storage) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
 	chunks, err := storage.getAllChunks(context, buildId)
 	if err != nil {
@@ -103,20 +145,12 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 			testChunks = append(testChunks, chunks[i])
 		}
 	}
-	sort.Slice(testChunks, func(i, j int) bool {
-		return testChunks[i].Start.Before(testChunks[j].Start)
-	})
 
-	var latestTime = testChunks[len(testChunks)-1].End
-	for _, chunk := range testChunks {
-		if chunk.End.After(latestTime) {
-			latestTime = chunk.End
-		}
-	}
+	sortByStartTime(testChunks)
 
 	testTimeRange := TimeRange{
 		StartAt: testChunks[0].Start,
-		EndAt:   testChunks[len(testChunks)-1].End,
+		EndAt:   getLatestTime(testChunks),
 	}
 
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)

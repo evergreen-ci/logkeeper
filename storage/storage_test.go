@@ -105,3 +105,41 @@ func TestGetTestLogLinesOverlapping(t *testing.T) {
 	assert.Equal(t, expectedCount, len(lines))
 	assert.Equal(t, expectedLines, lines)
 }
+
+func TestGetGlobalLogLinesOverlapping(t *testing.T) {
+	storage := makeTestStorage(t, "../testdata/overlapping")
+	defer os.RemoveAll("../_bucketdata")
+	iterator, err := storage.GetGlobalLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
+	require.NoError(t, err)
+
+	const expectedCount = 20
+	expectedLines := []string{
+		"Log300\n",
+		"Log320\n",
+		"Log340\n",
+		"Log360\n",
+		"Log380\n",
+		"Log400\n",
+		"Log420\n",
+		"Log440\n",
+		"Log460\n",
+		"Log500\n",
+		"Log501\n",
+		"Log520\n",
+		"Log540\n",
+		"Log560\n",
+		"Log580\n",
+		"Log810\n",
+		"Log820\n",
+		"Log840\n",
+		"Log860\n",
+		"Log900\n",
+	}
+	lines := []string{}
+	for iterator.Next(context.Background()) {
+		lines = append(lines, iterator.Item().Data)
+	}
+
+	assert.Equal(t, expectedCount, len(lines))
+	assert.Equal(t, expectedLines, lines)
+}
