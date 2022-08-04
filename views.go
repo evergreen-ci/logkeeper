@@ -67,6 +67,12 @@ type apiError struct {
 	code    int
 }
 
+type logFetchResponse struct {
+	logLines chan *model.LogLineItem
+	build    *model.Build
+	test     *model.Test
+}
+
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -391,6 +397,31 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (lk *logKeeper) viewTestInDatabase(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+	build, err := model.FindBuildById(buildID)
+	if err != nil || build == nil {
+		return nil, &apiError{Err: "view test by id: build not found", code: http.StatusNotFound}
+	}
+
+	test, err := model.FindTestByID(testID)
+	if err != nil || test == nil {
+		return nil, &apiError{Err: "test not found"}
+	}
+
+	logsChan, err := model.MergedTestLogs(test)
+	if err != nil {
+		lk.logErrorf(r, "Error finding global logs during test: %v", err)
+		return nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	}
+
+	result := logFetchResponse{
+		logLines: logsChan,
+		build:    build,
+		test:     test,
+	}
+	return &result, nil
+}
+
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer r.Body.Close()
@@ -404,30 +435,19 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	build, err := model.FindBuildById(buildID)
-	if err != nil || build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view test by id: build not found"})
+	result, fetchError := lk.viewTestInDatabase(r, buildID, testID)
+	if fetchError != nil {
+		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
 	}
-
-	test, err := model.FindTestByID(testID)
-	if err != nil || test == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
-		return
-	}
-
-	logsChan, err := model.MergedTestLogs(test)
-	if err != nil {
-		lk.logErrorf(r, "Error finding test logs: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
-		return
-	}
-
+	logsChan := result.logLines
+	build := result.build
+	test := result.test
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true
 		for line := range logsChan {
 			emptyLog = false
-			_, err = w.Write([]byte(line.Data + "\n"))
+			_, err := w.Write([]byte(line.Data + "\n"))
 			if err != nil {
 				lk.render.WriteJSON(w, http.StatusInternalServerError,
 					apiError{Err: err.Error()})
@@ -438,7 +458,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			lk.render.WriteJSON(w, http.StatusOK, nil)
 		}
 	} else {
-		err = lk.render.StreamHTML(w, http.StatusOK, struct {
+		err := lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
