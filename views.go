@@ -10,6 +10,7 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/evergreen-ci/logkeeper/storage"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
@@ -26,6 +27,9 @@ type Options struct {
 
 	// Maximum Request Size
 	MaxRequestSize int
+
+	// Bucket stores data in offline storage.
+	Bucket storage.Bucket
 }
 
 type logKeeper struct {
@@ -76,6 +80,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Builder  string `json:"builder"`
 		BuildNum int    `json:"buildnum"`
 		TaskId   string `json:"task_id"`
+		S3       bool   `json:"s3"`
 	}{}
 
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &buildParameters); err != nil {
@@ -116,6 +121,14 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		lk.logErrorf(r, "Error inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
+	}
+
+	if buildParameters.S3 {
+		if err := lk.opts.Bucket.UploadBuildMetadata(r.Context(), newBuild); err != nil {
+			lk.logErrorf(r, "writing build metadata: %v", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			return
+		}
 	}
 
 	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuildId)

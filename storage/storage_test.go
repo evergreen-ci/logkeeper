@@ -14,15 +14,15 @@ import (
 
 const tempDir = "../_bucketdata"
 
-func makeTestStorage(t *testing.T, initDir string) Storage {
+func makeTestStorage(t *testing.T, initDir string) Bucket {
 	err := os.RemoveAll(tempDir)
 	require.NoError(t, err)
 	err = os.Mkdir(tempDir, 0755)
 	require.NoError(t, err)
 
-	bucket, err := pail.NewLocalBucket(pail.LocalOptions{
-		Path:   tempDir,
-		Prefix: "",
+	bucket, err := NewBucket(BucketOpts{
+		Location: PailLocal,
+		Path:     tempDir,
 	})
 	require.NoError(t, err)
 
@@ -34,13 +34,13 @@ func makeTestStorage(t *testing.T, initDir string) Storage {
 		require.NoError(t, err)
 	}
 
-	return NewStorage(bucket)
+	return bucket
 }
 
 func TestBasicStorage(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
 	defer os.RemoveAll(tempDir)
-	results, err := storage.bucket.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	results, err := storage.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, results)
 
@@ -58,7 +58,7 @@ func TestUploadBuildMetadata(t *testing.T) {
 	}
 
 	assert.NoError(t, storage.UploadBuildMetadata(context.Background(), build))
-	results, err := storage.bucket.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	results, err := storage.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	contents, err := io.ReadAll(results)
 	assert.NoError(t, err)

@@ -5,26 +5,84 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/pail"
 	"github.com/pkg/errors"
 )
 
-const metadataFilename = "metadata.json"
+const (
+	metadataFilename     = "metadata.json"
+	awsKeyEnvVariable    = "AWS_KEY"
+	awsSecretEnvVariable = "AWS_SECRET"
+)
 
-type Storage struct {
-	bucket pail.Bucket
+type Bucket struct {
+	pail.Bucket
 }
 
-func NewStorage(bucket pail.Bucket) Storage {
-	return Storage{
-		bucket: bucket,
+type PailType int
+
+const (
+	defaultS3Region = "us-east-1"
+
+	PailS3 PailType = iota
+	PailLocal
+)
+
+type BucketOpts struct {
+	Location PailType
+	Path     string
+}
+
+func NewBucket(opts BucketOpts) (Bucket, error) {
+	switch opts.Location {
+	case PailLocal:
+		localBucket, err := pail.NewLocalBucket(pail.LocalOptions{
+			Path: opts.Path,
+		})
+		if err != nil {
+			return Bucket{}, errors.Wrapf(err, "creating local bucket at '%s'")
+		}
+
+		return Bucket{localBucket}, nil
+	case PailS3:
+		credentials, err := getS3Credentials()
+		if err != nil {
+			return Bucket{}, errors.Wrap(err, "getting credentials")
+		}
+		s3Bucket, err := pail.NewS3Bucket(pail.S3Options{
+			Name:        opts.Path,
+			Region:      defaultS3Region,
+			Credentials: credentials,
+		})
+		if err != nil {
+			return Bucket{}, errors.Wrapf(err, "creating S3 bucket in '%s'", opts.Path)
+		}
+
+		return Bucket{s3Bucket}, nil
+	default:
+		return Bucket{}, errors.Errorf("unknown location '%d'", opts.Location)
 	}
+}
+
+func getS3Credentials() (*credentials.Credentials, error) {
+	key := os.Getenv(awsKeyEnvVariable)
+	if key == "" {
+		return nil, errors.Errorf("environment variable '%s' is not set", awsKeyEnvVariable)
+	}
+	secret := os.Getenv(awsSecretEnvVariable)
+	if secret == "" {
+		return nil, errors.Errorf("environment variable '%s' is not set", awsSecretEnvVariable)
+	}
+
+	return pail.CreateAWSCredentials(key, secret, ""), nil
 }
 
 func parseName(name string) (start time.Time, end time.Time, numLines int64, err error) {
@@ -52,8 +110,8 @@ func buildPrefix(buildID string) string {
 	return fmt.Sprintf("/%s/", buildID)
 }
 
-func (storage *Storage) getAllChunks(context context.Context, buildId string) ([]LogChunkInfo, error) {
-	iterator, listErr := storage.bucket.List(context, buildPrefix(buildId))
+func (b *Bucket) getAllChunks(context context.Context, buildId string) ([]LogChunkInfo, error) {
+	iterator, listErr := b.List(context, buildPrefix(buildId))
 	buildChunks := []LogChunkInfo{}
 	if listErr != nil {
 		return nil, listErr
@@ -98,8 +156,8 @@ func (storage *Storage) getAllChunks(context context.Context, buildId string) ([
 	return buildChunks, nil
 }
 
-func (storage *Storage) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
-	chunks, err := storage.getAllChunks(context, buildId)
+func (b *Bucket) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
+	chunks, err := b.getAllChunks(context, buildId)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +185,7 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 		EndAt:   testChunks[len(testChunks)-1].End,
 	}
 
-	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)
+	testChunkIterator := NewBatchedLogIterator(b, testChunks, 4, testTimeRange)
 
 	buildChunks := []LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
@@ -147,7 +205,7 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 	sort.Slice(buildChunks, func(i, j int) bool {
 		return buildChunks[i].Start.Before(buildChunks[j].Start)
 	})
-	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, testTimeRange)
+	buildChunkIterator := NewBatchedLogIterator(b, buildChunks, 4, testTimeRange)
 
 	// Merge everything together
 	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
@@ -173,12 +231,12 @@ func (m *BuildMetadata) Key() string {
 	return fmt.Sprintf("%s/%s", buildPrefix(m.ID), metadataFilename)
 }
 
-func (storage *Storage) UploadBuildMetadata(ctx context.Context, b model.Build) error {
-	metadata := newBuildMetadata(b)
+func (b *Bucket) UploadBuildMetadata(ctx context.Context, build model.Build) error {
+	metadata := newBuildMetadata(build)
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return errors.Wrap(err, "marshaling metadata")
 	}
 
-	return errors.Wrapf(storage.bucket.Put(ctx, metadata.Key(), bytes.NewReader(metadataJSON)), "putting build metadata for build '%s'", b.Id)
+	return errors.Wrapf(b.Put(ctx, metadata.Key(), bytes.NewReader(metadataJSON)), "putting build metadata for build '%s'", build.Id)
 }
