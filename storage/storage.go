@@ -1,15 +1,21 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/pail"
+	"github.com/pkg/errors"
 )
+
+const metadataFilename = "metadata.json"
 
 type Storage struct {
 	bucket pail.Bucket
@@ -42,10 +48,12 @@ func parseName(name string) (start time.Time, end time.Time, numLines int64, err
 	return
 }
 
-func (storage *Storage) getAllChunks(context context.Context, buildId string) ([]LogChunkInfo, error) {
-	buildPrefix := fmt.Sprintf("/%s/", buildId)
+func buildPrefix(buildID string) string {
+	return fmt.Sprintf("/%s/", buildID)
+}
 
-	iterator, listErr := storage.bucket.List(context, buildPrefix)
+func (storage *Storage) getAllChunks(context context.Context, buildId string) ([]LogChunkInfo, error) {
+	iterator, listErr := storage.bucket.List(context, buildPrefix(buildId))
 	buildChunks := []LogChunkInfo{}
 	if listErr != nil {
 		return nil, listErr
@@ -143,4 +151,34 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 
 	// Merge everything together
 	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+}
+
+type BuildMetadata struct {
+	ID       string `json:"id"`
+	Builder  string `json:"builder"`
+	BuildNum int    `json:"buildnum"`
+	TaskID   string `json:"task_id"`
+}
+
+func newBuildMetadata(b model.Build) BuildMetadata {
+	return BuildMetadata{
+		ID:       b.Id,
+		Builder:  b.Builder,
+		BuildNum: b.BuildNum,
+		TaskID:   b.Info.TaskID,
+	}
+}
+
+func (m *BuildMetadata) Key() string {
+	return fmt.Sprintf("%s/%s", buildPrefix(m.ID), metadataFilename)
+}
+
+func (storage *Storage) UploadBuildMetadata(ctx context.Context, b model.Build) error {
+	metadata := newBuildMetadata(b)
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return errors.Wrap(err, "marshaling metadata")
+	}
+
+	return errors.Wrapf(storage.bucket.Put(ctx, metadata.Key(), bytes.NewReader(metadataJSON)), "putting build metadata for build '%s'", b.Id)
 }

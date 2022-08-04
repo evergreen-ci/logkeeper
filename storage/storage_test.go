@@ -2,47 +2,74 @@ package storage
 
 import (
 	"context"
+	"io"
 	"os"
 	"testing"
 
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/pail"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+const tempDir = "../_bucketdata"
+
 func makeTestStorage(t *testing.T, initDir string) Storage {
-	err := os.RemoveAll("../_bucketdata")
+	err := os.RemoveAll(tempDir)
 	require.NoError(t, err)
-	err = os.Mkdir("../_bucketdata", 0755)
+	err = os.Mkdir(tempDir, 0755)
 	require.NoError(t, err)
 
 	bucket, err := pail.NewLocalBucket(pail.LocalOptions{
-		Path:   "../_bucketdata",
+		Path:   tempDir,
 		Prefix: "",
 	})
 	require.NoError(t, err)
 
-	err = bucket.Push(context.Background(), pail.SyncOptions{
-		Local:  initDir,
-		Remote: "/",
-	})
-	require.NoError(t, err)
+	if initDir != "" {
+		err = bucket.Push(context.Background(), pail.SyncOptions{
+			Local:  initDir,
+			Remote: "/",
+		})
+		require.NoError(t, err)
+	}
 
 	return NewStorage(bucket)
 }
 
 func TestBasicStorage(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer os.RemoveAll("../_bucketdata")
+	defer os.RemoveAll(tempDir)
 	results, err := storage.bucket.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, results)
 
 }
 
+func TestUploadBuildMetadata(t *testing.T) {
+	storage := makeTestStorage(t, "")
+	defer os.RemoveAll(tempDir)
+
+	build := model.Build{
+		Id:       "5a75f537726934e4b62833ab6d5dca41",
+		Builder:  "builder0",
+		BuildNum: 1,
+		Info:     model.BuildInfo{TaskID: "t0"},
+	}
+
+	assert.NoError(t, storage.UploadBuildMetadata(context.Background(), build))
+	results, err := storage.bucket.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	assert.NoError(t, err)
+	contents, err := io.ReadAll(results)
+	assert.NoError(t, err)
+
+	expectedMetadata := `{"id":"5a75f537726934e4b62833ab6d5dca41","builder":"builder0","buildnum":1,"task_id":"t0"}`
+	assert.Equal(t, expectedMetadata, string(contents))
+}
+
 func TestGetTestLogLines(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer os.RemoveAll("../_bucketdata")
+	defer os.RemoveAll(tempDir)
 	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
@@ -59,7 +86,7 @@ func TestGetTestLogLines(t *testing.T) {
 
 func TestGetTestLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
-	defer os.RemoveAll("../_bucketdata")
+	defer os.RemoveAll(tempDir)
 	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
