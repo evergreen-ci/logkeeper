@@ -58,7 +58,7 @@ func TestGetTestLogLines(t *testing.T) {
 }
 
 func TestGetTestLogLinesInBetween(t *testing.T) {
-	storage := makeTestStorage(t, "../testdata/inbetween")
+	storage := makeTestStorage(t, "../testdata/between")
 	defer os.RemoveAll("../_bucketdata")
 	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
