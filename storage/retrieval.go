@@ -4,6 +4,8 @@ import (
 	"context"
 	"sort"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func (b *Bucket) getAllChunks(context context.Context, buildId string) ([]LogChunkInfo, error) {
@@ -13,41 +15,14 @@ func (b *Bucket) getAllChunks(context context.Context, buildId string) ([]LogChu
 		return nil, listErr
 	}
 	for iterator.Next(context) {
-		if strings.HasSuffix(iterator.Item().Name(), "metadata.json") {
+		if strings.HasSuffix(iterator.Item().Name(), metadataFilename) {
 			continue
 		}
-		if strings.Contains(iterator.Item().Name(), "/tests/") {
-			keyParts := strings.Split(iterator.Item().Name(), "/")
-			buildID := keyParts[1]
-			testID := keyParts[3]
-			name := keyParts[4]
-			start, end, numLines, nameErr := parseName(name)
-			if nameErr != nil {
-				return nil, nameErr
-			}
-			buildChunks = append(buildChunks, LogChunkInfo{
-				BuildID:  buildID,
-				TestID:   testID,
-				Start:    start,
-				End:      end,
-				NumLines: int(numLines),
-			})
-		} else {
-			keyParts := strings.Split(iterator.Item().Name(), "/")
-			buildID := keyParts[1]
-			name := keyParts[2]
-			start, end, numLines, nameErr := parseName(name)
-			if nameErr != nil {
-				return nil, nameErr
-			}
-			buildChunks = append(buildChunks, LogChunkInfo{
-				BuildID:  buildID,
-				TestID:   "",
-				Start:    start,
-				End:      end,
-				NumLines: int(numLines),
-			})
+		var info LogChunkInfo
+		if err := info.fromKey(iterator.Item().Name()); err != nil {
+			return nil, errors.Wrap(err, "getting log chunk info from key name")
 		}
+		buildChunks = append(buildChunks, info)
 	}
 	return buildChunks, nil
 }

@@ -92,7 +92,7 @@ func (i *serializedIterator) Next(ctx context.Context) bool {
 			}
 
 			var err error
-			i.currentReadCloser, err = i.bucket.Get(ctx, i.chunks[i.keyIndex].Key())
+			i.currentReadCloser, err = i.bucket.Get(ctx, i.chunks[i.keyIndex].key())
 			if err != nil {
 				i.catcher.Wrap(err, "downloading log artifact")
 				return false
@@ -276,13 +276,13 @@ func (i *batchedIterator) getNextBatch(ctx context.Context) error {
 					return
 				}
 
-				r, err := i.bucket.Get(ctx, chunk.Key())
+				r, err := i.bucket.Get(ctx, chunk.key())
 				if err != nil {
 					catcher.Add(err)
 					return
 				}
 				mux.Lock()
-				readers[chunk.Key()] = r
+				readers[chunk.key()] = r
 				mux.Unlock()
 			}
 		}()
@@ -306,7 +306,7 @@ func (i *batchedIterator) Next(ctx context.Context) bool {
 				return false
 			}
 
-			reader, ok := i.readers[i.chunks[i.keyIndex].Key()]
+			reader, ok := i.readers[i.chunks[i.keyIndex].key()]
 			if !ok {
 				if err := i.getNextBatch(ctx); err != nil {
 					i.catcher.Add(err)

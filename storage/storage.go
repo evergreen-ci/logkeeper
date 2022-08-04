@@ -46,7 +46,7 @@ func (opts *BucketOpts) makeBucket() (pail.Bucket, error) {
 			Path: opts.Path,
 		})
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating local bucket at '%s'")
+			return nil, errors.Wrapf(err, "creating local bucket at '%s'", opts.Path)
 		}
 
 		return Bucket{localBucket}, nil
