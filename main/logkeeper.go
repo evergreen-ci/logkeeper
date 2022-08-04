@@ -14,6 +14,7 @@ import (
 
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/evergreen-ci/logkeeper/env"
+	"github.com/evergreen-ci/logkeeper/storage"
 	"github.com/evergreen-ci/logkeeper/units"
 	"github.com/mongodb/amboy/pool"
 	"github.com/mongodb/amboy/queue"
@@ -69,9 +70,13 @@ func main() {
 
 	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
+	bucket, err := storage.NewBucket(storage.BucketOpts{Location: storage.PailS3})
+	grip.EmergencyFatal(errors.Wrap(err, "making S3 bucket"))
+
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
+		Bucket:         bucket,
 	})
 	env.SetDBName(dbName)
 	go logkeeper.BackgroundLogging(ctx)
