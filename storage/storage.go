@@ -105,7 +105,6 @@ func (storage *Storage) getBuildAndTestChunks(context context.Context, buildId s
 
 	testChunks := []LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
-		// Find our test id
 		if chunks[i].TestID != "" {
 			testChunks = append(testChunks, chunks[i])
 		}
@@ -215,7 +214,7 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)
 
 	sortByStartTime(buildChunks)
-	// This batchedlogiterator will filter out buildChunks that don't intestect with testTimeRange
+	// Before fetching, this batchedlogiterator will filter out buildChunks that don't intersect with testTimeRange
 	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, testTimeRange)
 
 	// Merge everything together
