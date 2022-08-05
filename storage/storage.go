@@ -11,6 +11,7 @@ const (
 	awsKeyEnvVariable    = "AWS_KEY"
 	awsSecretEnvVariable = "AWS_SECRET"
 	awsBucketEnvVariable = "AWS_S3_BUCKET"
+	defaultS3Region      = "us-east-1"
 )
 
 type Bucket struct {
@@ -20,8 +21,6 @@ type Bucket struct {
 type PailType int
 
 const (
-	defaultS3Region = "us-east-1"
-
 	PailS3 PailType = iota
 	PailLocal
 )
@@ -32,14 +31,14 @@ type BucketOpts struct {
 }
 
 func NewBucket(opts BucketOpts) (Bucket, error) {
-	bucket, err := opts.makeBucket()
+	bucket, err := opts.getBucket()
 	if err != nil {
 		return Bucket{}, errors.Wrap(err, "making bucket")
 	}
 	return Bucket{bucket}, nil
 }
 
-func (opts *BucketOpts) makeBucket() (pail.Bucket, error) {
+func (opts *BucketOpts) getBucket() (pail.Bucket, error) {
 	switch opts.Location {
 	case PailLocal:
 		localBucket, err := pail.NewLocalBucket(pail.LocalOptions{
@@ -51,13 +50,13 @@ func (opts *BucketOpts) makeBucket() (pail.Bucket, error) {
 
 		return Bucket{localBucket}, nil
 	case PailS3:
-		options, err := opts.getS3Options()
+		s3Options, err := opts.getS3Options()
 		if err != nil {
 			return nil, errors.Wrap(err, "getting S3 options")
 		}
-		s3Bucket, err := pail.NewS3Bucket(options)
+		s3Bucket, err := pail.NewS3Bucket(s3Options)
 		if err != nil {
-			return nil, errors.Wrapf(err, "creating S3 bucket in '%s'", opts.Path)
+			return nil, errors.Wrap(err, "creating S3 bucket")
 		}
 
 		return Bucket{s3Bucket}, nil

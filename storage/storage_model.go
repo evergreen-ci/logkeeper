@@ -37,7 +37,6 @@ func (info *LogChunkInfo) fromKey(path string) error {
 	var keyName string
 	keyParts := strings.Split(path, "/")
 	if strings.Contains(path, "/tests/") {
-		keyParts := strings.Split(path, "/")
 		info.BuildID = keyParts[1]
 		info.TestID = keyParts[3]
 		keyName = keyParts[4]

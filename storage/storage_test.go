@@ -43,3 +43,69 @@ func TestBasicStorage(t *testing.T) {
 	assert.NotEqual(t, nil, results)
 
 }
+
+func TestGetS3Options(t *testing.T) {
+	defer os.Clearenv()
+
+	t.Run("AllSet", func(t *testing.T) {
+		os.Clearenv()
+
+		key := "the_key"
+		secret := "the_secret"
+		bucket := "the_bucket"
+		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+		require.NoError(t, os.Setenv(awsBucketEnvVariable, bucket))
+
+		opts := BucketOpts{}
+		s3Opts, err := opts.getS3Options()
+		assert.NoError(t, err)
+		require.NotNil(t, s3Opts.Credentials)
+		creds, err := s3Opts.Credentials.Get()
+		assert.NoError(t, err)
+		assert.Equal(t, key, creds.AccessKeyID)
+		assert.Equal(t, secret, creds.SecretAccessKey)
+		assert.Equal(t, bucket, s3Opts.Name)
+	})
+
+	t.Run("MissingKey", func(t *testing.T) {
+		os.Clearenv()
+
+		secret := "the_secret"
+		bucket := "the_bucket"
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+		require.NoError(t, os.Setenv(awsBucketEnvVariable, bucket))
+
+		opts := BucketOpts{}
+		_, err := opts.getS3Options()
+		assert.Error(t, err)
+	})
+
+	t.Run("MissingBucketAndPath", func(t *testing.T) {
+		os.Clearenv()
+
+		key := "the_key"
+		secret := "the_secret"
+		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+
+		opts := BucketOpts{}
+		_, err := opts.getS3Options()
+		assert.Error(t, err)
+	})
+
+	t.Run("MissingBucketWithPath", func(t *testing.T) {
+		os.Clearenv()
+
+		key := "the_key"
+		secret := "the_secret"
+		path := "the_path"
+		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+
+		opts := BucketOpts{Path: path}
+		s3Opts, err := opts.getS3Options()
+		assert.NoError(t, err)
+		assert.Equal(t, path, s3Opts.Name)
+	})
+}
