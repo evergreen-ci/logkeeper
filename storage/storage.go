@@ -128,22 +128,6 @@ func sortByStartTime(chunks []LogChunkInfo) {
 	})
 }
 
-func minTime(first time.Time, second time.Time) time.Time {
-	if first.Before(second) {
-		return first
-	} else {
-		return second
-	}
-}
-
-func maxTime(first time.Time, second time.Time) time.Time {
-	if first.Before(second) {
-		return second
-	} else {
-		return first
-	}
-}
-
 func (storage *Storage) GetAllLogLines(context context.Context, buildId string) (LogIterator, error) {
 	buildChunks, testChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
@@ -153,10 +137,7 @@ func (storage *Storage) GetAllLogLines(context context.Context, buildId string) 
 	sortByStartTime(buildChunks)
 	sortByStartTime(testChunks)
 
-	timeRange := TimeRange{
-		StartAt: minTime(buildChunks[0].Start, testChunks[0].Start),
-		EndAt:   maxTime(getLatestTime(buildChunks), getLatestTime(testChunks)),
-	}
+	timeRange := NewTimeRange(TimeRangeMin, TimeRangeMax)
 
 	buildChunkIterator := NewBatchedLogIterator(storage.bucket, buildChunks, 4, timeRange)
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, timeRange)
@@ -176,15 +157,15 @@ func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
 	return testChunks
 }
 
-// Gets the first chunk in the list with a start time after "target", otherwise falls back to the
-// fallback time if there are no such chunks.
-func getFirstTestChunkAfter(allTestChunks []LogChunkInfo, target time.Time, fallback time.Time) time.Time {
+// Gets the first chunk in the list with a start time after "target", otherwise falls back to
+// TimeRangeMax.
+func getFirstTestChunkAfter(allTestChunks []LogChunkInfo, target time.Time) time.Time {
 	for _, chunk := range allTestChunks {
 		if chunk.Start.After(target) {
 			return chunk.Start
 		}
 	}
-	return fallback
+	return TimeRangeMax
 }
 
 func (storage *Storage) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
@@ -203,13 +184,9 @@ func (storage *Storage) GetTestLogLines(context context.Context, buildId string,
 	// If there are no test chunks after our queried test, then this should set the end time
 	// to the latest end time of all the chunks we have.
 	lastTestChunkEnd := getLatestTime(testChunks)
-	maxPossibleTime := maxTime(getLatestTime(buildChunks), lastTestChunkEnd)
-	logEndTime := getFirstTestChunkAfter(allTestChunks, lastTestChunkEnd, maxPossibleTime)
+	logEndTime := getFirstTestChunkAfter(allTestChunks, lastTestChunkEnd)
 
-	testTimeRange := TimeRange{
-		StartAt: testChunks[0].Start,
-		EndAt:   logEndTime,
-	}
+	testTimeRange := NewTimeRange(testChunks[0].Start, logEndTime)
 
 	testChunkIterator := NewBatchedLogIterator(storage.bucket, testChunks, 4, testTimeRange)
 
