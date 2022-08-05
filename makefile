@@ -121,7 +121,7 @@ $(buildDir)/output.%.coverage: .FORCE
 $(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage
 	go tool cover -html=$< -o $@
 $(buildDir)/output.smoke.test: $(buildDir)/$(name)
-	./$< &
+	./$< --localPath $(buildDir) &
 	PORT=8080 go test $(testArgs) -v ./smoke/smoke_test.go | tee $(buildDir)/output.smoke.test || (pkill -f $<; exit 1)
 	pkill -f $<
 # end test and coverage artifacts

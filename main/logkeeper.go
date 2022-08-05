@@ -35,6 +35,7 @@ func main() {
 	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
 	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
 		"Leave empty for stand-alone and mongos instances.")
+	localPath := flag.String("localPath", "", "local path to save data to. Omit to save data to S3.")
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
@@ -70,8 +71,8 @@ func main() {
 
 	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
-	bucket, err := storage.NewBucket(storage.BucketOpts{Location: storage.PailS3})
-	grip.EmergencyFatal(errors.Wrap(err, "making S3 bucket"))
+	bucket, err := makeBucket(localPath)
+	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
@@ -167,4 +168,15 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 		}(s)
 	}
 	wg.Wait()
+}
+
+func makeBucket(localPath *string) (storage.Bucket, error) {
+	if localPath != nil {
+		return storage.NewBucket(storage.BucketOpts{
+			Location: storage.PailLocal,
+			Path:     *localPath,
+		})
+	}
+
+	return storage.NewBucket(storage.BucketOpts{Location: storage.PailS3})
 }
