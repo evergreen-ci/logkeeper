@@ -2,10 +2,12 @@ package storage
 
 import (
 	"context"
+	"io/ioutil"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/pkg/errors"
 )
 
@@ -134,4 +136,46 @@ func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, 
 
 	// Merge everything together
 	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+}
+
+func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
+	key := metadataKeyForBuildId(id)
+	reader, err := b.Get(ctx, key)
+	if err != nil {
+		return nil, errors.Wrapf(err, "fetching build metadata for build '%s'", id)
+	}
+
+	bytes, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, errors.Wrapf(err, "reading build metadata for build '%s'", id)
+	}
+	metadata := buildMetadata{}
+	err = metadata.fromJSON(bytes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing build metadata for build '%s'", id)
+	}
+
+	build := metadata.toBuild()
+	return &build, nil
+}
+
+func (b *Bucket) FindTestByID(ctx context.Context, buildId string, testId string) (*model.Test, error) {
+	key := metadataKeyForTest(buildId, testId)
+	reader, err := b.Get(ctx, key)
+	if err != nil {
+		return nil, errors.Wrapf(err, "fetching test metadata for build: '%s' and test: '%s'", buildId, testId)
+	}
+
+	bytes, err := ioutil.ReadAll(reader)
+	if err != nil {
+		return nil, errors.Wrapf(err, "reading test metadata for build: '%s' and test: '%s'", buildId, testId)
+	}
+	metadata := testMetadata{}
+	err = metadata.fromJSON(bytes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing test metadata for build: '%s' and test: '%s'", buildId, testId)
+	}
+
+	test := metadata.toTest()
+	return &test, nil
 }

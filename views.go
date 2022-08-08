@@ -422,6 +422,45 @@ func (lk *logKeeper) viewTestInDatabase(r *http.Request, buildID string, testID 
 	return &result, nil
 }
 
+func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+	build, err := lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+	if err != nil || build == nil {
+		return nil, &apiError{Err: "view test in S3 by id: build not found", code: http.StatusNotFound}
+	}
+
+	test, err := lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
+	if err != nil || test == nil {
+		return nil, &apiError{Err: "view test in S3 by id: test not found", code: http.StatusNotFound}
+	}
+
+	iterator, err := lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
+	if err != nil {
+		lk.logErrorf(r, "Error finding logs during test: %v", err)
+		return nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	}
+
+	logsChan := make(chan *model.LogLineItem)
+
+	go func() {
+		defer close(logsChan)
+		for iterator.Next(r.Context()) {
+			if iterator.Err() != nil {
+				lk.logErrorf(r, "Error iterating over logs: %v", err)
+				break
+			}
+			item := iterator.Item()
+			logsChan <- &item
+		}
+	}()
+
+	result := logFetchResponse{
+		logLines: logsChan,
+		build:    build,
+		test:     test,
+	}
+	return &result, nil
+}
+
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer r.Body.Close()
@@ -434,8 +473,14 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", buildID, testID), http.StatusFound)
 		return
 	}
+	var result *logFetchResponse
+	var fetchError *apiError
+	if len(r.FormValue("s3")) > 0 {
+		result, fetchError = lk.viewTestInS3(r, buildID, testID)
+	} else {
+		result, fetchError = lk.viewTestInDatabase(r, buildID, testID)
 
-	result, fetchError := lk.viewTestInDatabase(r, buildID, testID)
+	}
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return

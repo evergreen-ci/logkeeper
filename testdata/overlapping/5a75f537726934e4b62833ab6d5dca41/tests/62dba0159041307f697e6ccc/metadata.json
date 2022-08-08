@@ -1,9 +1,6 @@
 {
-    "_id": "62dba0159041307f697e6ccc",
+    "id": "62dba0159041307f697e6ccc",
     "build_id": "5a75f537726934e4b62833ab6d5dca41",
-    "build_name": "157865447",
     "name": "geo_max:CheckReplOplogs",
-    "command": "",
-    "task_id": "Task",
-    "phase": "phase"
+    "task_id": "Task"
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/pkg/errors"
+	"gopkg.in/mgo.v2/bson"
 )
 
 const metadataFilename = "metadata.json"
@@ -91,8 +92,23 @@ func newBuildMetadata(b model.Build) buildMetadata {
 	}
 }
 
+func (m *buildMetadata) toBuild() model.Build {
+	return model.Build{
+		Id:       m.ID,
+		Builder:  m.Builder,
+		BuildNum: m.BuildNum,
+		Info: model.BuildInfo{
+			TaskID: m.TaskID,
+		},
+	}
+}
+
 func (m *buildMetadata) key() string {
-	return fmt.Sprintf("%s%s", buildPrefix(m.ID), metadataFilename)
+	return metadataKeyForBuildId(m.ID)
+}
+
+func metadataKeyForBuildId(id string) string {
+	return fmt.Sprintf("%s%s", buildPrefix(id), metadataFilename)
 }
 
 func (m *buildMetadata) toJSON() ([]byte, error) {
@@ -102,4 +118,56 @@ func (m *buildMetadata) toJSON() ([]byte, error) {
 	}
 
 	return metadataJSON, nil
+}
+
+func (m *buildMetadata) fromJSON(data []byte) error {
+	return errors.Wrap(json.Unmarshal(data, m), "unmarshalling metadata")
+}
+
+type testMetadata struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	BuildID string `json:"build_id"`
+	TaskID  string `json:"task_id"`
+}
+
+func newTestMetadata(t model.Test) testMetadata {
+	return testMetadata{
+		ID:      t.Id.String(),
+		BuildID: t.BuildId,
+		Name:    t.Name,
+		TaskID:  t.Info.TaskID,
+	}
+}
+
+func (m *testMetadata) toTest() model.Test {
+	return model.Test{
+		Id:      bson.ObjectIdHex(m.ID),
+		BuildId: m.BuildID,
+		Name:    m.Name,
+		Info: model.TestInfo{
+			TaskID: m.TaskID,
+		},
+	}
+}
+
+func (m *testMetadata) key() string {
+	return metadataKeyForTest(m.BuildID, m.ID)
+}
+
+func metadataKeyForTest(buildId string, testId string) string {
+	return fmt.Sprintf("%s%s", testPrefix(buildId, testId), metadataFilename)
+}
+
+func (m *testMetadata) toJSON() ([]byte, error) {
+	metadataJSON, err := json.Marshal(m)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshaling metadata")
+	}
+
+	return metadataJSON, nil
+}
+
+func (m *testMetadata) fromJSON(data []byte) error {
+	return errors.Wrap(json.Unmarshal(data, m), "unmarshalling metadata")
 }
