@@ -330,6 +330,23 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
+func (lk *logKeeper) viewBuildByIdInS3(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
+	build, err := lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+	if err != nil {
+		lk.logErrorf(r, "Error finding build: %v", err)
+		return nil, nil, &apiError{Err: "failed to find build in S3:" + err.Error(), code: http.StatusInternalServerError}
+	}
+	if build == nil {
+		return nil, nil, &apiError{Err: "view build: build not found in S3", code: http.StatusNotFound}
+	}
+	tests, err := lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
+	if err != nil {
+		lk.logErrorf(r, "Error finding tests for build: %v", err)
+		return nil, nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	}
+	return build, tests, nil
+}
+
 func (lk *logKeeper) viewBuildByIdInDatabase(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
@@ -354,7 +371,16 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
 
-	build, tests, fetchError := lk.viewBuildByIdInDatabase(r, buildID)
+	var build *model.Build
+	var tests []model.Test
+	var fetchError *apiError
+
+	if len(r.FormValue("s3")) > 0 {
+		build, tests, fetchError = lk.viewBuildByIdInS3(r, buildID)
+	} else {
+		build, tests, fetchError = lk.viewBuildByIdInDatabase(r, buildID)
+	}
+
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return

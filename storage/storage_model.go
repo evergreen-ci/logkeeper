@@ -68,8 +68,20 @@ func (info *LogChunkInfo) fromKey(path string) error {
 	return nil
 }
 
+func testIdFromKey(path string) (string, error) {
+	keyParts := strings.Split(path, "/")
+	if strings.Contains(path, "/tests/") && len(keyParts) >= 4 {
+		return keyParts[3], nil
+	}
+	return "", errors.Errorf("Path %s does not contain a well-formed test id prefix", path)
+}
+
 func buildPrefix(buildID string) string {
 	return fmt.Sprintf("/builds/%s/", buildID)
+}
+
+func buildTestsPrefix(buildID string) string {
+	return fmt.Sprintf("/%s/tests/", buildID)
 }
 
 func testPrefix(buildID, testID string) string {

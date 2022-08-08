@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
@@ -173,4 +174,49 @@ func (b *Bucket) FindTestByID(ctx context.Context, buildId string, testId string
 
 	test := metadata.toTest()
 	return &test, nil
+}
+
+func (b *Bucket) FindTestsForBuild(ctx context.Context, buildId string) ([]model.Test, error) {
+	iterator, listErr := b.List(ctx, buildTestsPrefix(buildId))
+	testIds := []string{}
+	if listErr != nil {
+		return nil, listErr
+	}
+	for iterator.Next(ctx) {
+		if strings.HasSuffix(iterator.Item().Name(), metadataFilename) {
+			testId, parseError := testIdFromKey(iterator.Item().Name())
+			if parseError != nil {
+				return nil, errors.Wrapf(parseError, "parsing test metadata key under build %s", buildId)
+			}
+			testIds = append(testIds, testId)
+		}
+	}
+
+	var wg sync.WaitGroup
+	catcher := grip.NewBasicCatcher()
+
+	testResults := make([]model.Test, len(testIds))
+
+	for index, testId := range testIds {
+		wg.Add(1)
+		closureTestId := testId
+		closureIndex := index
+		go func() {
+			defer wg.Done()
+			test, err := b.FindTestByID(ctx, buildId, closureTestId)
+			if err != nil {
+				catcher.Wrapf(err, "Fetching test id %s under build id %s", closureTestId, buildId)
+			} else {
+				testResults[closureIndex] = *test
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	if catcher.HasErrors() {
+		return nil, catcher.Resolve()
+	}
+
+	return testResults, nil
 }

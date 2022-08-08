@@ -196,3 +196,30 @@ func TestFindTestById(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, &expected, testResponse)
 }
+
+func TestFindTestsForBuild(t *testing.T) {
+	storage := makeTestStorage(t, "../testdata/between")
+	defer cleanTestStorage(t)
+
+	expected := []model.Test{
+		{
+			Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+			Name:    "geo_max:CheckReplOplogs",
+			Info: model.TestInfo{
+				TaskID: "Task",
+			},
+		},
+		{
+			Id:      bson.ObjectIdHex("72dba0159041307f697e6ccd"),
+			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+			Name:    "geo_max:CheckReplOplogs2",
+			Info: model.TestInfo{
+				TaskID: "Task",
+			},
+		},
+	}
+	testResponse, err := storage.FindTestsForBuild(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
+	require.NoError(t, err)
+	assert.Equal(t, expected, testResponse)
+}
