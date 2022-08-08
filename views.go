@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/env"
@@ -423,20 +424,51 @@ func (lk *logKeeper) viewTestInDatabase(r *http.Request, buildID string, testID 
 }
 
 func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
-	build, err := lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
-	if err != nil || build == nil {
+	var build *model.Build
+	var buildErr error
+	wg := sync.WaitGroup{}
+
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+	}()
+
+	var test *model.Test
+	var testErr error
+	go func() {
+		defer wg.Done()
+		test, testErr = lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
+	}()
+
+	var logsChan chan *model.LogLineItem
+	var logsChanErr error
+	go func() {
+		defer wg.Done()
+		logsChan, logsChanErr = lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
+	}()
+
+	wg.Wait()
+
+	if buildErr != nil {
+		return nil, &apiError{Err: "view test in S3 by id: error fetching build", code: http.StatusInternalServerError}
+	}
+
+	if build == nil {
 		return nil, &apiError{Err: "view test in S3 by id: build not found", code: http.StatusNotFound}
 	}
 
-	test, err := lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
-	if err != nil || test == nil {
+	if testErr != nil {
+		return nil, &apiError{Err: "view test in S3 by id: error fetching test", code: http.StatusInternalServerError}
+	}
+
+	if test == nil {
 		return nil, &apiError{Err: "view test in S3 by id: test not found", code: http.StatusNotFound}
 	}
 
-	logsChan, err := lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
-	if err != nil {
-		lk.logErrorf(r, "Error finding logs during test: %v", err)
-		return nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	if logsChanErr != nil {
+		lk.logErrorf(r, "Error finding logs during test: %v", logsChanErr)
+		return nil, &apiError{Err: logsChanErr.Error(), code: http.StatusInternalServerError}
 	}
 
 	result := logFetchResponse{
