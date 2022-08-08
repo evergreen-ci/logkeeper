@@ -433,25 +433,11 @@ func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string
 		return nil, &apiError{Err: "view test in S3 by id: test not found", code: http.StatusNotFound}
 	}
 
-	iterator, err := lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
+	logsChan, err := lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
 	if err != nil {
 		lk.logErrorf(r, "Error finding logs during test: %v", err)
 		return nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
 	}
-
-	logsChan := make(chan *model.LogLineItem)
-
-	go func() {
-		defer close(logsChan)
-		for iterator.Next(r.Context()) {
-			if iterator.Err() != nil {
-				lk.logErrorf(r, "Error iterating over logs: %v", err)
-				break
-			}
-			item := iterator.Item()
-			logsChan <- &item
-		}
-	}()
 
 	result := logFetchResponse{
 		logLines: logsChan,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/mongodb/grip"
 	"github.com/pkg/errors"
 )
 
@@ -69,7 +70,7 @@ func sortByStartTime(chunks []LogChunkInfo) {
 	})
 }
 
-func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (LogIterator, error) {
+func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (chan *model.LogLineItem, error) {
 	buildChunks, testChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (
 	testChunkIterator := NewBatchedLogIterator(storage, testChunks, 4, timeRange)
 
 	// Merge test and build logs
-	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+	return channelFromIterator(context, NewMergingIterator(testChunkIterator, buildChunkIterator)), nil
 }
 
 func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
@@ -109,7 +110,25 @@ func getFirstTestChunkAfter(allTestChunks []LogChunkInfo, target time.Time) time
 	return TimeRangeMax
 }
 
-func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
+func channelFromIterator(context context.Context, iterator LogIterator) chan *model.LogLineItem {
+	logsChan := make(chan *model.LogLineItem)
+
+	go func() {
+		defer close(logsChan)
+		for iterator.Next(context) {
+			if iterator.Err() != nil {
+				grip.Errorf("Error iterating over logs: %v", iterator.Err())
+				break
+			}
+			item := iterator.Item()
+			logsChan <- &item
+		}
+	}()
+
+	return logsChan
+}
+
+func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, testId string) (chan *model.LogLineItem, error) {
 	buildChunks, allTestChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
@@ -136,7 +155,7 @@ func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, 
 	buildChunkIterator := NewBatchedLogIterator(storage, buildChunks, 4, testTimeRange)
 
 	// Merge everything together
-	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+	return channelFromIterator(context, NewMergingIterator(testChunkIterator, buildChunkIterator)), nil
 }
 
 func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
