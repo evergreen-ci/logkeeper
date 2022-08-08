@@ -35,9 +35,14 @@ func makeTestStorage(t *testing.T, initDir string) Bucket {
 	return bucket
 }
 
+func cleanTestStorage(t *testing.T) {
+	err := os.RemoveAll(tempDir)
+	require.NoError(t, err)
+}
+
 func TestBasicStorage(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer os.RemoveAll(tempDir)
+	defer cleanTestStorage(t)
 	results, err := storage.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, results)

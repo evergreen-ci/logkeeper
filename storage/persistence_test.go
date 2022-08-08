@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"io"
-	"os"
 	"testing"
 
 	"github.com/evergreen-ci/logkeeper/model"
@@ -12,7 +11,7 @@ import (
 
 func TestUploadBuildMetadata(t *testing.T) {
 	storage := makeTestStorage(t, "")
-	defer os.RemoveAll(tempDir)
+	defer cleanTestStorage(t)
 
 	build := model.Build{
 		Id:       "5a75f537726934e4b62833ab6d5dca41",

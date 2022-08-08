@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,7 +10,7 @@ import (
 
 func TestGetTestLogLines(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer os.RemoveAll(tempDir)
+	defer cleanTestStorage(t)
 	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
@@ -28,7 +27,7 @@ func TestGetTestLogLines(t *testing.T) {
 
 func TestGetTestLogLinesInBetween(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/between")
-	defer os.RemoveAll("../_bucketdata")
+	defer cleanTestStorage(t)
 	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
@@ -51,7 +50,7 @@ func TestGetTestLogLinesInBetween(t *testing.T) {
 
 func TestGetTestLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
-	defer os.RemoveAll("../_bucketdata")
+	defer cleanTestStorage(t)
 	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
@@ -106,7 +105,7 @@ func TestGetTestLogLinesOverlapping(t *testing.T) {
 
 func TestGetAllLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
-	defer os.RemoveAll("../_bucketdata")
+	defer cleanTestStorage(t)
 	iterator, err := storage.GetAllLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
 	require.NoError(t, err)
 
