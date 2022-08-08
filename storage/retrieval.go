@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"sort"
 	"strings"
@@ -145,12 +146,10 @@ func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, er
 		return nil, errors.Wrapf(err, "fetching build metadata for build '%s'", id)
 	}
 
-	bytes, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return nil, errors.Wrapf(err, "reading build metadata for build '%s'", id)
-	}
 	metadata := buildMetadata{}
-	err = metadata.fromJSON(bytes)
+	decoder := json.NewDecoder(reader)
+	err = decoder.Decode(&metadata)
+
 	if err != nil {
 		return nil, errors.Wrapf(err, "parsing build metadata for build '%s'", id)
 	}

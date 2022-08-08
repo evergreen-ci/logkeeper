@@ -120,10 +120,6 @@ func (m *buildMetadata) toJSON() ([]byte, error) {
 	return metadataJSON, nil
 }
 
-func (m *buildMetadata) fromJSON(data []byte) error {
-	return errors.Wrap(json.Unmarshal(data, m), "unmarshalling metadata")
-}
-
 type testMetadata struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
@@ -133,7 +129,7 @@ type testMetadata struct {
 
 func newTestMetadata(t model.Test) testMetadata {
 	return testMetadata{
-		ID:      t.Id.String(),
+		ID:      t.Id.Hex(),
 		BuildID: t.BuildId,
 		Name:    t.Name,
 		TaskID:  t.Info.TaskID,

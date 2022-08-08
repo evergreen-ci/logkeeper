@@ -479,7 +479,6 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		result, fetchError = lk.viewTestInS3(r, buildID, testID)
 	} else {
 		result, fetchError = lk.viewTestInDatabase(r, buildID, testID)
-
 	}
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
