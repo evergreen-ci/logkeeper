@@ -10,185 +10,107 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeTestStorage(t *testing.T, initDir string) Storage {
-	err := os.RemoveAll("../_bucketdata")
+const tempDir = "../_bucketdata"
+
+func makeTestStorage(t *testing.T, initDir string) Bucket {
+	err := os.RemoveAll(tempDir)
 	require.NoError(t, err)
-	err = os.Mkdir("../_bucketdata", 0755)
+	err = os.Mkdir(tempDir, 0755)
 	require.NoError(t, err)
 
-	bucket, err := pail.NewLocalBucket(pail.LocalOptions{
-		Path:   "../_bucketdata",
-		Prefix: "",
+	bucket, err := NewBucket(BucketOpts{
+		Location: PailLocal,
+		Path:     tempDir,
 	})
 	require.NoError(t, err)
 
-	err = bucket.Push(context.Background(), pail.SyncOptions{
-		Local:  initDir,
-		Remote: "/",
-	})
-	require.NoError(t, err)
+	if initDir != "" {
+		err = bucket.Push(context.Background(), pail.SyncOptions{
+			Local:  initDir,
+			Remote: "/",
+		})
+		require.NoError(t, err)
+	}
 
-	return NewStorage(bucket)
+	return bucket
+}
+
+func cleanTestStorage(t *testing.T) {
+	err := os.RemoveAll(tempDir)
+	require.NoError(t, err)
 }
 
 func TestBasicStorage(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer os.RemoveAll("../_bucketdata")
-	results, err := storage.bucket.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	defer cleanTestStorage(t)
+	results, err := storage.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, results)
 
 }
 
-func TestGetTestLogLines(t *testing.T) {
-	storage := makeTestStorage(t, "../testdata/simple")
-	defer os.RemoveAll("../_bucketdata")
-	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
-	require.NoError(t, err)
+func TestGetS3Options(t *testing.T) {
+	defer os.Clearenv()
 
-	// We should have the one additional intersecting line from the global logs and an additional one after
-	const expectedCount = 13
-	lines := []string{}
-	for iterator.Next(context.Background()) {
-		lines = append(lines, iterator.Item().Data)
-	}
+	t.Run("AllSet", func(t *testing.T) {
+		os.Clearenv()
 
-	assert.Equal(t, expectedCount, len(lines))
-	assert.Equal(t, "I am a global log within the test start/stop ranges.\n", lines[2])
-}
+		key := "the_key"
+		secret := "the_secret"
+		bucket := "the_bucket"
+		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+		require.NoError(t, os.Setenv(awsBucketEnvVariable, bucket))
 
-func TestGetTestLogLinesInBetween(t *testing.T) {
-	storage := makeTestStorage(t, "../testdata/between")
-	defer os.RemoveAll("../_bucketdata")
-	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
-	require.NoError(t, err)
+		opts := BucketOpts{}
+		s3Opts, err := opts.getS3Options()
+		assert.NoError(t, err)
+		require.NotNil(t, s3Opts.Credentials)
+		creds, err := s3Opts.Credentials.Get()
+		assert.NoError(t, err)
+		assert.Equal(t, key, creds.AccessKeyID)
+		assert.Equal(t, secret, creds.SecretAccessKey)
+		assert.Equal(t, bucket, s3Opts.Name)
+	})
 
-	const expectedCount = 4
-	expectedLines := []string{
-		"Test Log401\n",
-		"Test Log402\n",
-		// We should include the test logs and global logs that are before the next test
-		"Log501\n",
-		"Log502\n",
-	}
-	lines := []string{}
-	for iterator.Next(context.Background()) {
-		lines = append(lines, iterator.Item().Data)
-	}
+	t.Run("MissingKey", func(t *testing.T) {
+		os.Clearenv()
 
-	assert.Equal(t, expectedCount, len(lines))
-	assert.Equal(t, expectedLines, lines)
-}
+		secret := "the_secret"
+		bucket := "the_bucket"
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+		require.NoError(t, os.Setenv(awsBucketEnvVariable, bucket))
 
-func TestGetTestLogLinesOverlapping(t *testing.T) {
-	storage := makeTestStorage(t, "../testdata/overlapping")
-	defer os.RemoveAll("../_bucketdata")
-	iterator, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
-	require.NoError(t, err)
+		opts := BucketOpts{}
+		_, err := opts.getS3Options()
+		assert.Error(t, err)
+	})
 
-	// We should have all global logs that overlap our test and all logs after, since there is
-	// not a next test
-	const expectedCount = 35
-	expectedLines := []string{
-		"Test Log400\n",
-		"Log400\n",
-		"Test Log420\n",
-		"Log420\n",
-		"Test Log440\n",
-		"Log440\n",
-		"Test Log460\n",
-		"Log460\n",
-		"Test Log480\n",
-		"Log500\n",
-		"Test Log500\n",
-		"Log501\n",
-		"Test Log520\n",
-		"Log520\n",
-		"Test Log540\n",
-		"Log540\n",
-		"Test Log560\n",
-		"Log560\n",
-		"Log580\n",
-		"Test Log600\n",
-		"Test Log601\n",
-		"Test Log620\n",
-		"Test Log640\n",
-		"Test Log660\n",
-		"Test Log680\n",
-		"Test Log700\n",
-		"Test Log720\n",
-		"Test Log740\n",
-		"Test Log760\n",
-		"Test Log800\n",
-		"Log810\n",
-		"Log820\n",
-		"Log840\n",
-		"Log860\n",
-		"Log900\n",
-	}
-	lines := []string{}
-	for iterator.Next(context.Background()) {
-		lines = append(lines, iterator.Item().Data)
-	}
+	t.Run("MissingBucketAndPath", func(t *testing.T) {
+		os.Clearenv()
 
-	assert.Equal(t, expectedCount, len(lines))
-	assert.Equal(t, expectedLines, lines)
-}
+		key := "the_key"
+		secret := "the_secret"
+		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
 
-func TestGetAllLogLinesOverlapping(t *testing.T) {
-	storage := makeTestStorage(t, "../testdata/overlapping")
-	defer os.RemoveAll("../_bucketdata")
-	iterator, err := storage.GetAllLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
-	require.NoError(t, err)
+		opts := BucketOpts{}
+		_, err := opts.getS3Options()
+		assert.Error(t, err)
+	})
 
-	const expectedCount = 40
-	expectedLines := []string{
-		"Log300\n",
-		"Log320\n",
-		"Log340\n",
-		"Log360\n",
-		"Log380\n",
-		"Test Log400\n",
-		"Log400\n",
-		"Test Log420\n",
-		"Log420\n",
-		"Test Log440\n",
-		"Log440\n",
-		"Test Log460\n",
-		"Log460\n",
-		"Test Log480\n",
-		"Log500\n",
-		"Test Log500\n",
-		"Log501\n",
-		"Test Log520\n",
-		"Log520\n",
-		"Test Log540\n",
-		"Log540\n",
-		"Test Log560\n",
-		"Log560\n",
-		"Log580\n",
-		"Test Log600\n",
-		"Test Log601\n",
-		"Test Log620\n",
-		"Test Log640\n",
-		"Test Log660\n",
-		"Test Log680\n",
-		"Test Log700\n",
-		"Test Log720\n",
-		"Test Log740\n",
-		"Test Log760\n",
-		"Test Log800\n",
-		"Log810\n",
-		"Log820\n",
-		"Log840\n",
-		"Log860\n",
-		"Log900\n",
-	}
-	lines := []string{}
-	for iterator.Next(context.Background()) {
-		lines = append(lines, iterator.Item().Data)
-	}
+	t.Run("MissingBucketWithPath", func(t *testing.T) {
+		os.Clearenv()
 
-	assert.Equal(t, expectedCount, len(lines))
-	assert.Equal(t, expectedLines, lines)
+		key := "the_key"
+		secret := "the_secret"
+		path := "the_path"
+		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
+		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
+
+		opts := BucketOpts{Path: path}
+		s3Opts, err := opts.getS3Options()
+		assert.NoError(t, err)
+		assert.Equal(t, path, s3Opts.Name)
+	})
 }
