@@ -12,6 +12,7 @@ import (
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/logkeeper/storage"
 	"github.com/evergreen-ci/render"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
@@ -702,6 +703,7 @@ func (lk *logKeeper) viewDBTestLogs(r *http.Request, buildID string, testID stri
 ///////////////////////////////////////////////////////////////////////////////
 //
 // GET /status
+
 func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -762,8 +764,8 @@ func (lk *logKeeper) NewRouter() *mux.Router {
 
 	// Read methods.
 	r.StrictSlash(true).Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuild)
-	r.StrictSlash(true).Path("/build/{build_id}/all").Methods("GET").HandlerFunc(lk.viewAllLogs)
-	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").HandlerFunc(lk.viewTestLogs)
+	r.StrictSlash(true).Path("/build/{build_id}/all").Methods("GET").Handler(handlers.CompressHandler(http.HandlerFunc(lk.viewAllLogs)))
+	r.StrictSlash(true).Path("/build/{build_id}/test/{test_id}").Methods("GET").Handler(handlers.CompressHandler(http.HandlerFunc(lk.viewTestLogs)))
 	r.PathPrefix("/lobster").Methods("GET").HandlerFunc(lk.viewInLobster)
 	//r.Path("/{builder}/builds/{buildnum:[0-9]+}/").HandlerFunc(viewBuild)
 	//r.Path("/{builder}/builds/{buildnum}/test/{test_phase}/{test_name}").HandlerFunc(app.MakeHandler(Name("view_test")))
