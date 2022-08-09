@@ -1,11 +1,14 @@
 package logkeeper
 
 import (
+	"compress/gzip"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"html/template"
+	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/env"
@@ -65,6 +68,29 @@ type apiError struct {
 	Err     string `json:"err"`
 	MaxSize int    `json:"max_size,omitempty"`
 	code    int
+}
+
+type logFetchResponse struct {
+	logLines chan *model.LogLineItem
+	build    *model.Build
+	test     *model.Test
+}
+
+type gzipResponseWriter struct {
+	io.Closer
+	io.Writer
+	http.ResponseWriter
+}
+
+func (w gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func (w gzipResponseWriter) Close() error {
+	if w.Closer != nil {
+		return w.Closer.Close()
+	}
+	return nil
 }
 
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
@@ -343,6 +369,18 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	}{build, tests}, "base", "build.html")
 }
 
+func getGzippedWriter(w http.ResponseWriter, r *http.Request) gzipResponseWriter {
+	var finalWriter gzipResponseWriter
+	if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+		gz := gzip.NewWriter(w)
+		finalWriter = gzipResponseWriter{gz, gz, w}
+		finalWriter.Header().Set("Content-Encoding", "gzip")
+	} else {
+		finalWriter = gzipResponseWriter{nil, w, w}
+	}
+	return finalWriter
+}
+
 func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer r.Body.Close()
@@ -368,16 +406,19 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var gzwriter = getGzippedWriter(w, r)
+	defer gzwriter.Close()
+
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range logsChannel {
-			_, err = w.Write([]byte(line.Data + "\n"))
+			_, err = gzwriter.Write([]byte(line.Data + "\n"))
 			if err != nil {
 				return
 			}
 		}
 		return
 	} else {
-		err = lk.render.StreamHTML(w, http.StatusOK, struct {
+		err = lk.render.StreamHTML(gzwriter, http.StatusOK, struct {
 			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
@@ -423,22 +464,25 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	var gzwriter = getGzippedWriter(w, r)
+	defer gzwriter.Close()
+
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true
 		for line := range logsChan {
 			emptyLog = false
-			_, err = w.Write([]byte(line.Data + "\n"))
+			_, err := gzwriter.Write([]byte(line.Data + "\n"))
 			if err != nil {
-				lk.render.WriteJSON(w, http.StatusInternalServerError,
+				lk.render.WriteJSON(gzwriter, http.StatusInternalServerError,
 					apiError{Err: err.Error()})
 				return
 			}
 		}
 		if emptyLog {
-			lk.render.WriteJSON(w, http.StatusOK, nil)
+			lk.render.WriteJSON(gzwriter, http.StatusOK, nil)
 		}
 	} else {
-		err = lk.render.StreamHTML(w, http.StatusOK, struct {
+		err := lk.render.StreamHTML(gzwriter, http.StatusOK, struct {
 			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
