@@ -98,50 +98,95 @@ func TestRecordResponse(t *testing.T) {
 }
 
 func TestFlushStats(t *testing.T) {
-	defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
-	sender := send.NewMockSender("")
-	require.NoError(t, grip.SetSender(sender))
+	t.Run("WithStats", func(t *testing.T) {
+		defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
+		sender := send.NewMockSender("")
+		require.NoError(t, grip.SetSender(sender))
 
-	testStart := time.Now()
-	routes := []string{"route0", "route1"}
-	logger := Logger{
-		statsByRoute: map[string]routeStats{
-			routes[0]: {
-				durationMS: []float64{1, 2},
-				requestMB:  []float64{1, 2},
-				responseMB: []float64{1, 2},
+		routes := []string{"route0", "route1"}
+		logger := Logger{
+			statsByRoute: map[string]routeStats{
+				routes[0]: {
+					durationMS: []float64{1, 2},
+					requestMB:  []float64{1, 2},
+					responseMB: []float64{1, 2},
+				},
+				routes[1]: {
+					durationMS: []float64{1, 2},
+					requestMB:  []float64{1, 2},
+					responseMB: []float64{1, 2},
+				},
 			},
-			routes[1]: {
-				durationMS: []float64{1, 2},
-				requestMB:  []float64{1, 2},
-				responseMB: []float64{1, 2},
+		}
+
+		logger.flushStats()
+
+		require.Len(t, sender.Messages, 2)
+		for _, msg := range sender.Messages {
+			assert.Contains(t, routes, msg.Raw().(message.Fields)["route"])
+		}
+	})
+
+	t.Run("EmptyRoute", func(t *testing.T) {
+		defer func(s send.Sender) { assert.NoError(t, grip.SetSender(s)) }(grip.GetSender())
+		sender := send.NewMockSender("")
+		require.NoError(t, grip.SetSender(sender))
+
+		routes := []string{"route0", "route1"}
+		logger := Logger{
+			statsByRoute: map[string]routeStats{
+				routes[0]: {},
+				routes[1]: {
+					durationMS: []float64{1, 2},
+					requestMB:  []float64{1, 2},
+					responseMB: []float64{1, 2},
+				},
 			},
-		},
-		lastReset:   testStart,
-		cacheIsFull: true,
-	}
+		}
 
-	logger.flushStats()
+		logger.flushStats()
 
-	require.Len(t, sender.Messages, 2)
-	for _, msg := range sender.Messages {
-		assert.Contains(t, routes, msg.Raw().(message.Fields)["route"])
-	}
+		require.Len(t, sender.Messages, 1)
+		assert.Equal(t, routes[1], sender.Messages[0].Raw().(message.Fields)["route"])
+	})
 
-	require.Contains(t, logger.statsByRoute, routes[0])
-	assert.Len(t, logger.statsByRoute[routes[0]].durationMS, 0)
-	assert.Len(t, logger.statsByRoute[routes[0]].requestMB, 0)
-	assert.Len(t, logger.statsByRoute[routes[0]].responseMB, 0)
-	assert.Len(t, logger.statsByRoute[routes[0]].statusCounts, 0)
+	t.Run("CacheIsCleared", func(t *testing.T) {
+		testStart := time.Now()
+		routes := []string{"route0", "route1"}
+		logger := Logger{
+			statsByRoute: map[string]routeStats{
+				routes[0]: {
+					durationMS: []float64{1, 2},
+					requestMB:  []float64{1, 2},
+					responseMB: []float64{1, 2},
+				},
+				routes[1]: {
+					durationMS: []float64{1, 2},
+					requestMB:  []float64{1, 2},
+					responseMB: []float64{1, 2},
+				},
+			},
+			lastReset:   testStart,
+			cacheIsFull: true,
+		}
 
-	require.Contains(t, logger.statsByRoute, routes[1])
-	assert.Len(t, logger.statsByRoute[routes[1]].durationMS, 0)
-	assert.Len(t, logger.statsByRoute[routes[1]].requestMB, 0)
-	assert.Len(t, logger.statsByRoute[routes[1]].responseMB, 0)
-	assert.Len(t, logger.statsByRoute[routes[1]].statusCounts, 0)
+		logger.flushStats()
 
-	assert.True(t, logger.lastReset.After(testStart))
-	assert.False(t, logger.cacheIsFull)
+		require.Contains(t, logger.statsByRoute, routes[0])
+		assert.Len(t, logger.statsByRoute[routes[0]].durationMS, 0)
+		assert.Len(t, logger.statsByRoute[routes[0]].requestMB, 0)
+		assert.Len(t, logger.statsByRoute[routes[0]].responseMB, 0)
+		assert.Len(t, logger.statsByRoute[routes[0]].statusCounts, 0)
+
+		require.Contains(t, logger.statsByRoute, routes[1])
+		assert.Len(t, logger.statsByRoute[routes[1]].durationMS, 0)
+		assert.Len(t, logger.statsByRoute[routes[1]].requestMB, 0)
+		assert.Len(t, logger.statsByRoute[routes[1]].responseMB, 0)
+		assert.Len(t, logger.statsByRoute[routes[1]].statusCounts, 0)
+
+		assert.True(t, logger.lastReset.After(testStart))
+		assert.False(t, logger.cacheIsFull)
+	})
 }
 
 func TestSliceStats(t *testing.T) {

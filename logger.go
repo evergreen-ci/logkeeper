@@ -217,6 +217,10 @@ func (l *Logger) recordResponse(response routeResponse) {
 
 func (l *Logger) flushStats() {
 	for route, stats := range l.statsByRoute {
+		if stats.count() == 0 {
+			continue
+		}
+
 		msg := stats.makeMessage()
 		msg["route"] = route
 		msg["interval"] = time.Since(l.lastReset)
@@ -227,10 +231,14 @@ func (l *Logger) flushStats() {
 	l.resetStats()
 }
 
+func (s *routeStats) count() int {
+	return len(s.durationMS)
+}
+
 func (s *routeStats) makeMessage() message.Fields {
 	msg := message.Fields{
 		"message":  "route stats",
-		"count":    len(s.durationMS),
+		"count":    s.count(),
 		"statuses": s.statusCounts,
 	}
 
