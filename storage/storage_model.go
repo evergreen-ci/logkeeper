@@ -14,6 +14,22 @@ import (
 
 const metadataFilename = "metadata.json"
 
+func parseLogLineString(data string) (model.LogLineItem, error) {
+	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
+	if err != nil {
+		return model.LogLineItem{}, err
+	}
+
+	return model.LogLineItem{
+		Timestamp: time.Unix(0, ts*1e6).UTC(),
+		Data:      data[23:],
+	}, nil
+}
+
+func makeLogLineString(logLine model.LogLine) string {
+	return fmt.Sprintf("  0%20d%s\n", logLine.Time.UnixNano()/1e6, logLine.Msg)
+}
+
 // LogChunkInfo describes a chunk of log lines stored in pail-backed offline
 // storage.
 type LogChunkInfo struct {
@@ -65,6 +81,28 @@ func (info *LogChunkInfo) fromKey(path string) error {
 	}
 	info.NumLines = int(numLines)
 
+	return nil
+}
+
+func (info *LogChunkInfo) fromLogChunk(buildID string, testID string, logChunk model.LogChunk) error {
+	if len(logChunk) == 0 {
+		return errors.New("Log chunk must contain at least one line")
+	}
+	minTime := TimeRangeMax
+	maxTime := TimeRangeMin
+	for _, logLine := range logChunk {
+		if logLine.Time.Before(minTime) {
+			minTime = logLine.Time
+		}
+		if logLine.Time.After(maxTime) {
+			maxTime = logLine.Time
+		}
+	}
+	info.BuildID = buildID
+	info.TestID = testID
+	info.NumLines = len(logChunk)
+	info.Start = minTime
+	info.End = maxTime
 	return nil
 }
 

@@ -27,3 +27,27 @@ func (b *Bucket) UploadTestMetadata(ctx context.Context, test model.Test) error 
 
 	return errors.Wrapf(b.Put(ctx, metadata.key(), bytes.NewReader(json)), "putting metadata for test '%s'", test.Id)
 }
+
+func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID string, chunks []model.LogChunk) error {
+	for _, chunk := range chunks {
+		if len(chunk) == 0 {
+			continue
+		}
+
+		logChunkInfo := LogChunkInfo{}
+		err := logChunkInfo.fromLogChunk(buildID, testID, chunk)
+		if err != nil {
+			return errors.Wrap(err, "parsing log chunks")
+		}
+		var buffer bytes.Buffer
+		for _, line := range chunk {
+			buffer.WriteString(makeLogLineString(line))
+		}
+
+		if err := b.Put(ctx, logChunkInfo.key(), &buffer); err != nil {
+			return errors.Wrap(err, "uploading log entry to bucket")
+		}
+	}
+
+	return nil
+}
