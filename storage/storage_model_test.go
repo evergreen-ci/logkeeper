@@ -68,7 +68,7 @@ func TestTestMetadataKey(t *testing.T) {
 		BuildID: "build0",
 		TaskID:  "t0",
 	}
-	assert.Equal(t, "/build0/tests/test0/metadata.json", metadata.key())
+	assert.Equal(t, "/builds/build0/tests/test0/metadata.json", metadata.key())
 }
 
 func TestTestMetadataJSON(t *testing.T) {
