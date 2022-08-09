@@ -43,7 +43,7 @@ func cleanTestStorage(t *testing.T) {
 func TestBasicStorage(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
 	defer cleanTestStorage(t)
-	results, err := storage.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	results, err := storage.Get(context.Background(), "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, results)
 

@@ -21,7 +21,7 @@ func TestUploadBuildMetadata(t *testing.T) {
 	}
 
 	assert.NoError(t, storage.UploadBuildMetadata(context.Background(), build))
-	results, err := storage.Get(context.Background(), "5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	results, err := storage.Get(context.Background(), "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	contents, err := io.ReadAll(results)
 	assert.NoError(t, err)

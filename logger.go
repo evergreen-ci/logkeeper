@@ -2,9 +2,11 @@ package logkeeper
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -170,6 +172,10 @@ func (l *Logger) addToResponseBuffer(rw http.ResponseWriter, r *http.Request) er
 	if err != nil {
 		return errors.Wrap(err, "getting path template")
 	}
+	methods, err := route.GetMethods()
+	if err != nil {
+		return errors.Wrap(err, "getting methods")
+	}
 
 	writer, ok := rw.(negroni.ResponseWriter)
 	if !ok {
@@ -178,7 +184,7 @@ func (l *Logger) addToResponseBuffer(rw http.ResponseWriter, r *http.Request) er
 
 	select {
 	case l.newResponses <- routeResponse{
-		route:        path,
+		route:        fmt.Sprintf("[%s] %s", strings.Join(methods, ", "), path),
 		duration:     time.Since(getRequestStartAt(r.Context())),
 		status:       writer.Status(),
 		responseSize: writer.Size(),
@@ -211,6 +217,10 @@ func (l *Logger) recordResponse(response routeResponse) {
 
 func (l *Logger) flushStats() {
 	for route, stats := range l.statsByRoute {
+		if stats.count() == 0 {
+			continue
+		}
+
 		msg := stats.makeMessage()
 		msg["route"] = route
 		msg["interval"] = time.Since(l.lastReset)
@@ -221,10 +231,14 @@ func (l *Logger) flushStats() {
 	l.resetStats()
 }
 
+func (s *routeStats) count() int {
+	return len(s.durationMS)
+}
+
 func (s *routeStats) makeMessage() message.Fields {
 	msg := message.Fields{
 		"message":  "route stats",
-		"count":    len(s.durationMS),
+		"count":    s.count(),
 		"statuses": s.statusCounts,
 	}
 

@@ -38,12 +38,12 @@ func (info *LogChunkInfo) fromKey(path string) error {
 	var keyName string
 	keyParts := strings.Split(path, "/")
 	if strings.Contains(path, "/tests/") {
-		info.BuildID = keyParts[1]
-		info.TestID = keyParts[3]
-		keyName = keyParts[4]
+		info.BuildID = keyParts[2]
+		info.TestID = keyParts[4]
+		keyName = keyParts[5]
 	} else {
-		info.BuildID = keyParts[1]
-		keyName = keyParts[2]
+		info.BuildID = keyParts[2]
+		keyName = keyParts[3]
 	}
 
 	nameParts := strings.Split(keyName, "_")
@@ -69,11 +69,11 @@ func (info *LogChunkInfo) fromKey(path string) error {
 }
 
 func buildPrefix(buildID string) string {
-	return fmt.Sprintf("/%s/", buildID)
+	return fmt.Sprintf("/builds/%s/", buildID)
 }
 
 func testPrefix(buildID, testID string) string {
-	return fmt.Sprintf("/%s/tests/%s/", buildID, testID)
+	return fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID)
 }
 
 type buildMetadata struct {

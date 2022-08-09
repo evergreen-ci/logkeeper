@@ -17,7 +17,7 @@ func TestLogChunkInfoKey(t *testing.T) {
 			End:      time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
 		}
 		key := info.key()
-		assert.Equal(t, "/b0/tests/t0/1257894000000000000_1257894060000000000_1", key)
+		assert.Equal(t, "/builds/b0/tests/t0/1257894000000000000_1257894060000000000_1", key)
 		newInfo := LogChunkInfo{}
 		assert.NoError(t, newInfo.fromKey(key))
 		assert.Equal(t, info, newInfo)
@@ -31,7 +31,7 @@ func TestLogChunkInfoKey(t *testing.T) {
 			End:      time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
 		}
 		key := info.key()
-		assert.Equal(t, "/b0/1257894000000000000_1257894060000000000_1", key)
+		assert.Equal(t, "/builds/b0/1257894000000000000_1257894060000000000_1", key)
 		newInfo := LogChunkInfo{}
 		assert.NoError(t, newInfo.fromKey(key))
 		assert.Equal(t, info, newInfo)
@@ -46,7 +46,7 @@ func TestBuildMetadataKey(t *testing.T) {
 		BuildNum: 1,
 		TaskID:   "t0",
 	}
-	assert.Equal(t, "/b0/metadata.json", metadata.key())
+	assert.Equal(t, "/builds/b0/metadata.json", metadata.key())
 }
 
 func TestBuildMetadataJSON(t *testing.T) {
