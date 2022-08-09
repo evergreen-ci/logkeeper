@@ -3,13 +3,13 @@ package storage
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 )
 
@@ -114,12 +114,11 @@ func channelFromIterator(context context.Context, iterator LogIterator) chan *mo
 	logsChan := make(chan *model.LogLineItem)
 
 	go func() {
+		defer recovery.LogStackTraceAndContinue("Channel from Iterator")
 		defer close(logsChan)
+		// Iterators will aggregate all errors into a catcher that can be when Next returns false.
+		defer grip.Errorf("Error iterating over logs: %v", iterator.Err())
 		for iterator.Next(context) {
-			if iterator.Err() != nil {
-				grip.Errorf("Error iterating over logs: %v", iterator.Err())
-				break
-			}
 			item := iterator.Item()
 			logsChan <- &item
 		}
@@ -184,12 +183,9 @@ func (b *Bucket) FindTestByID(ctx context.Context, buildId string, testId string
 		return nil, errors.Wrapf(err, "fetching test metadata for build: '%s' and test: '%s'", buildId, testId)
 	}
 
-	bytes, err := ioutil.ReadAll(reader)
-	if err != nil {
-		return nil, errors.Wrapf(err, "reading test metadata for build: '%s' and test: '%s'", buildId, testId)
-	}
 	metadata := testMetadata{}
-	err = metadata.fromJSON(bytes)
+	decoder := json.NewDecoder(reader)
+	err = decoder.Decode(&metadata)
 	if err != nil {
 		return nil, errors.Wrapf(err, "parsing test metadata for build: '%s' and test: '%s'", buildId, testId)
 	}

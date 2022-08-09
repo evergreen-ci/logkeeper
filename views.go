@@ -17,6 +17,7 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/mongodb/grip/recovery"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -430,6 +431,7 @@ func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string
 
 	wg.Add(3)
 	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
 		defer wg.Done()
 		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
 	}()
@@ -437,6 +439,7 @@ func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string
 	var test *model.Test
 	var testErr error
 	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching test from s3 for test id")
 		defer wg.Done()
 		test, testErr = lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
 	}()
@@ -444,26 +447,25 @@ func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string
 	var logsChan chan *model.LogLineItem
 	var logsChanErr error
 	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching log lines from s3 for test id")
 		defer wg.Done()
 		logsChan, logsChanErr = lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
 	}()
 
 	wg.Wait()
 
-	if buildErr != nil {
-		return nil, &apiError{Err: "view test in S3 by id: error fetching build", code: http.StatusInternalServerError}
+	if buildErr != nil || build == nil {
+		if buildErr != nil {
+			lk.logErrorf(r, "view test in S3 by id: error fetching build")
+		}
+		return nil, &apiError{Err: "view test by id: error fetching build", code: http.StatusNotFound}
 	}
 
-	if build == nil {
-		return nil, &apiError{Err: "view test in S3 by id: build not found", code: http.StatusNotFound}
-	}
-
-	if testErr != nil {
-		return nil, &apiError{Err: "view test in S3 by id: error fetching test", code: http.StatusInternalServerError}
-	}
-
-	if test == nil {
-		return nil, &apiError{Err: "view test in S3 by id: test not found", code: http.StatusNotFound}
+	if testErr != nil || test == nil {
+		if testErr != nil {
+			lk.logErrorf(r, "view test in S3 by id: error fetching test")
+		}
+		return nil, &apiError{Err: "view test by id: test not found", code: http.StatusNotFound}
 	}
 
 	if logsChanErr != nil {
