@@ -127,15 +127,6 @@ type testMetadata struct {
 	TaskID  string `json:"task_id"`
 }
 
-func newTestMetadata(t model.Test) testMetadata {
-	return testMetadata{
-		ID:      t.Id.Hex(),
-		BuildID: t.BuildId,
-		Name:    t.Name,
-		TaskID:  t.Info.TaskID,
-	}
-}
-
 func (m *testMetadata) toTest() model.Test {
 	return model.Test{
 		Id:      bson.ObjectIdHex(m.ID),
