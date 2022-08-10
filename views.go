@@ -454,18 +454,20 @@ func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string
 
 	wg.Wait()
 
-	if buildErr != nil || build == nil {
-		if buildErr != nil {
-			lk.logErrorf(r, "view test in S3 by id: error fetching build")
-		}
-		return nil, &apiError{Err: "view test by id: error fetching build", code: http.StatusNotFound}
+	if buildErr != nil {
+		lk.logErrorf(r, "error fetching build: %v", buildErr)
+		return nil, &apiError{Err: "error fetching build", code: http.StatusInternalServerError}
+	}
+	if build == nil {
+		return nil, &apiError{Err: fmt.Sprintf("no matching build found for %s", buildID), code: http.StatusNotFound}
 	}
 
-	if testErr != nil || test == nil {
-		if testErr != nil {
-			lk.logErrorf(r, "view test in S3 by id: error fetching test")
-		}
-		return nil, &apiError{Err: "view test by id: test not found", code: http.StatusNotFound}
+	if testErr != nil {
+		lk.logErrorf(r, "error fetching test %v", testErr)
+		return nil, &apiError{Err: "error fetching test", code: http.StatusInternalServerError}
+	}
+	if test == nil {
+		return nil, &apiError{Err: fmt.Sprintf("no matching test found for build:%s, test:%s", buildID, testID), code: http.StatusNotFound}
 	}
 
 	if logsChanErr != nil {
