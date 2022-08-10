@@ -60,3 +60,25 @@ func TestBuildMetadataJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, `{"id":"b0","builder":"builder0","buildnum":1,"task_id":"t0"}`, string(json))
 }
+
+func TestTestMetadataKey(t *testing.T) {
+	metadata := testMetadata{
+		ID:      "test0",
+		Name:    "name",
+		BuildID: "build0",
+		TaskID:  "t0",
+	}
+	assert.Equal(t, "/builds/build0/tests/test0/metadata.json", metadata.key())
+}
+
+func TestTestMetadataJSON(t *testing.T) {
+	metadata := testMetadata{
+		ID:      "test0",
+		Name:    "name",
+		BuildID: "build0",
+		TaskID:  "t0",
+	}
+	json, err := metadata.toJSON()
+	assert.NoError(t, err)
+	assert.Equal(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0"}`, string(json))
+}

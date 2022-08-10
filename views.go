@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/env"
@@ -16,6 +17,7 @@ import (
 	"github.com/mongodb/amboy"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
+	"github.com/mongodb/grip/recovery"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -65,6 +67,12 @@ type apiError struct {
 	Err     string `json:"err"`
 	MaxSize int    `json:"max_size,omitempty"`
 	code    int
+}
+
+type logFetchResponse struct {
+	logLines chan *model.LogLineItem
+	build    *model.Build
+	test     *model.Test
 }
 
 func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
@@ -391,6 +399,90 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (lk *logKeeper) viewTestInDatabase(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+	build, err := model.FindBuildById(buildID)
+	if err != nil || build == nil {
+		return nil, &apiError{Err: "view test by id: build not found", code: http.StatusNotFound}
+	}
+
+	test, err := model.FindTestByID(testID)
+	if err != nil || test == nil {
+		return nil, &apiError{Err: "test not found"}
+	}
+
+	logsChan, err := model.MergedTestLogs(test)
+	if err != nil {
+		lk.logErrorf(r, "Error finding global logs during test: %v", err)
+		return nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	}
+
+	result := logFetchResponse{
+		logLines: logsChan,
+		build:    build,
+		test:     test,
+	}
+	return &result, nil
+}
+
+func (lk *logKeeper) viewTestInS3(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+	var build *model.Build
+	var buildErr error
+	wg := sync.WaitGroup{}
+
+	wg.Add(3)
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
+		defer wg.Done()
+		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+	}()
+
+	var test *model.Test
+	var testErr error
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching test from s3 for test id")
+		defer wg.Done()
+		test, testErr = lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
+	}()
+
+	var logsChan chan *model.LogLineItem
+	var logsChanErr error
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching log lines from s3 for test id")
+		defer wg.Done()
+		logsChan, logsChanErr = lk.opts.Bucket.GetTestLogLines(r.Context(), buildID, testID)
+	}()
+
+	wg.Wait()
+
+	if buildErr != nil {
+		lk.logErrorf(r, "error fetching build: %v", buildErr)
+		return nil, &apiError{Err: "error fetching build", code: http.StatusInternalServerError}
+	}
+	if build == nil {
+		return nil, &apiError{Err: fmt.Sprintf("no matching build found for %s", buildID), code: http.StatusNotFound}
+	}
+
+	if testErr != nil {
+		lk.logErrorf(r, "error fetching test %v", testErr)
+		return nil, &apiError{Err: "error fetching test", code: http.StatusInternalServerError}
+	}
+	if test == nil {
+		return nil, &apiError{Err: fmt.Sprintf("no matching test found for build:%s, test:%s", buildID, testID), code: http.StatusNotFound}
+	}
+
+	if logsChanErr != nil {
+		lk.logErrorf(r, "Error finding logs during test: %v", logsChanErr)
+		return nil, &apiError{Err: logsChanErr.Error(), code: http.StatusInternalServerError}
+	}
+
+	result := logFetchResponse{
+		logLines: logsChan,
+		build:    build,
+		test:     test,
+	}
+	return &result, nil
+}
+
 func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer r.Body.Close()
@@ -403,31 +495,25 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", buildID, testID), http.StatusFound)
 		return
 	}
-
-	build, err := model.FindBuildById(buildID)
-	if err != nil || build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view test by id: build not found"})
+	var result *logFetchResponse
+	var fetchError *apiError
+	if len(r.FormValue("s3")) > 0 {
+		result, fetchError = lk.viewTestInS3(r, buildID, testID)
+	} else {
+		result, fetchError = lk.viewTestInDatabase(r, buildID, testID)
+	}
+	if fetchError != nil {
+		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
 	}
-
-	test, err := model.FindTestByID(testID)
-	if err != nil || test == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
-		return
-	}
-
-	logsChan, err := model.MergedTestLogs(test)
-	if err != nil {
-		lk.logErrorf(r, "Error finding test logs: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
-		return
-	}
-
+	logsChan := result.logLines
+	build := result.build
+	test := result.test
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true
 		for line := range logsChan {
 			emptyLog = false
-			_, err = w.Write([]byte(line.Data + "\n"))
+			_, err := w.Write([]byte(line.Data + "\n"))
 			if err != nil {
 				lk.render.WriteJSON(w, http.StatusInternalServerError,
 					apiError{Err: err.Error()})
@@ -438,7 +524,7 @@ func (lk *logKeeper) viewTestByBuildIdTestId(w http.ResponseWriter, r *http.Requ
 			lk.render.WriteJSON(w, http.StatusOK, nil)
 		}
 	} else {
-		err = lk.render.StreamHTML(w, http.StatusOK, struct {
+		err := lk.render.StreamHTML(w, http.StatusOK, struct {
 			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string

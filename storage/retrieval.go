@@ -2,10 +2,12 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/pkg/errors"
 )
 
@@ -66,7 +68,7 @@ func sortByStartTime(chunks []LogChunkInfo) {
 	})
 }
 
-func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (LogIterator, error) {
+func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (chan *model.LogLineItem, error) {
 	buildChunks, testChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
@@ -81,7 +83,7 @@ func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (
 	testChunkIterator := NewBatchedLogIterator(storage, testChunks, 4, timeRange)
 
 	// Merge test and build logs
-	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+	return NewMergingIterator(testChunkIterator, buildChunkIterator).Channel(context), nil
 }
 
 func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
@@ -106,7 +108,7 @@ func getFirstTestChunkAfter(allTestChunks []LogChunkInfo, target time.Time) time
 	return TimeRangeMax
 }
 
-func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, testId string) (LogIterator, error) {
+func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, testId string) (chan *model.LogLineItem, error) {
 	buildChunks, allTestChunks, err := storage.getBuildAndTestChunks(context, buildId)
 	if err != nil {
 		return nil, err
@@ -133,5 +135,42 @@ func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, 
 	buildChunkIterator := NewBatchedLogIterator(storage, buildChunks, 4, testTimeRange)
 
 	// Merge everything together
-	return NewMergingIterator(testChunkIterator, buildChunkIterator), nil
+	return NewMergingIterator(testChunkIterator, buildChunkIterator).Channel(context), nil
+}
+
+func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
+	key := metadataKeyForBuildId(id)
+	reader, err := b.Get(ctx, key)
+	if err != nil {
+		return nil, errors.Wrapf(err, "fetching build metadata for build '%s'", id)
+	}
+
+	metadata := buildMetadata{}
+	decoder := json.NewDecoder(reader)
+	err = decoder.Decode(&metadata)
+
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing build metadata for build '%s'", id)
+	}
+
+	build := metadata.toBuild()
+	return &build, nil
+}
+
+func (b *Bucket) FindTestByID(ctx context.Context, buildId string, testId string) (*model.Test, error) {
+	key := metadataKeyForTest(buildId, testId)
+	reader, err := b.Get(ctx, key)
+	if err != nil {
+		return nil, errors.Wrapf(err, "fetching test metadata for build: '%s' and test: '%s'", buildId, testId)
+	}
+
+	metadata := testMetadata{}
+	decoder := json.NewDecoder(reader)
+	err = decoder.Decode(&metadata)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing test metadata for build: '%s' and test: '%s'", buildId, testId)
+	}
+
+	test := metadata.toTest()
+	return &test, nil
 }
