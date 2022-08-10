@@ -29,6 +29,8 @@ type LogIterator interface {
 	// IsReversed returns true if the iterator is in reverse order and
 	// false otherwise.
 	IsReversed() bool
+	// Channel returns a channel to receive the iterator's logs.
+	Channel(context.Context) chan *model.LogLineItem
 }
 
 //////////////////////
@@ -169,6 +171,10 @@ func (i *serializedIterator) Close() error {
 	}
 
 	return nil
+}
+
+func (i *serializedIterator) Channel(ctx context.Context) chan *model.LogLineItem {
+	return channelFromIterator(ctx, i)
 }
 
 ///////////////////
@@ -387,6 +393,10 @@ func (i *batchedIterator) Close() error {
 	return catcher.Resolve()
 }
 
+func (i *batchedIterator) Channel(ctx context.Context) chan *model.LogLineItem {
+	return channelFromIterator(ctx, i)
+}
+
 ///////////////////
 // Merging Iterator
 ///////////////////
@@ -497,6 +507,10 @@ func (i *mergingIterator) Close() error {
 	return catcher.Resolve()
 }
 
+func (i *mergingIterator) Channel(ctx context.Context) chan *model.LogLineItem {
+	return channelFromIterator(ctx, i)
+}
+
 ///////////////////
 // Helper functions
 ///////////////////
@@ -533,6 +547,23 @@ func reverseChunks(chunks []LogChunkInfo) {
 	for i, j := 0, len(chunks)-1; i < j; i, j = i+1, j-1 {
 		chunks[i], chunks[j] = chunks[j], chunks[i]
 	}
+}
+
+func channelFromIterator(context context.Context, iterator LogIterator) chan *model.LogLineItem {
+	logsChan := make(chan *model.LogLineItem)
+
+	go func() {
+		defer recovery.LogStackTraceAndContinue("Channel from Iterator")
+		defer close(logsChan)
+		// Iterators will aggregate all errors into a catcher that can be when Next returns false.
+		defer grip.Errorf("Error iterating over logs: %v", iterator.Err())
+		for iterator.Next(context) {
+			item := iterator.Item()
+			logsChan <- &item
+		}
+	}()
+
+	return logsChan
 }
 
 ///////////////////

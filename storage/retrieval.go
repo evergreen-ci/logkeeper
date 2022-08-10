@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
-	"github.com/mongodb/grip"
-	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 )
 
@@ -85,7 +83,7 @@ func (storage *Bucket) GetAllLogLines(context context.Context, buildId string) (
 	testChunkIterator := NewBatchedLogIterator(storage, testChunks, 4, timeRange)
 
 	// Merge test and build logs
-	return channelFromIterator(context, NewMergingIterator(testChunkIterator, buildChunkIterator)), nil
+	return NewMergingIterator(testChunkIterator, buildChunkIterator).Channel(context), nil
 }
 
 func testChunksWithId(chunks []LogChunkInfo, testID string) []LogChunkInfo {
@@ -108,23 +106,6 @@ func getFirstTestChunkAfter(allTestChunks []LogChunkInfo, target time.Time) time
 		}
 	}
 	return TimeRangeMax
-}
-
-func channelFromIterator(context context.Context, iterator LogIterator) chan *model.LogLineItem {
-	logsChan := make(chan *model.LogLineItem)
-
-	go func() {
-		defer recovery.LogStackTraceAndContinue("Channel from Iterator")
-		defer close(logsChan)
-		// Iterators will aggregate all errors into a catcher that can be when Next returns false.
-		defer grip.Errorf("Error iterating over logs: %v", iterator.Err())
-		for iterator.Next(context) {
-			item := iterator.Item()
-			logsChan <- &item
-		}
-	}()
-
-	return logsChan
 }
 
 func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, testId string) (chan *model.LogLineItem, error) {
@@ -154,7 +135,7 @@ func (storage *Bucket) GetTestLogLines(context context.Context, buildId string, 
 	buildChunkIterator := NewBatchedLogIterator(storage, buildChunks, 4, testTimeRange)
 
 	// Merge everything together
-	return channelFromIterator(context, NewMergingIterator(testChunkIterator, buildChunkIterator)), nil
+	return NewMergingIterator(testChunkIterator, buildChunkIterator).Channel(context), nil
 }
 
 func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
