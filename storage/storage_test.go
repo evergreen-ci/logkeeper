@@ -60,7 +60,7 @@ func TestGetS3Options(t *testing.T) {
 		bucket := "the_bucket"
 		require.NoError(t, os.Setenv(awsKeyEnvVariable, key))
 		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
-		require.NoError(t, os.Setenv(awsBucketEnvVariable, bucket))
+		require.NoError(t, os.Setenv(s3BucketEnvVariable, bucket))
 
 		opts := BucketOpts{}
 		s3Opts, err := opts.getS3Options()
@@ -79,7 +79,7 @@ func TestGetS3Options(t *testing.T) {
 		secret := "the_secret"
 		bucket := "the_bucket"
 		require.NoError(t, os.Setenv(awsSecretEnvVariable, secret))
-		require.NoError(t, os.Setenv(awsBucketEnvVariable, bucket))
+		require.NoError(t, os.Setenv(s3BucketEnvVariable, bucket))
 
 		opts := BucketOpts{}
 		_, err := opts.getS3Options()

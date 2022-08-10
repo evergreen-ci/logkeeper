@@ -8,10 +8,8 @@ import (
 )
 
 const (
-	awsKeyEnvVariable    = "AWS_KEY"
-	awsSecretEnvVariable = "AWS_SECRET"
-	awsBucketEnvVariable = "AWS_S3_BUCKET"
-	defaultS3Region      = "us-east-1"
+	s3BucketEnvVariable = "LK_S3_LOGS_BUCKET"
+	defaultS3Region     = "us-east-1"
 
 	localBucketPermissions = 0750
 )
@@ -75,27 +73,16 @@ func (opts *BucketOpts) getBucket() (pail.Bucket, error) {
 }
 
 func (opts *BucketOpts) getS3Options() (pail.S3Options, error) {
-	key := os.Getenv(awsKeyEnvVariable)
-	if key == "" {
-		return pail.S3Options{}, errors.Errorf("environment variable '%s' is not set", awsKeyEnvVariable)
-	}
-
-	secret := os.Getenv(awsSecretEnvVariable)
-	if secret == "" {
-		return pail.S3Options{}, errors.Errorf("environment variable '%s' is not set", awsSecretEnvVariable)
-	}
-
 	bucketName := opts.Path
 	if bucketName == "" {
-		bucketName = os.Getenv(awsBucketEnvVariable)
+		bucketName = os.Getenv(s3BucketEnvVariable)
 	}
 	if bucketName == "" {
-		return pail.S3Options{}, errors.Errorf("path is specified neither in options nor in the environment variable '%s'", awsBucketEnvVariable)
+		return pail.S3Options{}, errors.Errorf("path is specified neither in options nor in the environment variable '%s'", s3BucketEnvVariable)
 	}
 
 	return pail.S3Options{
-		Name:        bucketName,
-		Region:      defaultS3Region,
-		Credentials: pail.CreateAWSCredentials(key, secret, ""),
+		Name:   bucketName,
+		Region: defaultS3Region,
 	}, nil
 }
