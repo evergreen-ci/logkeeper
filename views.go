@@ -124,6 +124,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Name:     fmt.Sprintf("%v #%v", buildParameters.Builder, buildParameters.BuildNum),
 		Started:  time.Now(),
 		Info:     model.BuildInfo{TaskID: buildParameters.TaskId},
+		S3:       buildParameters.S3,
 	}
 	if err = newBuild.Insert(); err != nil {
 		lk.logErrorf(r, "Error inserting build object: %v", err)
@@ -195,6 +196,14 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		lk.logErrorf(r, "Error inserting test: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
+	}
+
+	if build.S3 {
+		if err := lk.opts.Bucket.UploadTestMetadata(r.Context(), newTest); err != nil {
+			lk.logErrorf(r, "writing test metadata: %v", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			return
+		}
 	}
 
 	testUri := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, newTest.Id.Hex())

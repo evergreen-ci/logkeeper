@@ -29,6 +29,7 @@ type Build struct {
 	Failed   bool      `bson:"failed"`
 	Phases   []string  `bson:"phases"`
 	Seq      int       `bson:"seq"`
+	S3       bool      `bson:"s3,omitempty"`
 }
 
 // BuildInfo contains additional metadata about a build.

@@ -73,7 +73,7 @@ func buildPrefix(buildID string) string {
 }
 
 func testPrefix(buildID, testID string) string {
-	return fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID)
+	return fmt.Sprintf("%stests/%s/", buildPrefix(buildID), testID)
 }
 
 type buildMetadata struct {
@@ -125,6 +125,15 @@ type testMetadata struct {
 	Name    string `json:"name"`
 	BuildID string `json:"build_id"`
 	TaskID  string `json:"task_id"`
+}
+
+func newTestMetadata(t model.Test) testMetadata {
+	return testMetadata{
+		ID:      t.Id.Hex(),
+		BuildID: t.BuildId,
+		Name:    t.Name,
+		TaskID:  t.Info.TaskID,
+	}
 }
 
 func (m *testMetadata) toTest() model.Test {
