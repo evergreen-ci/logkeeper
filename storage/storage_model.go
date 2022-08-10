@@ -154,7 +154,3 @@ func (m *testMetadata) toJSON() ([]byte, error) {
 
 	return metadataJSON, nil
 }
-
-func (m *testMetadata) fromJSON(data []byte) error {
-	return errors.Wrap(json.Unmarshal(data, m), "unmarshalling metadata")
-}
