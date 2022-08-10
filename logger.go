@@ -26,7 +26,7 @@ const (
 	loggerStatsInterval  = 10 * time.Second
 	statsLimit           = 100000
 	logErrorPercentage   = 10
-	bytesPerMB           = 1000000
+	bytesPerMB           = 1024 * 1024
 )
 
 var (
