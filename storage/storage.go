@@ -12,6 +12,8 @@ const (
 	awsSecretEnvVariable = "AWS_SECRET"
 	awsBucketEnvVariable = "AWS_S3_BUCKET"
 	defaultS3Region      = "us-east-1"
+
+	localBucketPermissions = 0750
 )
 
 type Bucket struct {
@@ -41,6 +43,13 @@ func NewBucket(opts BucketOpts) (Bucket, error) {
 func (opts *BucketOpts) getBucket() (pail.Bucket, error) {
 	switch opts.Location {
 	case PailLocal:
+		if opts.Path == "" {
+			return nil, errors.New("local path must be specified")
+		}
+		if err := os.MkdirAll(opts.Path, localBucketPermissions); err != nil {
+			return nil, errors.Wrapf(err, "creating local path '%s'", opts.Path)
+		}
+
 		localBucket, err := pail.NewLocalBucket(pail.LocalOptions{
 			Path: opts.Path,
 		})
