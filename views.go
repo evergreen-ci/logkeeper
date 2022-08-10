@@ -331,18 +331,37 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (lk *logKeeper) viewBuildByIdInS3(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
-	build, err := lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
-	if err != nil {
-		lk.logErrorf(r, "Error finding build: %v", err)
-		return nil, nil, &apiError{Err: "failed to find build in S3:" + err.Error(), code: http.StatusInternalServerError}
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var build *model.Build
+	var buildErr error
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
+		defer wg.Done()
+		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+	}()
+
+	var tests []model.Test
+	var testsErr error
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
+		defer wg.Done()
+		tests, testsErr = lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
+	}()
+
+	wg.Wait()
+
+	if buildErr != nil {
+		lk.logErrorf(r, "Error finding build: %v", buildErr)
+		return nil, nil, &apiError{Err: "failed to find build in S3:" + buildErr.Error(), code: http.StatusInternalServerError}
 	}
 	if build == nil {
 		return nil, nil, &apiError{Err: "view build: build not found in S3", code: http.StatusNotFound}
 	}
-	tests, err := lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
-	if err != nil {
-		lk.logErrorf(r, "Error finding tests for build: %v", err)
-		return nil, nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	if testsErr != nil {
+		lk.logErrorf(r, "Error finding tests for build: %v", testsErr)
+		return nil, nil, &apiError{Err: testsErr.Error(), code: http.StatusInternalServerError}
 	}
 	return build, tests, nil
 }
@@ -356,6 +375,7 @@ func (lk *logKeeper) viewBuildByIdInDatabase(r *http.Request, buildID string) (*
 	if build == nil {
 		return nil, nil, &apiError{Err: "view build: build not found", code: http.StatusNotFound}
 	}
+
 	tests, err := model.FindTestsForBuild(buildID)
 	if err != nil {
 		lk.logErrorf(r, "Error finding tests for build: %v", err)

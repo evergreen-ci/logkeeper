@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/mongodb/grip"
 	"github.com/pkg/errors"
 )
 
