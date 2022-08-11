@@ -22,7 +22,8 @@ func parseLogLineString(data string) (model.LogLineItem, error) {
 
 	return model.LogLineItem{
 		Timestamp: time.Unix(0, ts*1e6).UTC(),
-		Data:      data[23:],
+		// We need to Trim the newline here because logkeeper doesn't expect newlines to be included in the LogLineItem
+		Data: strings.TrimRight(data[23:], "\n"),
 	}, nil
 }
 

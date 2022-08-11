@@ -267,6 +267,14 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if build.S3 {
+		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, test.Id.Hex(), chunks); err != nil {
+			lk.logErrorf(r, "appending s3 logs: %v", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			return
+		}
+	}
+
 	testUrl := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, test.Id.Hex())
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
@@ -324,6 +332,14 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		lk.logErrorf(r, "Error inserting logs: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
+	}
+
+	if build.S3 {
+		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, "", chunks); err != nil {
+			lk.logErrorf(r, "appending s3 logs: %v", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			return
+		}
 	}
 
 	testUrl := fmt.Sprintf("%s/build/%s/", lk.opts.URL, build.Id)

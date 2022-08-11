@@ -90,32 +90,32 @@ func TestInsertLogChunks(t *testing.T) {
 		{
 			LineNum:   0,
 			Timestamp: time.Unix(1000000000, 0).UTC(),
-			Data:      "line0\n",
+			Data:      "line0",
 		},
 		{
 			LineNum:   0,
 			Timestamp: time.Unix(1000000001, 0).UTC(),
-			Data:      "line1\n",
+			Data:      "line1",
 		},
 		{
 			LineNum:   0,
 			Timestamp: time.Unix(1000000002, 0).UTC(),
-			Data:      "line2\n",
+			Data:      "line2",
 		},
 		{
 			LineNum:   0,
 			Timestamp: time.Unix(1000000003, 0).UTC(),
-			Data:      "line3\n",
+			Data:      "line3",
 		},
 		{
 			LineNum:   0,
 			Timestamp: time.Unix(1000000004, 0).UTC(),
-			Data:      "line4\n",
+			Data:      "line4",
 		},
 		{
 			LineNum:   0,
 			Timestamp: time.Unix(1000000005, 0).UTC(),
-			Data:      "line5\n",
+			Data:      "line5",
 		},
 	}
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
@@ -127,13 +127,13 @@ func TestInsertLogChunks(t *testing.T) {
 		err := storage.InsertLogChunks(context.Background(), buildID, "", uploadChunks)
 		require.NoError(t, err)
 
-		iterator, err := storage.GetAllLogLines(context.Background(), buildID)
+		logsChannel, err := storage.GetAllLogLines(context.Background(), buildID)
 		require.NoError(t, err)
 
 		result := []model.LogLineItem{}
 
-		for iterator.Next(context.Background()) {
-			result = append(result, iterator.Item())
+		for item := range logsChannel {
+			result = append(result, *item)
 		}
 
 		assert.Equal(t, expected, result)
@@ -148,13 +148,13 @@ func TestInsertLogChunks(t *testing.T) {
 		err := storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks)
 		require.NoError(t, err)
 
-		iterator, err := storage.GetTestLogLines(context.Background(), buildID, testID)
+		logsChannel, err := storage.GetTestLogLines(context.Background(), buildID, testID)
 		require.NoError(t, err)
 
 		result := []model.LogLineItem{}
 
-		for iterator.Next(context.Background()) {
-			result = append(result, iterator.Item())
+		for item := range logsChannel {
+			result = append(result, *item)
 		}
 
 		assert.Equal(t, expected, result)
