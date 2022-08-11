@@ -124,7 +124,8 @@ func TestInsertLogChunks(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
 		defer cleanTestStorage(t)
 
-		storage.InsertLogChunks(context.Background(), buildID, "", uploadChunks)
+		err := storage.InsertLogChunks(context.Background(), buildID, "", uploadChunks)
+		require.NoError(t, err)
 
 		iterator, err := storage.GetAllLogLines(context.Background(), buildID)
 		require.NoError(t, err)
@@ -144,7 +145,8 @@ func TestInsertLogChunks(t *testing.T) {
 
 		testID := "62dba0159041307f697e6ccc"
 
-		storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks)
+		err := storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks)
+		require.NoError(t, err)
 
 		iterator, err := storage.GetTestLogLines(context.Background(), buildID, testID)
 		require.NoError(t, err)
