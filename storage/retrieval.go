@@ -10,6 +10,7 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 )
 
@@ -203,6 +204,7 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildId string) ([]model
 		closureTestId := testId
 		closureIndex := index
 		go func() {
+			defer recovery.LogStackTraceAndContinue("fetching tests from s3 for build")
 			defer wg.Done()
 			test, err := b.FindTestByID(ctx, buildId, closureTestId)
 			if err != nil {
