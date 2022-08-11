@@ -2,7 +2,9 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/mgo.v2/bson"
 )
+
+type expectedChunk struct {
+	filename string
+	body     string
+}
+
+func newExpectedChunk(filename string, lines []string) expectedChunk {
+	return expectedChunk{
+		filename: filename,
+		body:     strings.Join(lines, ""),
+	}
+}
 
 func TestUploadBuildMetadata(t *testing.T) {
 	storage := makeTestStorage(t, "")
@@ -54,6 +68,18 @@ func TestUploadTestMetadata(t *testing.T) {
 	assert.JSONEq(t, expectedMetadata, string(contents))
 }
 
+// Checks that we stored the data in the right location and text format
+func verifyDataStorage(t *testing.T, storage Bucket, prefix string, expectedChunks []expectedChunk) {
+	for _, expectedChunk := range expectedChunks {
+		actualChunkStream, err := storage.Get(context.Background(), fmt.Sprintf("%s%s", prefix, expectedChunk.filename))
+		require.NoError(t, err)
+
+		actualChunkBody, err := io.ReadAll(actualChunkStream)
+		require.NoError(t, err)
+		assert.Equal(t, expectedChunk.body, string(actualChunkBody))
+	}
+}
+
 func TestInsertLogChunks(t *testing.T) {
 	uploadChunks := []model.LogChunk{
 		{
@@ -86,6 +112,18 @@ func TestInsertLogChunks(t *testing.T) {
 		},
 	}
 
+	expectedChunks := []expectedChunk{
+		newExpectedChunk("1000000000000000000_1000000002000000000_3", []string{
+			"  0       1000000000000line0\n",
+			"  0       1000000001000line1\n",
+			"  0       1000000002000line2\n",
+		}),
+		newExpectedChunk("1000000003000000000_1000000005000000000_3", []string{
+			"  0       1000000003000line3\n",
+			"  0       1000000004000line4\n",
+			"  0       1000000005000line5\n",
+		}),
+	}
 	expected := []model.LogLineItem{
 		{
 			LineNum:   0,
@@ -127,6 +165,8 @@ func TestInsertLogChunks(t *testing.T) {
 		err := storage.InsertLogChunks(context.Background(), buildID, "", uploadChunks)
 		require.NoError(t, err)
 
+		verifyDataStorage(t, storage, fmt.Sprintf("/builds/%s/", buildID), expectedChunks)
+
 		logsChannel, err := storage.GetAllLogLines(context.Background(), buildID)
 		require.NoError(t, err)
 
@@ -147,6 +187,8 @@ func TestInsertLogChunks(t *testing.T) {
 
 		err := storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks)
 		require.NoError(t, err)
+
+		verifyDataStorage(t, storage, fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID), expectedChunks)
 
 		logsChannel, err := storage.GetTestLogLines(context.Background(), buildID, testID)
 		require.NoError(t, err)
