@@ -269,7 +269,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	if build.S3 {
 		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, test.Id.Hex(), chunks); err != nil {
-			lk.logErrorf(r, "appending s3 logs: %v", err)
+			lk.logErrorf(r, "appending S3 logs: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}
@@ -336,7 +336,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	if build.S3 {
 		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, "", chunks); err != nil {
-			lk.logErrorf(r, "appending s3 logs: %v", err)
+			lk.logErrorf(r, "appending S3 logs: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 			return
 		}

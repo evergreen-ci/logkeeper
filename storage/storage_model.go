@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/evergreen-ci/utility"
 	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -17,18 +18,18 @@ const metadataFilename = "metadata.json"
 func parseLogLineString(data string) (model.LogLineItem, error) {
 	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
 	if err != nil {
-		return model.LogLineItem{}, err
+		return model.LogLineItem{}, errors.Wrap(err, "parsing log line timestamp")
 	}
 
 	return model.LogLineItem{
 		Timestamp: time.Unix(0, ts*1e6).UTC(),
-		// We need to Trim the newline here because logkeeper doesn't expect newlines to be included in the LogLineItem
+		// We need to Trim the newline here because Logkeeper doesn't expect newlines to be included in the LogLineItem.
 		Data: strings.TrimRight(data[23:], "\n"),
 	}, nil
 }
 
 func makeLogLineString(logLine model.LogLine) string {
-	return fmt.Sprintf("  0%20d%s\n", logLine.Time.UnixNano()/1e6, logLine.Msg)
+	return fmt.Sprintf("  0%20d%s\n", utility.UnixMilli(logLine.Time), logLine.Msg)
 }
 
 // LogChunkInfo describes a chunk of log lines stored in pail-backed offline
@@ -87,7 +88,7 @@ func (info *LogChunkInfo) fromKey(path string) error {
 
 func (info *LogChunkInfo) fromLogChunk(buildID string, testID string, logChunk model.LogChunk) error {
 	if len(logChunk) == 0 {
-		return errors.New("Log chunk must contain at least one line")
+		return errors.New("log chunk must contain at least one line")
 	}
 	minTime := TimeRangeMax
 	maxTime := TimeRangeMin

@@ -68,7 +68,6 @@ func TestUploadTestMetadata(t *testing.T) {
 	assert.JSONEq(t, expectedMetadata, string(contents))
 }
 
-// Checks that we stored the data in the right location and text format
 func verifyDataStorage(t *testing.T, storage Bucket, prefix string, expectedChunks []expectedChunk) {
 	for _, expectedChunk := range expectedChunks {
 		actualChunkStream, err := storage.Get(context.Background(), fmt.Sprintf("%s%s", prefix, expectedChunk.filename))
