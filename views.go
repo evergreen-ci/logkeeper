@@ -353,14 +353,14 @@ func (lk *logKeeper) viewBuildByIdInS3(r *http.Request, buildID string) (*model.
 	wg.Wait()
 
 	if buildErr != nil {
-		lk.logErrorf(r, "Error finding build: %v", buildErr)
-		return nil, nil, &apiError{Err: "failed to find build in S3:" + buildErr.Error(), code: http.StatusInternalServerError}
+		lk.logErrorf(r, "Error finding build '%s': %v", buildID, buildErr)
+		return nil, nil, &apiError{Err: fmt.Sprintf("failed to find build '%s' in S3: %s", buildID, buildErr.Error()), code: http.StatusInternalServerError}
 	}
 	if build == nil {
-		return nil, nil, &apiError{Err: "view build: build not found in S3", code: http.StatusNotFound}
+		return nil, nil, &apiError{Err: fmt.Sprintf("build '%s' not found in S3", buildID), code: http.StatusNotFound}
 	}
 	if testsErr != nil {
-		lk.logErrorf(r, "Error finding tests for build: %v", testsErr)
+		lk.logErrorf(r, "Error finding tests for build '%s': %v", buildID, testsErr)
 		return nil, nil, &apiError{Err: testsErr.Error(), code: http.StatusInternalServerError}
 	}
 	return build, tests, nil
@@ -369,16 +369,16 @@ func (lk *logKeeper) viewBuildByIdInS3(r *http.Request, buildID string) (*model.
 func (lk *logKeeper) viewBuildByIdInDatabase(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
-		lk.logErrorf(r, "Error finding build: %v", err)
-		return nil, nil, &apiError{Err: "failed to find build:" + err.Error(), code: http.StatusInternalServerError}
+		lk.logErrorf(r, "Error finding build '%s': %v", buildID, err)
+		return nil, nil, &apiError{Err: fmt.Sprintf("failed to find build '%s': %s", buildID, err.Error()), code: http.StatusInternalServerError}
 	}
 	if build == nil {
-		return nil, nil, &apiError{Err: "view build: build not found", code: http.StatusNotFound}
+		return nil, nil, &apiError{Err: fmt.Sprintf("build '%s' not found", buildID), code: http.StatusNotFound}
 	}
 
 	tests, err := model.FindTestsForBuild(buildID)
 	if err != nil {
-		lk.logErrorf(r, "Error finding tests for build: %v", err)
+		lk.logErrorf(r, "Error finding tests for build '%s': %v", buildID, err)
 		return nil, nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
 	}
 	return build, tests, nil
@@ -391,10 +391,11 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
 
-	var build *model.Build
-	var tests []model.Test
-	var fetchError *apiError
-
+	var (
+		build      *model.Build
+		tests      []model.Test
+		fetchError *apiError
+	)
 	if len(r.FormValue("s3")) > 0 {
 		build, tests, fetchError = lk.viewBuildByIdInS3(r, buildID)
 	} else {

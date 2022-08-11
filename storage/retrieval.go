@@ -182,13 +182,13 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildId string) ([]model
 	iterator, listErr := b.List(ctx, buildTestsPrefix(buildId))
 	testIds := []string{}
 	if listErr != nil {
-		return nil, listErr
+		return nil, errors.Wrapf(listErr, "listing test keys for build %s", buildId)
 	}
 	for iterator.Next(ctx) {
 		if strings.HasSuffix(iterator.Item().Name(), metadataFilename) {
 			testId, parseError := testIdFromKey(iterator.Item().Name())
 			if parseError != nil {
-				return nil, errors.Wrapf(parseError, "parsing test metadata key under build %s", buildId)
+				return nil, errors.Wrapf(parseError, "parsing test metadata key for build %s", buildId)
 			}
 			testIds = append(testIds, testId)
 		}
@@ -204,11 +204,11 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildId string) ([]model
 		closureTestId := testId
 		closureIndex := index
 		go func() {
-			defer recovery.LogStackTraceAndContinue("fetching tests from s3 for build")
+			defer recovery.LogStackTraceAndContinue("fetching tests from S3 for build")
 			defer wg.Done()
 			test, err := b.FindTestByID(ctx, buildId, closureTestId)
 			if err != nil {
-				catcher.Wrapf(err, "Fetching test id %s under build id %s", closureTestId, buildId)
+				catcher.Wrapf(err, "fetching test ID %s under build ID '%s'", closureTestId, buildId)
 			} else {
 				testResults[closureIndex] = *test
 			}
