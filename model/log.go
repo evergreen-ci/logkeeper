@@ -287,7 +287,7 @@ func (ll *LogLine) SetBSON(raw bson.Raw) error {
 
 	time, ok := line[0].(time.Time)
 	if !ok {
-		return errors.Errorf("timestamp was of unexpected type '%T'", line[0])
+		return errors.Errorf("timestamp was of unexpected type %T", line[0])
 	}
 
 	msg, ok := line[1].(string)
