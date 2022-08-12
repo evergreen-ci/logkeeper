@@ -1,8 +1,6 @@
 package logkeeper
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -110,13 +108,12 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasher := md5.New()
-	if _, err = hasher.Write([]byte(bson.NewObjectId().Hex())); err != nil {
+	newBuildId, err := model.NewBuildId(buildParameters.Builder, buildParameters.BuildNum)
+	if err != nil {
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
-	newBuildId := hex.EncodeToString(hasher.Sum(nil))
 	newBuild := model.Build{
 		Id:       newBuildId,
 		Builder:  buildParameters.Builder,
