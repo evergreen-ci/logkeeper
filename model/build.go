@@ -2,6 +2,9 @@ package model
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
@@ -148,4 +151,26 @@ func RemoveBuild(buildID string) error {
 	defer closeSession()
 
 	return errors.Wrap(db.C(BuildsCollection).RemoveId(buildID), "deleting build record")
+}
+
+// Generates a new build ID based on the hash of builder and buildNum
+func NewBuildId(builder string, buildNum int) (string, error) {
+	hasher := md5.New()
+
+	// This depends on the fact that Go's json implementation sorts json keys
+	// lexicographically for maps, which ensures consistent encoding
+	jsonMap := make(map[string]interface{})
+	jsonMap["builder"] = builder
+	jsonMap["buildNum"] = buildNum
+	hashstring, err := json.Marshal(jsonMap)
+
+	if err != nil {
+		return "", errors.Wrap(err, "generating json to hash for build key")
+	}
+
+	if _, err := hasher.Write([]byte(hashstring)); err != nil {
+		return "", errors.Wrap(err, "hashing json for build key")
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
