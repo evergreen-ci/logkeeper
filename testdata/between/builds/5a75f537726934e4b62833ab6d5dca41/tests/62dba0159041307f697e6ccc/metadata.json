@@ -2,5 +2,7 @@
     "id": "62dba0159041307f697e6ccc",
     "build_id": "5a75f537726934e4b62833ab6d5dca41",
     "name": "geo_max:CheckReplOplogs",
-    "task_id": "Task"
+    "task_id": "Task",
+    "phase": "phase0",
+    "command": "command0"
 }

@@ -40,6 +40,8 @@ func TestUploadTestMetadata(t *testing.T) {
 		BuildId: "5a75f537726934e4b62833ab6d5dca41",
 		Name:    "test0",
 		Info:    model.TestInfo{TaskID: "t0"},
+		Phase:   "phase0",
+		Command: "command0",
 	}
 
 	assert.NoError(t, storage.UploadTestMetadata(context.Background(), test))
@@ -48,6 +50,6 @@ func TestUploadTestMetadata(t *testing.T) {
 	contents, err := io.ReadAll(results)
 	assert.NoError(t, err)
 
-	expectedMetadata := `{"id":"62dba0159041307f697e6ccc","name":"test0","build_id":"5a75f537726934e4b62833ab6d5dca41","task_id":"t0"}`
+	expectedMetadata := `{"id":"62dba0159041307f697e6ccc","name":"test0","build_id":"5a75f537726934e4b62833ab6d5dca41","task_id":"t0","phase":"phase0", "command":"command0"}`
 	assert.JSONEq(t, expectedMetadata, string(contents))
 }

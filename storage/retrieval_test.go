@@ -191,6 +191,8 @@ func TestFindTestById(t *testing.T) {
 		Info: model.TestInfo{
 			TaskID: "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
 		},
+		Phase:   "phase0",
+		Command: "command0",
 	}
 	testResponse, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
