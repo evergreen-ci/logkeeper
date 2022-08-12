@@ -125,6 +125,8 @@ type testMetadata struct {
 	Name    string `json:"name"`
 	BuildID string `json:"build_id"`
 	TaskID  string `json:"task_id"`
+	Phase   string `json:"phase"`
+	Command string `json:"command"`
 }
 
 func newTestMetadata(t model.Test) testMetadata {
@@ -133,6 +135,8 @@ func newTestMetadata(t model.Test) testMetadata {
 		BuildID: t.BuildId,
 		Name:    t.Name,
 		TaskID:  t.Info.TaskID,
+		Phase:   t.Phase,
+		Command: t.Command,
 	}
 }
 
@@ -144,6 +148,8 @@ func (m *testMetadata) toTest() model.Test {
 		Info: model.TestInfo{
 			TaskID: m.TaskID,
 		},
+		Phase:   m.Phase,
+		Command: m.Command,
 	}
 }
 
