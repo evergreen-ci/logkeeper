@@ -168,7 +168,7 @@ func NewBuildId(builder string, buildNum int) (string, error) {
 		return "", errors.Wrap(err, "generating json to hash for build key")
 	}
 
-	if _, err := hasher.Write([]byte(hashstring)); err != nil {
+	if _, err := hasher.Write(hashstring); err != nil {
 		return "", errors.Wrap(err, "hashing json for build key")
 	}
 
