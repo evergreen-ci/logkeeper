@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"encoding/hex"
 	"testing"
 	"time"
 
@@ -133,34 +132,24 @@ func TestStreamingGetOldBuilds(t *testing.T) {
 	assert.Equal(t, oldBuild.Id, builds[0].Id)
 }
 
-func TestMakeBinaryRepresntation(t *testing.T) {
-	result := makeBinaryRepresentation("", 0)
-	expected := "0000000100000000000000020000000130"
-	assert.Equal(t, expected, hex.EncodeToString(result))
-
-	result = makeBinaryRepresentation("ABCD", 1000)
-	expected = "000000010000000441424344000000020000000431303030"
-	assert.Equal(t, expected, hex.EncodeToString(result))
-}
-
 func TestNewBuildId(t *testing.T) {
 	result, err := NewBuildId("A", 123)
 	require.NoError(t, err)
-	assert.Equal(t, "b9780338910c8b3b334aca46e8900461", result)
+	assert.Equal(t, "1e7747b3e13274f0bee0de868c8314c9", result)
 
 	result, err = NewBuildId("", -10000)
 	require.NoError(t, err)
-	assert.Equal(t, "8e2770c7334ee6a68db91c6c6fb4e021", result)
+	assert.Equal(t, "7d2e3a33d801c1ac74f062b41c977104", result)
 
 	result, err = NewBuildId(`{"builder": "builder", "buildNum": "1000"}`, 0)
 	require.NoError(t, err)
-	assert.Equal(t, "9a464e195ff3d4776155e4a25c38adbd", result)
+	assert.Equal(t, "ed39e8e7310193625e521204242e80c4", result)
 
 	result, err = NewBuildId("10", 100)
 	require.NoError(t, err)
-	assert.Equal(t, "3a6d7d3f631b9c919c7ef5ac5347092f", result)
+	assert.Equal(t, "f4088565508a32f3e6ff9205408bcce9", result)
 
 	result, err = NewBuildId("100", 10)
 	require.NoError(t, err)
-	assert.Equal(t, "e2d6aaf175e192b4e51cf850bb3a3fad", result)
+	assert.Equal(t, "b2f7b29a7f76e38abe38fc8145c0cf98", result)
 }

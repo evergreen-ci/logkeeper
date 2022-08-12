@@ -1,12 +1,10 @@
 package model
 
 import (
-	"bytes"
 	"context"
 	"crypto/md5"
-	"encoding/binary"
 	"encoding/hex"
-	"strconv"
+	"encoding/json"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
@@ -155,29 +153,22 @@ func RemoveBuild(buildID string) error {
 	return errors.Wrap(db.C(BuildsCollection).RemoveId(buildID), "deleting build record")
 }
 
-const (
-	builderFieldNum  = 1
-	buildNumFieldNum = 2
-)
-
-func makeBinaryRepresentation(builder string, buildNum int) []byte {
-	var buf bytes.Buffer
-	builderBytes := []byte(builder)
-	buildNumBytes := []byte(strconv.Itoa(buildNum))
-	binary.Write(&buf, binary.BigEndian, uint32(builderFieldNum))
-	binary.Write(&buf, binary.BigEndian, uint32(len(builderBytes)))
-	buf.Write(builderBytes)
-	binary.Write(&buf, binary.BigEndian, uint32(buildNumFieldNum))
-	binary.Write(&buf, binary.BigEndian, uint32(len(buildNumBytes)))
-	buf.Write(buildNumBytes)
-	return buf.Bytes()
-}
-
 // Generates a new build ID based on the hash of builder and buildNum
 func NewBuildId(builder string, buildNum int) (string, error) {
 	hasher := md5.New()
 
-	if _, err := hasher.Write(makeBinaryRepresentation(builder, buildNum)); err != nil {
+	// This depends on the fact that Go's json implementation sorts json keys
+	// lexicographically for maps, which ensures consistent encoding
+	jsonMap := make(map[string]interface{})
+	jsonMap["builder"] = builder
+	jsonMap["buildNum"] = buildNum
+	hashstring, err := json.Marshal(jsonMap)
+
+	if err != nil {
+		return "", errors.Wrap(err, "generating json to hash for build key")
+	}
+
+	if _, err := hasher.Write(hashstring); err != nil {
 		return "", errors.Wrap(err, "hashing json for build key")
 	}
 
