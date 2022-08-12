@@ -82,7 +82,8 @@ func (opts *BucketOpts) getS3Options() (pail.S3Options, error) {
 	}
 
 	return pail.S3Options{
-		Name:   bucketName,
-		Region: defaultS3Region,
+		Name:     bucketName,
+		Region:   defaultS3Region,
+		Compress: true,
 	}, nil
 }
