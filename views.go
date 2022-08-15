@@ -327,6 +327,64 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
+func (lk *logKeeper) viewBuildByIdInS3(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	var (
+		build    *model.Build
+		buildErr error
+	)
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
+		defer wg.Done()
+		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+	}()
+
+	var (
+		tests    []model.Test
+		testsErr error
+	)
+	go func() {
+		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
+		defer wg.Done()
+		tests, testsErr = lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
+	}()
+
+	wg.Wait()
+
+	if buildErr != nil {
+		lk.logErrorf(r, "Error finding build '%s': %v", buildID, buildErr)
+		return nil, nil, &apiError{Err: fmt.Sprintf("failed to find build '%s' in S3: %s", buildID, buildErr.Error()), code: http.StatusInternalServerError}
+	}
+	if build == nil {
+		return nil, nil, &apiError{Err: fmt.Sprintf("build '%s' not found in S3", buildID), code: http.StatusNotFound}
+	}
+	if testsErr != nil {
+		lk.logErrorf(r, "Error finding tests for build '%s': %v", buildID, testsErr)
+		return nil, nil, &apiError{Err: testsErr.Error(), code: http.StatusInternalServerError}
+	}
+	return build, tests, nil
+}
+
+func (lk *logKeeper) viewBuildByIdInDatabase(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
+	build, err := model.FindBuildById(buildID)
+	if err != nil {
+		lk.logErrorf(r, "Error finding build '%s': %v", buildID, err)
+		return nil, nil, &apiError{Err: fmt.Sprintf("failed to find build '%s': %s", buildID, err.Error()), code: http.StatusInternalServerError}
+	}
+	if build == nil {
+		return nil, nil, &apiError{Err: fmt.Sprintf("build '%s' not found", buildID), code: http.StatusNotFound}
+	}
+
+	tests, err := model.FindTestsForBuild(buildID)
+	if err != nil {
+		lk.logErrorf(r, "Error finding tests for build '%s': %v", buildID, err)
+		return nil, nil, &apiError{Err: err.Error(), code: http.StatusInternalServerError}
+	}
+	return build, tests, nil
+}
+
 func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Access-Control-Allow-Origin", "*")
 	defer r.Body.Close()
@@ -334,20 +392,19 @@ func (lk *logKeeper) viewBuildById(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
 
-	build, err := model.FindBuildById(buildID)
-	if err != nil {
-		lk.logErrorf(r, "Error finding build: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "failed to find build:" + err.Error()})
-		return
+	var (
+		build      *model.Build
+		tests      []model.Test
+		fetchError *apiError
+	)
+	if len(r.FormValue("s3")) > 0 {
+		build, tests, fetchError = lk.viewBuildByIdInS3(r, buildID)
+	} else {
+		build, tests, fetchError = lk.viewBuildByIdInDatabase(r, buildID)
 	}
-	if build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "view build: build not found"})
-		return
-	}
-	tests, err := model.FindTestsForBuild(buildID)
-	if err != nil {
-		lk.logErrorf(r, "Error finding tests for build: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+
+	if fetchError != nil {
+		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
 	}
 
