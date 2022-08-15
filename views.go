@@ -334,16 +334,20 @@ func (lk *logKeeper) viewBuildByIdInS3(r *http.Request, buildID string) (*model.
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	var build *model.Build
-	var buildErr error
+	var (
+		build    *model.Build
+		buildErr error
+	)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
 		defer wg.Done()
 		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
 	}()
 
-	var tests []model.Test
-	var testsErr error
+	var (
+		tests    []model.Test
+		testsErr error
+	)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("fetching build from s3 for test id")
 		defer wg.Done()

@@ -73,7 +73,7 @@ func testIdFromKey(path string) (string, error) {
 	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
 		return keyParts[4], nil
 	}
-	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path %s", path)
+	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
 }
 
 func buildPrefix(buildID string) string {
