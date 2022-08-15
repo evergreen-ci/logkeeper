@@ -211,6 +211,8 @@ func TestFindTestsForBuild(t *testing.T) {
 			Info: model.TestInfo{
 				TaskID: "Task",
 			},
+			Command: "command0",
+			Phase:   "phase0",
 		},
 		{
 			Id:      bson.ObjectIdHex("72dba0159041307f697e6ccd"),
@@ -219,6 +221,8 @@ func TestFindTestsForBuild(t *testing.T) {
 			Info: model.TestInfo{
 				TaskID: "Task",
 			},
+			Command: "command1",
+			Phase:   "phase1",
 		},
 	}
 	testResponse, err := storage.FindTestsForBuild(context.Background(), "5a75f537726934e4b62833ab6d5dca41")

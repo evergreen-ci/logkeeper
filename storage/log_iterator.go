@@ -6,10 +6,7 @@ import (
 	"context"
 	"io"
 	"runtime"
-	"strconv"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/pail"
@@ -514,19 +511,6 @@ func (i *mergingIterator) Channel(ctx context.Context) chan *model.LogLineItem {
 ///////////////////
 // Helper functions
 ///////////////////
-
-func parseLogLineString(data string) (model.LogLineItem, error) {
-	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
-	if err != nil {
-		return model.LogLineItem{}, err
-	}
-
-	return model.LogLineItem{
-		Timestamp: time.Unix(0, ts*1e6).UTC(),
-		// We need to TrimSpace here because logkeeper doesn't expect newlines to be included in the LogLineItem
-		Data: strings.TrimRight(data[23:], "\n"),
-	}, nil
-}
 
 func filterIntersectingChunks(timeRange TimeRange, chunks []LogChunkInfo) []LogChunkInfo {
 	filteredChunks := []LogChunkInfo{}
