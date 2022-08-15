@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -206,4 +207,43 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 		assert.Equal(t, "build 0-1", logLine.Data)
 	}
 	assert.Equal(t, 1, count)
+}
+
+func TestSetBSON(t *testing.T) {
+	require.NoError(t, testutil.InitDB())
+	require.NoError(t, testutil.ClearCollections(LogsCollection))
+
+	db, closer := db.DB()
+	defer closer()
+
+	lineTime := time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC)
+	lineMsg := "the message"
+	require.NoError(t, db.C(LogsCollection).Insert(bson.M{
+		"lines": [][]interface{}{
+			{lineTime, lineMsg},
+		},
+	}))
+
+	log := Log{}
+	assert.NoError(t, db.C(LogsCollection).Find(bson.M{}).One(&log))
+	require.Len(t, log.Lines, 1)
+	assert.Equal(t, lineTime, log.Lines[0].Time)
+	assert.Equal(t, lineMsg, log.Lines[0].Msg)
+}
+
+func TestGetBSON(t *testing.T) {
+	require.NoError(t, testutil.InitDB())
+	require.NoError(t, testutil.ClearCollections(LogsCollection))
+
+	db, closer := db.DB()
+	defer closer()
+
+	line := LogLine{Time: time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC), Msg: "the message"}
+	assert.NoError(t, (&Log{Lines: []LogLine{line}}).Insert())
+
+	log := Log{}
+	assert.NoError(t, db.C(LogsCollection).Find(bson.M{}).One(&log))
+	require.Len(t, log.Lines, 1)
+	assert.Equal(t, line.Time, log.Lines[0].Time)
+	assert.Equal(t, line.Msg, log.Lines[0].Msg)
 }

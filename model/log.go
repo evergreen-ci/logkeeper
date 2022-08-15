@@ -3,6 +3,7 @@ package model
 import (
 	"encoding/json"
 	"math"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -259,6 +260,43 @@ func (ll *LogLine) UnmarshalJSON(data []byte) error {
 	ll.Time = time.Unix(int64(timeField), nSecPart)
 	ll.Msg = line[1].(string)
 
+	return nil
+}
+
+// GetBSON implements the bson.Getter interface.
+// When a LogLine is marshalled to BSON the driver will marshal the output
+// of this function instead of the struct.
+func (ll LogLine) GetBSON() (interface{}, error) {
+	return []interface{}{ll.Time, ll.Msg}, nil
+}
+
+// SetBSON implements the bson.Setter interface.
+// When a LogLine is unmarshalled from BSON the driver will call this function to
+// unmarshal into the LogLine.
+func (ll *LogLine) SetBSON(raw bson.Raw) error {
+	line := []interface{}{}
+	if err := raw.Unmarshal(&line); err != nil {
+		return &bson.TypeError{
+			Kind: raw.Kind,
+			Type: reflect.TypeOf(line),
+		}
+	}
+	if len(line) < 2 {
+		return errors.Errorf("line was of unexpected length %d", len(line))
+	}
+
+	time, ok := line[0].(time.Time)
+	if !ok {
+		return errors.Errorf("timestamp was of unexpected type %T", line[0])
+	}
+
+	msg, ok := line[1].(string)
+	if !ok {
+		return errors.Errorf("message was of unexpected type '%T'", line[1])
+	}
+
+	ll.Time = time.UTC()
+	ll.Msg = msg
 	return nil
 }
 

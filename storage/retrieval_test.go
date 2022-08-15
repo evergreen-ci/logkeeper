@@ -191,8 +191,41 @@ func TestFindTestById(t *testing.T) {
 		Info: model.TestInfo{
 			TaskID: "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
 		},
+		Phase:   "phase0",
+		Command: "command0",
 	}
 	testResponse, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 	assert.Equal(t, &expected, testResponse)
+}
+
+func TestFindTestsForBuild(t *testing.T) {
+	storage := makeTestStorage(t, "../testdata/between")
+	defer cleanTestStorage(t)
+
+	expected := []model.Test{
+		{
+			Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+			Name:    "geo_max:CheckReplOplogs",
+			Info: model.TestInfo{
+				TaskID: "Task",
+			},
+			Command: "command0",
+			Phase:   "phase0",
+		},
+		{
+			Id:      bson.ObjectIdHex("72dba0159041307f697e6ccd"),
+			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+			Name:    "geo_max:CheckReplOplogs2",
+			Info: model.TestInfo{
+				TaskID: "Task",
+			},
+			Command: "command1",
+			Phase:   "phase1",
+		},
+	}
+	testResponse, err := storage.FindTestsForBuild(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
+	require.NoError(t, err)
+	assert.Equal(t, expected, testResponse)
 }
