@@ -97,7 +97,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.logErrorf(r, "content length limit exceeded for createBuild: %s", err.Err)
+		lk.logErrorf(r, "content length limit exceeded for create build: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -110,15 +110,15 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	}{}
 
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &buildParameters); err != nil {
-		lk.logErrorf(r, "Bad request to createBuild: %s", err.Err)
+		lk.logErrorf(r, "bad request to create build: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 
 	existingBuild, err := model.FindBuildByBuilder(buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
-		lk.logErrorf(r, "Error finding build by builder: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "finding build by builder: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build by builder"})
 		return
 	}
 	if existingBuild != nil {
@@ -144,15 +144,15 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		S3:       buildParameters.S3,
 	}
 	if err = newBuild.Insert(); err != nil {
-		lk.logErrorf(r, "Error inserting build object: %v", err)
+		lk.logErrorf(r, "inserting build object: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
 	if buildParameters.S3 {
 		if err := lk.opts.Bucket.UploadBuildMetadata(r.Context(), newBuild); err != nil {
-			lk.logErrorf(r, "writing build metadata: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			lk.logErrorf(r, "uploading build metadata: %v", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
 			return
 		}
 	}
@@ -171,7 +171,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.logErrorf(r, "content length limit exceeded for createTest: %s", err.Err)
+		lk.logErrorf(r, "content length limit exceeded for create test: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -181,12 +181,12 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
-		lk.logErrorf(r, "error finding build: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "finding build '%s': %v", buildID, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
 		return
 	}
 	if build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "creating test: build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
 
@@ -198,7 +198,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	}{}
 
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &testParams); err != nil {
-		lk.logErrorf(r, "Bad request to createTest: %s", err.Err)
+		lk.logErrorf(r, "bad request to create test for build '%s': %s", buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -214,15 +214,15 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Info:      model.TestInfo{TaskID: testParams.TaskId},
 	}
 	if err := newTest.Insert(); err != nil {
-		lk.logErrorf(r, "Error inserting test: %v", err)
+		lk.logErrorf(r, "inserting test for build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
 	if build.S3 {
 		if err := lk.opts.Bucket.UploadTestMetadata(r.Context(), newTest); err != nil {
-			lk.logErrorf(r, "writing test metadata: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			lk.logErrorf(r, "uploading test metadata for build '%s': %v", buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading test metadata"})
 			return
 		}
 	}
@@ -238,29 +238,29 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	vars := mux.Vars(r)
+	buildID := vars["build_id"]
+
 	if err := lk.checkContentLength(r); err != nil {
-		lk.logWarningf(r, "content length limit exceeded for appendGlobalLog: %s", err.Err)
+		lk.logWarningf(r, "content length limit exceeded for append log lines to build '%s': %s", buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 
-	vars := mux.Vars(r)
-	buildID := vars["build_id"]
-
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
-		lk.logErrorf(r, "Error finding builds entry: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding builds in append global log:" + err.Error()})
+		lk.logErrorf(r, "finding build '%s': %v", buildID, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
 		return
 	}
 	if build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "append global log: build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
 
 	var lines []model.LogLine
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
-		lk.logErrorf(r, "Bad request to appendGlobalLog: %s", err.Err)
+		lk.logErrorf(r, "bad request to append log lines to build '%s': %s", buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -273,27 +273,27 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	chunks, err := model.GroupLines(lines, maxLogBytes)
 	if err != nil {
-		lk.logErrorf(r, "unmarshaling log lines: %v", err)
+		lk.logErrorf(r, "unmarshalling log lines for build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
 		return
 	}
 
 	if err = build.IncrementSequence(len(chunks)); err != nil {
-		lk.logErrorf(r, "Error updating tests: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "incrementing sequence in build '%s': %v", buildID, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "incrementing build sequence"})
 		return
 	}
 
 	if err = model.InsertLogChunks(build.Id, nil, build.Seq, chunks); err != nil {
-		lk.logErrorf(r, "Error inserting logs: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "inserting DB log lines to build '%s': %v", buildID, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "inserting log lines"})
 		return
 	}
 
 	if build.S3 {
 		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, "", chunks); err != nil {
-			lk.logErrorf(r, "appending S3 logs: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			lk.logErrorf(r, "appending log lines to build '%s': %v", buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 			return
 		}
 	}
@@ -309,22 +309,22 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
+	vars := mux.Vars(r)
+	buildID := vars["build_id"]
+	testID := vars["test_id"]
+
 	if err := lk.checkContentLength(r); err != nil {
-		lk.logWarningf(r, "content length limit exceeded for appendLog: %s", err.Err)
+		lk.logWarningf(r, "content length limit exceeded for append log lines to test '%s' for build '%s': %s", buildID, testID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 
-	vars := mux.Vars(r)
-	buildID := vars["build_id"]
-
 	build, err := model.FindBuildById(buildID)
 	if err != nil || build == nil {
-		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "appending log: build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
 
-	testID := vars["test_id"]
 	test, err := model.FindTestByID(testID)
 	if err != nil || test == nil {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
@@ -333,40 +333,40 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 
 	var lines []model.LogLine
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
-		lk.logErrorf(r, "Bad request to appendLog: %s", err.Err)
+		lk.logErrorf(r, "bad request to append log to test '%s' for build '%s': %s", testID, buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 
 	if len(lines) == 0 {
-		// no need to insert anything, so stop here
+		// No need to insert anything, so stop here.
 		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
 
 	chunks, err := model.GroupLines(lines, maxLogBytes)
 	if err != nil {
-		lk.logErrorf(r, "unmarshaling log lines: %v", err)
+		lk.logErrorf(r, "unmarshalling log lines: %v", err)
 		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
 		return
 	}
 
 	if err = test.IncrementSequence(len(chunks)); err != nil {
-		lk.logErrorf(r, "Error updating tests: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "incrementing sequence in test '%s' for build '%s': %v", buildID, testID, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "incrementing test sequence"})
 		return
 	}
 
 	if err = model.InsertLogChunks(build.Id, &test.Id, test.Seq, chunks); err != nil {
-		lk.logErrorf(r, "Error inserting logs: %v", err)
+		lk.logErrorf(r, "inserting DB log lines to test '%s' for build '%s': %v", buildID, testID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
 	}
 
 	if build.S3 {
 		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, test.Id.Hex(), chunks); err != nil {
-			lk.logErrorf(r, "appending S3 logs: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+			lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", buildID, testID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 			return
 		}
 	}
@@ -439,6 +439,7 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 	if build == nil {
 		return nil, nil, &apiError{Err: "build not found", code: http.StatusNotFound}
 	}
+
 	if testsErr != nil {
 		lk.logErrorf(r, "finding tests for build '%s': %v", buildID, testsErr)
 		return nil, nil, &apiError{Err: testsErr.Error(), code: http.StatusInternalServerError}
@@ -620,7 +621,6 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	if build == nil {
 		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}
 	}
-
 	if testErr != nil {
 		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, testErr)
 		return nil, &apiError{Err: "error finding test", code: http.StatusInternalServerError}
@@ -628,7 +628,6 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	if testID != "" && test == nil {
 		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
 	}
-
 	if logLinesErr != nil {
 		lk.logErrorf(r, "downloading logs for build '%s': %v", buildID, logLinesErr)
 		return nil, &apiError{Err: "error downloading logs", code: http.StatusInternalServerError}
@@ -675,7 +674,7 @@ func (lk *logKeeper) viewDBTestLogs(r *http.Request, buildID string, testID stri
 
 	test, err := model.FindTestByID(testID)
 	if err != nil {
-		lk.logErrorf(r, "finding test '%s' in build '%s': %v", testID, buildID, err)
+		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, err)
 		return nil, &apiError{Err: "error finding test", code: http.StatusInternalServerError}
 	}
 	if test == nil {
