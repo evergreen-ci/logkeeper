@@ -130,7 +130,8 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	newBuildId, err := model.NewBuildId(buildParameters.Builder, buildParameters.BuildNum)
 	if err != nil {
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "creating new build ID: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "creating new build ID"})
 		return
 	}
 
@@ -144,8 +145,8 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		S3:       buildParameters.S3,
 	}
 	if err = newBuild.Insert(); err != nil {
-		lk.logErrorf(r, "inserting build object: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		lk.logErrorf(r, "inserting new build: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "inserting build"})
 		return
 	}
 
@@ -434,7 +435,7 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 
 	if buildErr != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
-		return nil, nil, &apiError{Err: "error fetching build", code: http.StatusInternalServerError}
+		return nil, nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
 	if build == nil {
 		return nil, nil, &apiError{Err: "build not found", code: http.StatusNotFound}
@@ -452,7 +453,7 @@ func (lk *logKeeper) viewDBBuild(r *http.Request, buildID string) (*model.Build,
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
 		lk.logErrorf(r, "finding DB build '%s': %v", buildID, err)
-		return nil, nil, &apiError{Err: "error finding build", code: http.StatusInternalServerError}
+		return nil, nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
 	if build == nil {
 		return nil, nil, &apiError{Err: "build not found", code: http.StatusNotFound}
@@ -461,7 +462,7 @@ func (lk *logKeeper) viewDBBuild(r *http.Request, buildID string) (*model.Build,
 	tests, err := model.FindTestsForBuild(buildID)
 	if err != nil {
 		lk.logErrorf(r, "finding tests for DB build '%s': %v", buildID, err)
-		return nil, nil, &apiError{Err: "error finding tests for build", code: http.StatusInternalServerError}
+		return nil, nil, &apiError{Err: "finding tests for build", code: http.StatusInternalServerError}
 	}
 
 	return build, tests, nil
@@ -616,21 +617,21 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 
 	if buildErr != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
-		return nil, &apiError{Err: "error finding build", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
 	if build == nil {
 		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}
 	}
 	if testErr != nil {
 		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, testErr)
-		return nil, &apiError{Err: "error finding test", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding test", code: http.StatusInternalServerError}
 	}
 	if testID != "" && test == nil {
 		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
 	}
 	if logLinesErr != nil {
 		lk.logErrorf(r, "downloading logs for build '%s': %v", buildID, logLinesErr)
-		return nil, &apiError{Err: "error downloading logs", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "downloading logs", code: http.StatusInternalServerError}
 	}
 
 	return &logFetchResponse{
@@ -644,7 +645,7 @@ func (lk *logKeeper) viewAllDBLogs(r *http.Request, buildID string) (*logFetchRe
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, err)
-		return nil, &apiError{Err: "error finding build", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
 	if build == nil {
 		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}
@@ -653,7 +654,7 @@ func (lk *logKeeper) viewAllDBLogs(r *http.Request, buildID string) (*logFetchRe
 	logLines, err := model.AllLogs(build.Id)
 	if err != nil {
 		lk.logErrorf(r, "downloading all DB logs for build '%s': %v", buildID, err)
-		return nil, &apiError{Err: "error downloading all logs", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "downloading all logs", code: http.StatusInternalServerError}
 	}
 
 	return &logFetchResponse{
@@ -666,7 +667,7 @@ func (lk *logKeeper) viewDBTestLogs(r *http.Request, buildID string, testID stri
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, err)
-		return nil, &apiError{Err: "error finding build", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
 	if build == nil {
 		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}
@@ -675,7 +676,7 @@ func (lk *logKeeper) viewDBTestLogs(r *http.Request, buildID string, testID stri
 	test, err := model.FindTestByID(testID)
 	if err != nil {
 		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, err)
-		return nil, &apiError{Err: "error finding test", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding test", code: http.StatusInternalServerError}
 	}
 	if test == nil {
 		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
