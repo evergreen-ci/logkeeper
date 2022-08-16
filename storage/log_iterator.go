@@ -172,7 +172,7 @@ func (i *serializedIterator) Close() error {
 }
 
 func (i *serializedIterator) Stream(ctx context.Context) chan *model.LogLineItem {
-	return streamFromIterator(ctx, i)
+	return streamFromLogIterator(ctx, i)
 }
 
 ///////////////////
@@ -392,7 +392,7 @@ func (i *batchedIterator) Close() error {
 }
 
 func (i *batchedIterator) Stream(ctx context.Context) chan *model.LogLineItem {
-	return streamFromIterator(ctx, i)
+	return streamFromLogIterator(ctx, i)
 }
 
 ///////////////////
@@ -506,7 +506,7 @@ func (i *mergingIterator) Close() error {
 }
 
 func (i *mergingIterator) Stream(ctx context.Context) chan *model.LogLineItem {
-	return streamFromIterator(ctx, i)
+	return streamFromLogIterator(ctx, i)
 }
 
 ///////////////////
@@ -530,18 +530,18 @@ func reverseChunks(chunks []LogChunkInfo) {
 	}
 }
 
-func streamFromIterator(ctx context.Context, iterator LogIterator) chan *model.LogLineItem {
+func streamFromLogIterator(ctx context.Context, iter LogIterator) chan *model.LogLineItem {
 	logLines := make(chan *model.LogLineItem)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("streaming lines from log iterator")
 		defer close(logLines)
 
-		for iterator.Next(ctx) {
-			item := iterator.Item()
+		for iter.Next(ctx) {
+			item := iter.Item()
 			logLines <- &item
 		}
 
-		if err := iterator.Err(); err != nil {
+		if err := iter.Err(); err != nil {
 			grip.Error(message.WrapError(err, message.Fields{
 				"message": "streaming lines from log iterator",
 			}))
