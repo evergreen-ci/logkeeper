@@ -502,6 +502,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		for line := range result.logLines {
 			_, err := w.Write([]byte(line.Data + "\n"))
 			if err != nil {
+				lk.logErrorf(r, "writing raw log lines from build '%s': %v", buildID, err)
+				lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "rendering log lines"})
 				return
 			}
 		}
@@ -558,7 +560,8 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 			emptyLog = false
 			_, err := w.Write([]byte(line.Data + "\n"))
 			if err != nil {
-				lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+				lk.logErrorf(r, "writing raw log lines from test '%s' for build '%s': %v", testID, buildID, err)
+				lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "rendering log lines"})
 				return
 			}
 		}
