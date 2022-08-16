@@ -120,19 +120,19 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 // getLogChunks returns the build and test log chunks for the given build ID
 // sorted by start time.
 func (b *Bucket) getLogChunks(ctx context.Context, buildID string) ([]LogChunkInfo, []LogChunkInfo, error) {
-	iterator, err := b.List(ctx, buildPrefix(buildID))
+	iter, err := b.List(ctx, buildPrefix(buildID))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "listing chunks")
 	}
 
 	var buildChunks, testChunks []LogChunkInfo
-	for iterator.Next(ctx) {
-		if strings.HasSuffix(iterator.Item().Name(), metadataFilename) {
+	for iter.Next(ctx) {
+		if strings.HasSuffix(iter.Item().Name(), metadataFilename) {
 			continue
 		}
 
 		var info LogChunkInfo
-		if err := info.fromKey(iterator.Item().Name()); err != nil {
+		if err := info.fromKey(iter.Item().Name()); err != nil {
 			return nil, nil, errors.Wrap(err, "getting log chunk info from key name")
 		}
 		if info.TestID != "" {
@@ -141,6 +141,11 @@ func (b *Bucket) getLogChunks(ctx context.Context, buildID string) ([]LogChunkIn
 			buildChunks = append(buildChunks, info)
 		}
 	}
+
+	if err := iter.Err(); err != nil {
+		return nil, nil, errors.Wrap(err, "getting log chunks")
+	}
+
 	sortLogChunksByStartTime(buildChunks)
 	sortLogChunksByStartTime(testChunks)
 
@@ -175,7 +180,7 @@ func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) ([]LogChunkIn
 		// If the testStart variable is zero, this means that we never
 		// found a test chunk matching the given test ID and we should
 		// return an error.
-		return nil, TimeRange{}, errors.Errorf("test '%s' not found in log chunk metadata", testID)
+		return nil, TimeRange{}, nil
 	}
 
 	// We need to iterate through the original chunk slice to find the
