@@ -1,7 +1,7 @@
 # start project configuration
 name := logkeeper
 buildDir := build
-packages := $(name) storage model
+packages := $(name) storage model featureswitch
 orgPath := github.com/evergreen-ci
 projectPath := $(orgPath)/$(name)
 tempStorageDir := _bucketdata
