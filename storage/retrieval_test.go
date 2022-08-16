@@ -13,17 +13,17 @@ import (
 func TestGetTestLogLines(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
 	defer cleanTestStorage(t)
-	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	logLines, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
-	// We should have the one additional intersecting line from the global logs and an additional one after
+	// We should have the one additional intersecting line from the global
+	// logs and an additional one after.
 	const expectedCount = 13
 	lines := []string{}
 
-	for item := range channel {
+	for item := range logLines {
 		lines = append(lines, item.Data)
 	}
-
 	assert.Equal(t, expectedCount, len(lines))
 	assert.Equal(t, "I am a global log within the test start/stop ranges.", lines[2])
 }
@@ -31,22 +31,23 @@ func TestGetTestLogLines(t *testing.T) {
 func TestGetTestLogLinesInBetween(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/between")
 	defer cleanTestStorage(t)
-	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	logLines, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
 	const expectedCount = 4
 	expectedLines := []string{
 		"Test Log401",
 		"Test Log402",
-		// We should include the test logs and global logs that are before the next test
+		// We should include the test logs and global logs that are
+		// before the next test.
 		"Log501",
 		"Log502",
 	}
+
 	lines := []string{}
-	for item := range channel {
+	for item := range logLines {
 		lines = append(lines, item.Data)
 	}
-
 	assert.Equal(t, expectedCount, len(lines))
 	assert.Equal(t, expectedLines, lines)
 }
@@ -54,11 +55,11 @@ func TestGetTestLogLinesInBetween(t *testing.T) {
 func TestGetTestLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
 	defer cleanTestStorage(t)
-	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	logLines, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
-	// We should have all global logs that overlap our test and all logs after, since there is
-	// not a next test
+	// We should have all global logs that overlap our test and all logs
+	// after, since there is not a next test.
 	const expectedCount = 35
 	expectedLines := []string{
 		"Test Log400",
@@ -97,11 +98,11 @@ func TestGetTestLogLinesOverlapping(t *testing.T) {
 		"Log860",
 		"Log900",
 	}
+
 	lines := []string{}
-	for item := range channel {
+	for item := range logLines {
 		lines = append(lines, item.Data)
 	}
-
 	assert.Equal(t, expectedCount, len(lines))
 	assert.Equal(t, expectedLines, lines)
 }
@@ -109,7 +110,7 @@ func TestGetTestLogLinesOverlapping(t *testing.T) {
 func TestGetAllLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
 	defer cleanTestStorage(t)
-	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "")
+	logLines, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "")
 	require.NoError(t, err)
 
 	const expectedCount = 40
@@ -155,8 +156,9 @@ func TestGetAllLogLinesOverlapping(t *testing.T) {
 		"Log860",
 		"Log900",
 	}
+
 	lines := []string{}
-	for item := range channel {
+	for item := range logLines {
 		lines = append(lines, item.Data)
 	}
 	assert.Equal(t, expectedCount, len(lines))

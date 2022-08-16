@@ -114,7 +114,7 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 		tr = NewTimeRange(TimeRangeMin, TimeRangeMax)
 	}
 
-	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Channel(ctx), nil
+	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
 }
 
 // getLogChunks returns the build and test log chunks for the given build ID
