@@ -155,6 +155,10 @@ tasks:
     name: test-storage
     exec_timeout_secs: 900
     tags: ["test"]
+  - <<: *run-test
+    name: test-featureswitch
+    exec_timeout_secs: 900
+    tags: ["test"]
   - <<: *run-test-mongodb
     name: test-logkeeper
     exec_timeout_secs: 900
