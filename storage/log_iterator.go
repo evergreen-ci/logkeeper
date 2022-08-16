@@ -52,7 +52,7 @@ type serializedIterator struct {
 // NewSerializedLogIterator returns a LogIterator that serially fetches
 // chunks from blob storage while iterating over lines of a buildlogger log.
 func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
-	chunks = filterIntersectingChunks(timeRange, chunks)
+	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &serializedIterator{
 		bucket:    bucket,
@@ -199,7 +199,7 @@ type batchedIterator struct {
 // caller) of chunks from blob storage in parallel while iterating over lines
 // of a buildlogger log.
 func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize int, timeRange TimeRange) LogIterator {
-	chunks = filterIntersectingChunks(timeRange, chunks)
+	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &batchedIterator{
 		bucket:    bucket,
@@ -214,7 +214,7 @@ func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize 
 // from blob storage in parallel while iterating over lines of a buildlogger
 // log.
 func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
-	chunks = filterIntersectingChunks(timeRange, chunks)
+	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &batchedIterator{
 		bucket:    bucket,
@@ -512,14 +512,10 @@ func (i *mergingIterator) Channel(ctx context.Context) chan *model.LogLineItem {
 // Helper functions
 ///////////////////
 
-func filterIntersectingChunks(timeRange TimeRange, chunks []LogChunkInfo) []LogChunkInfo {
+func filterChunksByTimeRange(timeRange TimeRange, chunks []LogChunkInfo) []LogChunkInfo {
 	filteredChunks := []LogChunkInfo{}
 	for i := 0; i < len(chunks); i++ {
-		otherTimeRange := TimeRange{
-			StartAt: chunks[i].Start,
-			EndAt:   chunks[i].End,
-		}
-		if timeRange.Intersects(otherTimeRange) {
+		if timeRange.Intersects(NewTimeRange(chunks[i].Start, chunks[i].End)) {
 			filteredChunks = append(filteredChunks, chunks[i])
 		}
 	}
@@ -539,6 +535,7 @@ func channelFromIterator(context context.Context, iterator LogIterator) chan *mo
 	go func() {
 		defer recovery.LogStackTraceAndContinue("Channel from Iterator")
 		defer close(logsChan)
+		// TODO: Fix this.
 		// Iterators will aggregate all errors into a catcher that can be when Next returns false.
 		defer grip.Errorf("Error iterating over logs: %v", iterator.Err())
 		for iterator.Next(context) {
@@ -616,9 +613,9 @@ func (h *LogIteratorHeap) SafePop() LogIterator {
 	return it
 }
 
-///////////////////
+////////////////////
 // reverseLineReader
-///////////////////
+////////////////////
 
 type reverseLineReader struct {
 	r     *bufio.Reader

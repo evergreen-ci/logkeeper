@@ -13,7 +13,7 @@ import (
 func TestGetTestLogLines(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
 	defer cleanTestStorage(t)
-	channel, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
 	// We should have the one additional intersecting line from the global logs and an additional one after
@@ -31,7 +31,7 @@ func TestGetTestLogLines(t *testing.T) {
 func TestGetTestLogLinesInBetween(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/between")
 	defer cleanTestStorage(t)
-	channel, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
 	const expectedCount = 4
@@ -54,7 +54,7 @@ func TestGetTestLogLinesInBetween(t *testing.T) {
 func TestGetTestLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
 	defer cleanTestStorage(t)
-	channel, err := storage.GetTestLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
 	require.NoError(t, err)
 
 	// We should have all global logs that overlap our test and all logs after, since there is
@@ -109,7 +109,7 @@ func TestGetTestLogLinesOverlapping(t *testing.T) {
 func TestGetAllLogLinesOverlapping(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/overlapping")
 	defer cleanTestStorage(t)
-	channel, err := storage.GetAllLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
+	channel, err := storage.DownloadLogLines(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "")
 	require.NoError(t, err)
 
 	const expectedCount = 40

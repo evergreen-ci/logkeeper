@@ -108,7 +108,7 @@ func (info *LogChunkInfo) fromLogChunk(buildID string, testID string, logChunk m
 	return nil
 }
 
-func testIdFromKey(path string) (string, error) {
+func testIDFromKey(path string) (string, error) {
 	keyParts := strings.Split(path, "/")
 	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
 		return keyParts[4], nil
@@ -156,10 +156,10 @@ func (m *buildMetadata) toBuild() model.Build {
 }
 
 func (m *buildMetadata) key() string {
-	return metadataKeyForBuildId(m.ID)
+	return metadataKeyForBuild(m.ID)
 }
 
-func metadataKeyForBuildId(id string) string {
+func metadataKeyForBuild(id string) string {
 	return fmt.Sprintf("%s%s", buildPrefix(id), metadataFilename)
 }
 
