@@ -27,7 +27,7 @@ type LogIterator interface {
 	// IsReversed returns true if the iterator is in reverse order and
 	// false otherwise.
 	IsReversed() bool
-	// Stream returns a chan of log lines.
+	// Stream returns a chan of log lines from the iterator.
 	Stream(context.Context) chan *model.LogLineItem
 }
 

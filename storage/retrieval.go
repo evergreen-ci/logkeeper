@@ -20,7 +20,7 @@ func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, er
 	key := metadataKeyForBuild(id)
 	reader, err := b.Get(ctx, key)
 	if err != nil {
-		return nil, errors.Wrapf(err, "fetching build metadata for build '%s'", id)
+		return nil, errors.Wrapf(err, "getting build metadata for build '%s'", id)
 	}
 
 	var metadata buildMetadata
@@ -38,7 +38,7 @@ func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string
 	key := metadataKeyForTest(buildID, testID)
 	reader, err := b.Get(ctx, key)
 	if err != nil {
-		return nil, errors.Wrapf(err, "fetching test metadata for build '%s' and test '%s'", buildID, testID)
+		return nil, errors.Wrapf(err, "getting test metadata for build '%s' and test '%s'", buildID, testID)
 	}
 
 	var metadata testMetadata
@@ -77,7 +77,7 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildID string) ([]model
 	for i, id := range testIDs {
 		wg.Add(1)
 		go func(testID string, idx int) {
-			defer recovery.LogStackTraceAndContinue("fetching test metadata from S3 for build")
+			defer recovery.LogStackTraceAndContinue("finding test metadata for build from bucket")
 			defer wg.Done()
 
 			test, err := b.FindTestByID(ctx, buildID, testID)
@@ -103,16 +103,7 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting log chunks for build '%s'", buildID)
 	}
-
-	var tr TimeRange
-	if testID != "" {
-		testChunks, tr, err = filterLogChunksByTestID(testChunks, testID)
-		if err != nil {
-			return nil, errors.Wrapf(err, "filtering log chunks by test ID for build '%s'", buildID)
-		}
-	} else {
-		tr = NewTimeRange(TimeRangeMin, TimeRangeMax)
-	}
+	testChunks, tr := filterLogChunksByTestID(testChunks, testID)
 
 	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
 }
@@ -154,9 +145,12 @@ func (b *Bucket) getLogChunks(ctx context.Context, buildID string) ([]LogChunkIn
 
 // filterLogChunksByTestID returns (1) the resulting slice of log chunks after
 // filtering for chunks with the given test ID and (2) the appropriate test
-// execution time range for the given test ID. If the test ID is not found, an
-// error is returned.
-func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) ([]LogChunkInfo, TimeRange, error) {
+// execution time range for the given test ID.
+func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) ([]LogChunkInfo, TimeRange) {
+	if testID == "" {
+		return chunks, NewTimeRange(TimeRangeMin, TimeRangeMax)
+	}
+
 	var (
 		testStart, testEnd time.Time
 		filteredChunks     []LogChunkInfo
@@ -179,8 +173,8 @@ func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) ([]LogChunkIn
 	if testStart.IsZero() {
 		// If the testStart variable is zero, this means that we never
 		// found a test chunk matching the given test ID and we should
-		// return an error.
-		return nil, TimeRange{}, nil
+		// return an empty slice and time range.
+		return nil, TimeRange{}
 	}
 
 	// We need to iterate through the original chunk slice to find the
@@ -201,7 +195,7 @@ func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) ([]LogChunkIn
 		tr.EndAt = TimeRangeMax
 	}
 
-	return filteredChunks, tr, nil
+	return filteredChunks, tr
 }
 
 func sortLogChunksByStartTime(chunks []LogChunkInfo) {
