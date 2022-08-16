@@ -14,9 +14,13 @@ import (
 const s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
 
 func hashToFloat(hash []byte) float64 {
+	// Use the first 4 bytes of the hash to construct a Uint32, since
+	// that is the size of a uint32 and the hash is longer (16 bytes).
 	value := binary.BigEndian.Uint32(hash[:4])
 	// The plus one ensures that we return a number in the range 0 to 1,
-	// inclusive of 0 and exclusive of 1.
+	// inclusive of 0 and exclusive of 1. The math in the denominator is
+	// untyped and should just be cast to a float64, so we shouldn't
+	// have to worry about overflow.
 	return float64(value) / (math.MaxUint32 + 1)
 }
 
@@ -44,6 +48,9 @@ func matchesFeatureForHash(featureSwitch string, hash []byte) bool {
 
 func matchesFeatureForString(featureSwitch string, data string) bool {
 	hasher := md5.New()
+	// Write both the featureswitch name and data into our hasher.
+	// This is  important so that we can use the same key with a
+	// different featureswitch to get a different value from the hash.
 	hasher.Write([]byte(featureSwitch))
 	hasher.Write([]byte(data))
 	hash := hasher.Sum(nil)
