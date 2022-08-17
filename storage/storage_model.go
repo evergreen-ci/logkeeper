@@ -56,12 +56,18 @@ func (info *LogChunkInfo) fromKey(path string) error {
 	var keyName string
 	keyParts := strings.Split(path, "/")
 	if strings.Contains(path, "/tests/") {
-		info.BuildID = keyParts[2]
-		info.TestID = keyParts[4]
-		keyName = keyParts[5]
+		if len(keyParts) < 5 {
+			return errors.Errorf("invalid chunk key '%s'", path)
+		}
+		info.BuildID = keyParts[1]
+		info.TestID = keyParts[3]
+		keyName = keyParts[4]
 	} else {
-		info.BuildID = keyParts[2]
-		keyName = keyParts[3]
+		if len(keyParts) < 3 {
+			return errors.Errorf("invalid chunk key '%s'", path)
+		}
+		info.BuildID = keyParts[1]
+		keyName = keyParts[2]
 	}
 
 	nameParts := strings.Split(keyName, "_")
@@ -111,13 +117,13 @@ func (info *LogChunkInfo) fromLogChunk(buildID string, testID string, logChunk m
 func testIDFromKey(path string) (string, error) {
 	keyParts := strings.Split(path, "/")
 	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
-		return keyParts[4], nil
+		return keyParts[3], nil
 	}
 	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
 }
 
 func buildPrefix(buildID string) string {
-	return fmt.Sprintf("/builds/%s/", buildID)
+	return fmt.Sprintf("builds/%s/", buildID)
 }
 
 func buildTestsPrefix(buildID string) string {
