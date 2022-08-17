@@ -17,10 +17,13 @@ func TestLogChunkInfoKey(t *testing.T) {
 			End:      time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
 		}
 		key := info.key()
-		assert.Equal(t, "/builds/b0/tests/t0/1257894000000000000_1257894060000000000_1", key)
+		assert.Equal(t, "builds/b0/tests/t0/1257894000000000000_1257894060000000000_1", key)
 		newInfo := LogChunkInfo{}
 		assert.NoError(t, newInfo.fromKey(key))
 		assert.Equal(t, info, newInfo)
+		parsedTestId, err := testIDFromKey(key)
+		assert.NoError(t, err)
+		assert.Equal(t, info.TestID, parsedTestId)
 	})
 
 	t.Run("WithoutTest", func(t *testing.T) {
@@ -31,12 +34,25 @@ func TestLogChunkInfoKey(t *testing.T) {
 			End:      time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
 		}
 		key := info.key()
-		assert.Equal(t, "/builds/b0/1257894000000000000_1257894060000000000_1", key)
+		assert.Equal(t, "builds/b0/1257894000000000000_1257894060000000000_1", key)
 		newInfo := LogChunkInfo{}
 		assert.NoError(t, newInfo.fromKey(key))
 		assert.Equal(t, info, newInfo)
-	})
 
+		_, err := testIDFromKey(key)
+		assert.Error(t, err)
+	})
+}
+
+func TestFromKey(t *testing.T) {
+	t.Run("InvalidKey", func(t *testing.T) {
+		newInfo := LogChunkInfo{}
+		assert.NotPanics(t, func() {
+			err := newInfo.fromKey("asdf")
+			assert.Error(t, err)
+		})
+
+	})
 }
 
 func TestBuildMetadataKey(t *testing.T) {
@@ -46,7 +62,7 @@ func TestBuildMetadataKey(t *testing.T) {
 		BuildNum: 1,
 		TaskID:   "t0",
 	}
-	assert.Equal(t, "/builds/b0/metadata.json", metadata.key())
+	assert.Equal(t, "builds/b0/metadata.json", metadata.key())
 }
 
 func TestBuildMetadataJSON(t *testing.T) {
@@ -70,7 +86,7 @@ func TestTestMetadataKey(t *testing.T) {
 		Phase:   "phase0",
 		Command: "command0",
 	}
-	assert.Equal(t, "/builds/build0/tests/test0/metadata.json", metadata.key())
+	assert.Equal(t, "builds/build0/tests/test0/metadata.json", metadata.key())
 }
 
 func TestTestMetadataJSON(t *testing.T) {
