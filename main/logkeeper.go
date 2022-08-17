@@ -171,7 +171,7 @@ func gracefulShutdownForSIGTERM(ctx context.Context, servers []*http.Server, gra
 }
 
 func makeBucket(localPath *string) (storage.Bucket, error) {
-	if localPath != nil {
+	if *localPath != "" {
 		return storage.NewBucket(storage.BucketOpts{
 			Location: storage.PailLocal,
 			Path:     *localPath,
