@@ -1,9 +1,10 @@
 # start project configuration
 name := logkeeper
 buildDir := build
-packages := $(name) storage model
+packages := $(name) storage model featureswitch
 orgPath := github.com/evergreen-ci
 projectPath := $(orgPath)/$(name)
+tempStorageDir := _bucketdata
 
 # end project configuration
 
@@ -122,7 +123,7 @@ $(buildDir)/output.%.coverage: .FORCE
 $(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage
 	go tool cover -html=$< -o $@
 $(buildDir)/output.smoke.test: $(buildDir)/$(name)
-	./$< &
+	./$< --localPath $(tempStorageDir) &
 	PORT=8080 go test $(testArgs) -v ./smoke/smoke_test.go | tee $(buildDir)/output.smoke.test || (pkill -f $<; exit 1)
 	pkill -f $<
 # end test and coverage artifacts

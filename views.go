@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/env"
+	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/logkeeper/storage"
 	"github.com/evergreen-ci/render"
@@ -106,7 +107,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Builder  string `json:"builder"`
 		BuildNum int    `json:"buildnum"`
 		TaskId   string `json:"task_id"`
-		S3       bool   `json:"s3"`
+		S3       *bool  `json:"s3"`
 	}{}
 
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &buildParameters); err != nil {
@@ -142,7 +143,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Name:     fmt.Sprintf("%v #%v", buildParameters.Builder, buildParameters.BuildNum),
 		Started:  time.Now(),
 		Info:     model.BuildInfo{TaskID: buildParameters.TaskId},
-		S3:       buildParameters.S3,
+		S3:       shouldBeS3(buildParameters.S3, newBuildId),
 	}
 	if err = newBuild.Insert(); err != nil {
 		lk.logErrorf(r, "inserting new build: %v", err)
@@ -150,7 +151,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if buildParameters.S3 {
+	if newBuild.S3 {
 		if err := lk.opts.Bucket.UploadBuildMetadata(r.Context(), newBuild); err != nil {
 			lk.logErrorf(r, "uploading build metadata: %v", err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
@@ -769,4 +770,16 @@ func (lk *logKeeper) NewRouter() *mux.Router {
 	r.Path("/status").Methods("GET").HandlerFunc(lk.checkAppHealth)
 
 	return r
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// Helper functions
+
+func shouldBeS3(explicitParam *bool, buildID string) bool {
+	if explicitParam == nil {
+		return featureswitch.WriteToS3Enabled(buildID)
+	} else {
+		return *explicitParam
+	}
 }
