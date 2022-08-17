@@ -168,7 +168,7 @@ func TestInsertLogChunks(t *testing.T) {
 
 		verifyDataStorage(t, storage, fmt.Sprintf("/builds/%s/", buildID), expectedChunks)
 
-		logsChannel, err := storage.GetAllLogLines(context.Background(), buildID)
+		logsChannel, err := storage.DownloadLogLines(context.Background(), buildID, "")
 		require.NoError(t, err)
 
 		result := []model.LogLineItem{}
@@ -191,7 +191,7 @@ func TestInsertLogChunks(t *testing.T) {
 
 		verifyDataStorage(t, storage, fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID), expectedChunks)
 
-		logsChannel, err := storage.GetTestLogLines(context.Background(), buildID, testID)
+		logsChannel, err := storage.DownloadLogLines(context.Background(), buildID, testID)
 		require.NoError(t, err)
 
 		result := []model.LogLineItem{}
