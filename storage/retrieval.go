@@ -134,7 +134,7 @@ func (b *Bucket) getBuildKeys(ctx context.Context, buildID string) ([]string, er
 	return keys, nil
 }
 
-// parseLogChunks parses build and test log chunks from the buildKeys
+// parseLogChunks parses build and test log chunks from the buildKeys that correspond to log chunks
 // and sorts them by start time.
 func parseLogChunks(buildKeys []string) ([]LogChunkInfo, []LogChunkInfo, error) {
 	var buildChunks, testChunks []LogChunkInfo
@@ -160,7 +160,8 @@ func parseLogChunks(buildKeys []string) ([]LogChunkInfo, []LogChunkInfo, error) 
 	return buildChunks, testChunks, nil
 }
 
-// parseTestIDs parses test IDs from the buildKeys and sorts them by creation time.
+// parseTestIDs parses test IDs from the buildKeys that correspond to test metadata files
+// and sorts them by creation time.
 func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 	var testIDs []model.TestID
 	for _, key := range buildKeys {

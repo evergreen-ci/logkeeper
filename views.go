@@ -17,7 +17,6 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
-	"gopkg.in/mgo.v2/bson"
 )
 
 const maxLogBytes = 4 * 1024 * 1024 // 4 MB
@@ -205,13 +204,14 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	startTime := time.Now()
 	newTest := model.Test{
-		Id:        bson.NewObjectId(),
+		Id:        model.NewTestID(startTime),
 		BuildId:   build.Id,
 		BuildName: build.Name,
 		Name:      testParams.TestFilename,
 		Command:   testParams.Command,
-		Started:   time.Now(),
+		Started:   startTime,
 		Phase:     testParams.Phase,
 		Info:      model.TestInfo{TaskID: testParams.TaskId},
 	}
@@ -229,8 +229,8 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	testUri := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, newTest.Id.Hex())
-	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{newTest.Id.Hex(), testUri})
+	testUri := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, newTest.Id)
+	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{string(newTest.Id), testUri})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -366,14 +366,14 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if build.S3 {
-		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, test.Id.Hex(), chunks); err != nil {
+		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), build.Id, string(test.Id), chunks); err != nil {
 			lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", buildID, testID, err)
 			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 			return
 		}
 	}
 
-	testUrl := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, test.Id.Hex())
+	testUrl := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, build.Id, test.Id)
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{"", testUrl})
 }
 
@@ -577,7 +577,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 			TestId   string
 			TestName string
 			Info     model.TestInfo
-		}{result.logLines, result.build.Id, result.build.Builder, result.test.Id.Hex(), result.test.Name, result.test.Info}, "base", "test.html")
+		}{result.logLines, result.build.Id, result.build.Builder, string(result.test.Id), result.test.Name, result.test.Info}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "rendering template: %v", err)
 		}

@@ -105,20 +105,21 @@ func (t *Test) IncrementSequence(count int) error {
 	return errors.Wrap(err, "incrementing test sequence number")
 }
 
+func testIDQuery(id string) bson.M {
+	in := []interface{}{TestID(id)}
+	if bson.IsObjectIdHex(id) {
+		in = append(in, bson.ObjectIdHex(id))
+	}
+	return bson.M{"$in": in}
+}
+
 // FindTestByID returns the test with the specified ID.
 func FindTestByID(id string) (*Test, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	in := []interface{}{TestID(id)}
-	if bson.IsObjectIdHex(id) {
-		in = append(in, bson.ObjectIdHex(id))
-	}
-
 	test := &Test{}
-	err := db.C(TestsCollection).Find(bson.M{
-		"_id": bson.M{"$in": in},
-	}).One(test)
+	err := db.C(TestsCollection).Find(testIDQuery(id)).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}

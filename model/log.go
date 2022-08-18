@@ -26,8 +26,8 @@ var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 /*
 {
 	"_id" : ObjectId("52e74ffd30dfa32be4877f47"),
-	"build_id" : ObjectId("52e74d583ae7400f1a000001"),
-	"test_id" : ObjectId("52e74ffb3ae74013e2000001"),
+	"build_id" : "52e74d583ae7400f1a000001",
+	"test_id" : "52e74ffb3ae74013e2000001",
 	"seq" : 1,
 	"started" : null,
 	"lines" : [
@@ -40,11 +40,11 @@ var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 
 // Log is a slice of lines and metadata about them.
 type Log struct {
-	BuildId string         `bson:"build_id"`
-	TestId  *bson.ObjectId `bson:"test_id"`
-	Seq     int            `bson:"seq"`
-	Started *time.Time     `bson:"started"`
-	Lines   []LogLine      `bson:"lines"`
+	BuildId string     `bson:"build_id"`
+	TestId  *TestID    `bson:"test_id"`
+	Seq     int        `bson:"seq"`
+	Started *time.Time `bson:"started"`
+	Lines   []LogLine  `bson:"lines"`
 }
 
 // RemoveLogsForBuild removes all logs created by the specificed build.
@@ -105,8 +105,7 @@ func MergedTestLogs(test *Test) (chan *LogLineItem, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "finding global logs during test")
 	}
-	testLogs := findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": test.Id}, []string{"seq"}, nil, nil)
-
+	testLogs := findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": testIDQuery(string(test.Id))}, []string{"seq"}, nil, nil)
 	return MergeLogChannels(testLogs, globalLogs), nil
 }
 
@@ -205,7 +204,7 @@ func GroupLines(lines []LogLine, maxSize int) ([]LogChunk, error) {
 }
 
 // InsertLogChunks inserts log chunks as Logs in the logs collection.
-func InsertLogChunks(buildID string, testID *bson.ObjectId, lastSequence int, chunks []LogChunk) error {
+func InsertLogChunks(buildID string, testID *TestID, lastSequence int, chunks []LogChunk) error {
 	for i, chunk := range chunks {
 		if len(chunk) == 0 {
 			continue
@@ -305,7 +304,7 @@ type LogLineItem struct {
 	LineNum   int
 	Timestamp time.Time
 	Data      string
-	TestId    *bson.ObjectId
+	TestId    *TestID
 }
 
 // Global returns true if this log line comes from a global log, otherwise false (from a test log).
