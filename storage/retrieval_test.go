@@ -242,6 +242,18 @@ func TestDownloadLogLines(t *testing.T) {
 				"Log900",
 			},
 		},
+		{
+			name:        "TestLogsStartAfterBuildLogs",
+			storagePath: "../testdata/delayed",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "0DE0B6B3BF3B840000000000",
+			expectedLines: []string{
+				"Log401",
+				"Log402",
+				"Test Log403",
+				"Test Log404",
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			storage := makeTestStorage(t, test.storagePath)
