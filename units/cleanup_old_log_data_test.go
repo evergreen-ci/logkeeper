@@ -6,12 +6,15 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/mgo.v2/bson"
 )
 
 func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
+	require.NoError(t, testutil.InitDB())
+
 	assert := assert.New(t)
 	db, closer := db.DB()
 	defer closer()
@@ -38,6 +41,8 @@ func TestCleanupOldLogsAndTestsByBuild(t *testing.T) {
 }
 
 func TestNoErrorWithNoLogsOrTests(t *testing.T) {
+	require.NoError(t, testutil.InitDB())
+
 	assert := assert.New(t)
 	db, closer := db.DB()
 	defer closer()
@@ -45,7 +50,7 @@ func TestNoErrorWithNoLogsOrTests(t *testing.T) {
 	require.NoError(t, err)
 
 	test := model.Test{
-		Id:      bson.NewObjectId(),
+		Id:      model.NewTestID(time.Time{}),
 		BuildId: "incompletebuild",
 		Started: time.Now(),
 	}
@@ -106,19 +111,19 @@ func insertTests(t *testing.T, ids []string) {
 	require.NoError(t, err)
 
 	test1 := model.Test{
-		Id:      bson.NewObjectId(),
+		Id:      model.NewTestID(time.Time{}),
 		BuildId: ids[0],
 	}
 	test2 := model.Test{
-		Id:      bson.NewObjectId(),
+		Id:      model.NewTestID(time.Time{}),
 		BuildId: ids[1],
 	}
 	test3 := model.Test{
-		Id:      bson.NewObjectId(),
+		Id:      model.NewTestID(time.Time{}),
 		BuildId: ids[2],
 	}
 	test4 := model.Test{
-		Id:      bson.NewObjectId(),
+		Id:      model.NewTestID(time.Time{}),
 		BuildId: ids[3],
 	}
 	assert.NoError(db.C(model.TestsCollection).Insert(test1, test2, test3, test4))
