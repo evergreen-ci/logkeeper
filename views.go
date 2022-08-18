@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/logkeeper/storage"
+	"github.com/evergreen-ci/pail"
 	"github.com/evergreen-ci/render"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
@@ -143,7 +145,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Name:     fmt.Sprintf("%v #%v", buildParameters.Builder, buildParameters.BuildNum),
 		Started:  time.Now(),
 		Info:     model.BuildInfo{TaskID: buildParameters.TaskId},
-		S3:       shouldBeS3(buildParameters.S3, newBuildId),
+		S3:       shouldWriteS3(buildParameters.S3, newBuildId),
 	}
 	if err = newBuild.Insert(); err != nil {
 		lk.logErrorf(r, "inserting new build: %v", err)
@@ -393,8 +395,8 @@ func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 		tests      []model.Test
 		fetchError *apiError
 	)
-	if len(r.FormValue("s3")) > 0 {
-		build, tests, fetchError = lk.viewBucketBuild(r, buildID)
+	if shouldRead, shouldFallback := shouldReadS3(r.FormValue("s3"), buildID); shouldRead {
+		build, tests, fetchError = lk.viewBucketBuild(r, buildID, shouldFallback)
 	} else {
 		build, tests, fetchError = lk.viewDBBuild(r, buildID)
 	}
@@ -410,7 +412,7 @@ func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	}{build, tests}, "base", "build.html")
 }
 
-func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
+func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFallBack bool) (*model.Build, []model.Test, *apiError) {
 	var (
 		wg       sync.WaitGroup
 		build    *model.Build
@@ -434,12 +436,17 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 	}()
 	wg.Wait()
 
+	if pail.IsKeyNotFoundError(buildErr) {
+		if shouldFallBack {
+			return lk.viewDBBuild(r, buildID)
+		} else {
+			return nil, nil, &apiError{Err: "finding build", code: http.StatusNotFound}
+		}
+	}
+
 	if buildErr != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
 		return nil, nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
-	}
-	if build == nil {
-		return nil, nil, &apiError{Err: "build not found", code: http.StatusNotFound}
 	}
 
 	if testsErr != nil {
@@ -489,8 +496,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		result     *logFetchResponse
 		fetchError *apiError
 	)
-	if len(r.FormValue("s3")) > 0 {
-		result, fetchError = lk.viewBucketLogs(r, buildID, "")
+	if shouldRead, shouldFallback := shouldReadS3(r.FormValue("s3"), buildID); shouldRead {
+		result, fetchError = lk.viewBucketLogs(r, buildID, "", shouldFallback)
 	} else {
 		result, fetchError = lk.viewAllDBLogs(r, buildID)
 	}
@@ -545,8 +552,8 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 		result     *logFetchResponse
 		fetchError *apiError
 	)
-	if len(r.FormValue("s3")) > 0 {
-		result, fetchError = lk.viewBucketLogs(r, buildID, testID)
+	if shouldRead, shouldFallback := shouldReadS3(r.FormValue("s3"), buildID); shouldRead {
+		result, fetchError = lk.viewBucketLogs(r, buildID, testID, shouldFallback)
 	} else {
 		result, fetchError = lk.viewDBTestLogs(r, buildID, testID)
 	}
@@ -584,7 +591,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID string, shouldFallBack bool) (*logFetchResponse, *apiError) {
 	var (
 		wg          sync.WaitGroup
 		build       *model.Build
@@ -619,19 +626,27 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	}()
 	wg.Wait()
 
+	if pail.IsKeyNotFoundError(buildErr) {
+		if shouldFallBack {
+			if testID == "" {
+				return lk.viewAllDBLogs(r, buildID)
+			} else {
+				return lk.viewDBTestLogs(r, buildID, testID)
+			}
+		} else {
+			return nil, &apiError{Err: "finding build", code: http.StatusNotFound}
+		}
+	}
 	if buildErr != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
 		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
-	if build == nil {
-		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}
+	if testID != "" && pail.IsKeyNotFoundError(testErr) {
+		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
 	}
 	if testErr != nil {
 		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, testErr)
 		return nil, &apiError{Err: "finding test", code: http.StatusInternalServerError}
-	}
-	if testID != "" && test == nil {
-		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
 	}
 	if logLinesErr != nil {
 		lk.logErrorf(r, "downloading logs for build '%s': %v", buildID, logLinesErr)
@@ -776,10 +791,22 @@ func (lk *logKeeper) NewRouter() *mux.Router {
 //
 // Helper functions
 
-func shouldBeS3(explicitParam *bool, buildID string) bool {
+func shouldWriteS3(explicitParam *bool, buildID string) bool {
 	if explicitParam == nil {
 		return featureswitch.WriteToS3Enabled(buildID)
 	} else {
 		return *explicitParam
+	}
+}
+
+// Takes the s3 query string parameter and a build id, and returns
+// whether we should try to read from S3, and whether we should 
+// fall back to the database if the build is not in s3.
+func shouldReadS3(explicitParam string, buildID string) (bool, bool) {
+	parseResult, err := strconv.ParseBool(explicitParam)
+	if err != nil {
+		return featureswitch.ReadFromS3Enabled(buildID), true
+	} else {
+		return parseResult, false
 	}
 }

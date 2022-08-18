@@ -12,6 +12,7 @@ import (
 )
 
 const s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
+const s3ReadFeatureSwitch = "LK_READ_S3_FEATURE_SWITCH"
 
 func hashToFloat(hash []byte) float64 {
 	// Use the first 4 bytes of the hash to construct a Uint32, since
@@ -59,4 +60,8 @@ func matchesFeatureForString(featureSwitch string, data string) bool {
 
 func WriteToS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3WriteFeatureSwitch, buildID)
+}
+
+func ReadFromS3Enabled(buildID string) bool {
+	return matchesFeatureForString(s3ReadFeatureSwitch, buildID)
 }
