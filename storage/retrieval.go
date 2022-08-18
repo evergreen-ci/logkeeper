@@ -185,14 +185,22 @@ func parseTestIDs(buildKeys []string) ([]bson.ObjectId, error) {
 // testExecutionWindow returns the TimeRange from the creation of this test to the creation
 // of the next test. If there is no later test then the end time is TimeRangeMax.
 func testExecutionWindow(allTestIDs []bson.ObjectId, testID string) TimeRange {
+	tr := AllTime
+	if testID == "" {
+		return tr
+	}
+
+	var found bool
 	var testIndex int
 	for i, id := range allTestIDs {
 		if id.Hex() == testID {
+			found = true
 			testIndex = i
 		}
 	}
-
-	tr := TimeRange{StartAt: allTestIDs[testIndex].Time(), EndAt: TimeRangeMax}
+	if found {
+		tr.StartAt = allTestIDs[testIndex].Time()
+	}
 	if testIndex < len(allTestIDs)-1 {
 		tr.EndAt = allTestIDs[testIndex+1].Time()
 	}
