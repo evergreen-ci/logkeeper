@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"math/rand"
+	"reflect"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
@@ -19,17 +20,17 @@ const (
 
 // Test contains metadata about a test's logs.
 type Test struct {
-	Id        bson.ObjectId `bson:"_id"`
-	BuildId   string        `bson:"build_id"`
-	BuildName string        `bson:"build_name"`
-	Name      string        `bson:"name"`
-	Command   string        `bson:"command"`
-	Started   time.Time     `bson:"started"`
-	Ended     *time.Time    `bson:"ended"`
-	Info      TestInfo      `bson:"info"`
-	Failed    bool          `bson:"failed,omitempty"`
-	Phase     string        `bson:"phase"`
-	Seq       int           `bson:"seq"`
+	Id        TestID     `bson:"_id"`
+	BuildId   string     `bson:"build_id"`
+	BuildName string     `bson:"build_name"`
+	Name      string     `bson:"name"`
+	Command   string     `bson:"command"`
+	Started   time.Time  `bson:"started"`
+	Ended     *time.Time `bson:"ended"`
+	Info      TestInfo   `bson:"info"`
+	Failed    bool       `bson:"failed,omitempty"`
+	Phase     string     `bson:"phase"`
+	Seq       int        `bson:"seq"`
 }
 
 // TestInfo contains additional metadata about a test.
@@ -62,6 +63,29 @@ func (t *TestID) TimeStamp() (time.Time, error) {
 	return time.Unix(0, int64(nSecs)), nil
 }
 
+func (t *Test) SetBSON(raw bson.Raw) error {
+	var id interface{}
+	if err := raw.Unmarshal(&id); err != nil {
+		return &bson.TypeError{
+			Kind: raw.Kind,
+			Type: reflect.TypeOf(t),
+		}
+	}
+	switch v := id.(type) {
+	case bson.ObjectId:
+		t.Id = TestID(v.Hex())
+	case string:
+		t.Id = TestID(v)
+	default:
+		return &bson.TypeError{
+			Kind: raw.Kind,
+			Type: reflect.TypeOf(t),
+		}
+	}
+
+	return nil
+}
+
 // Insert inserts the test into the test collection.
 func (t *Test) Insert() error {
 	db, closeSession := db.DB()
@@ -85,12 +109,15 @@ func FindTestByID(id string) (*Test, error) {
 	db, closeSession := db.DB()
 	defer closeSession()
 
-	if !bson.IsObjectIdHex(id) {
-		return nil, nil
+	in := []interface{}{TestID(id)}
+	if bson.IsObjectIdHex(id) {
+		in = append(in, bson.ObjectIdHex(id))
 	}
-	test := &Test{}
 
-	err := db.C(TestsCollection).Find(bson.M{"_id": bson.ObjectIdHex(id)}).One(test)
+	test := &Test{}
+	err := db.C(TestsCollection).Find(bson.M{
+		"_id": bson.M{"$in": in},
+	}).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
