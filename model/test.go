@@ -1,6 +1,9 @@
 package model
 
 import (
+	"encoding/binary"
+	"encoding/hex"
+	"math/rand"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
@@ -33,6 +36,30 @@ type Test struct {
 type TestInfo struct {
 	// TaskID is the ID of the task in Evergreen that generated this test.
 	TaskID string `bson:"task_id"`
+}
+
+type TestID string
+
+func NewTestID(startTime time.Time) TestID {
+	buf := make([]byte, 12)
+	binary.BigEndian.PutUint64(buf[:8], uint64(startTime.UnixNano()))
+	randNum := rand.New(rand.NewSource(startTime.UnixNano())).Uint32()
+	binary.BigEndian.PutUint32(buf[8:], randNum)
+
+	return TestID(hex.Dump(buf))
+}
+
+func (t *TestID) TimeStamp() (time.Time, error) {
+	if t == nil {
+		return time.Time{}, nil
+	}
+
+	bytes, err := hex.DecodeString(string(*t))
+	if err != nil {
+		return time.Time{}, errors.Wrap(err, "decoding id string")
+	}
+	nSecs := binary.BigEndian.Uint64([]byte(bytes))
+	return time.Unix(0, int64(nSecs)), nil
 }
 
 // Insert inserts the test into the test collection.
