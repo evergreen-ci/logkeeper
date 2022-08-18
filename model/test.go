@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"reflect"
-	"sync/atomic"
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
@@ -41,14 +40,10 @@ type TestInfo struct {
 
 type TestID string
 
-var idCounter uint32 = uint32(time.Now().UnixNano())
-
 func NewTestID(startTime time.Time) TestID {
-	buf := make([]byte, 12)
-	binary.BigEndian.PutUint64(buf[:8], uint64(startTime.UnixNano()))
-
-	i := atomic.AddUint32(&idCounter, 1)
-	binary.BigEndian.PutUint32(buf[8:], i)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
+	buf = append(buf, []byte(bson.NewObjectId())[4:]...)
 
 	return TestID(hex.EncodeToString(buf))
 }

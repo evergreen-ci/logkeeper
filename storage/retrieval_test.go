@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
@@ -269,4 +270,45 @@ func TestDownloadLogLines(t *testing.T) {
 			assert.Equal(t, test.expectedLines, lines)
 		})
 	}
+}
+
+func TestGetExecutionWindow(t *testing.T) {
+	t.Run("NoLaterTest", func(t *testing.T) {
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		allTestIDs := []model.TestID{
+			model.NewTestID(startTime),
+		}
+		tr := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.True(t, tr.StartAt.Equal(startTime))
+		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
+	})
+
+	t.Run("LaterTest", func(t *testing.T) {
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		allTestIDs := []model.TestID{
+			model.NewTestID(startTime),
+			model.NewTestID(startTime.Add(time.Hour)),
+		}
+		tr := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.True(t, tr.StartAt.Equal(startTime))
+		assert.True(t, tr.EndAt.Equal(startTime.Add(time.Hour)))
+	})
+
+	t.Run("NoTestID", func(t *testing.T) {
+		allTestIDs := []model.TestID{
+			model.NewTestID(time.Time{}),
+		}
+		tr := testExecutionWindow(allTestIDs, "")
+		assert.True(t, tr.StartAt.Equal(TimeRangeMin))
+		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
+	})
+
+	t.Run("NonExistentTestID", func(t *testing.T) {
+		allTestIDs := []model.TestID{
+			model.NewTestID(time.Time{}),
+		}
+		tr := testExecutionWindow(allTestIDs, "DNE")
+		assert.True(t, tr.StartAt.Equal(TimeRangeMin))
+		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
+	})
 }

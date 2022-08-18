@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -73,7 +74,8 @@ func TestGetExecutionWindow(t *testing.T) {
 	t.Run("NoLaterTest", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-		t0 := Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		t0 := Test{Id: NewTestID(startTime), Name: "t0", BuildId: "b0", Started: startTime}
 		assert.NoError(t, t0.Insert())
 		minTime, maxTime, err := t0.GetExecutionWindow()
 		assert.NoError(t, err)
@@ -84,14 +86,34 @@ func TestGetExecutionWindow(t *testing.T) {
 	t.Run("LaterTest", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-		t0 := Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		t0 := Test{Id: NewTestID(startTime), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
 		assert.NoError(t, t0.Insert())
-		t1 := Test{Id: NewTestID(time.Time{}), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
+		t1 := Test{Id: NewTestID(startTime.Add(time.Hour)), Name: "t1", BuildId: "b0", Started: startTime.Add(time.Hour)}
 		assert.NoError(t, t1.Insert())
 		minTime, maxTime, err := t0.GetExecutionWindow()
 		assert.NoError(t, err)
 		assert.True(t, t0.Started.Equal(minTime))
 		require.NotNil(t, maxTime)
 		assert.True(t, t1.Started.Equal(*maxTime))
+	})
+}
+
+func TestNewTestID(t *testing.T) {
+	assert.True(t, strings.HasPrefix(string(NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC))), "1174efedab186000"))
+}
+
+func TestTestID(t *testing.T) {
+	require.NoError(t, testutil.InitDB())
+
+	t.Run("Timestamp", func(t *testing.T) {
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		newID := NewTestID(startTime)
+		assert.True(t, startTime.Equal(newID.Timestamp()))
+	})
+
+	t.Run("SetBSON", func(t *testing.T) {
+		require.NoError(t, testutil.ClearCollections(TestsCollection))
+
 	})
 }
