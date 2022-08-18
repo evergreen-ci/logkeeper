@@ -7,21 +7,20 @@ import (
 	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/mgo.v2/bson"
 )
 
 func TestIncrementTestSequence(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-	testID := bson.NewObjectId()
+	testID := NewTestID(time.Time{})
 	test := &Test{Id: testID, Seq: 1}
 	require.NoError(t, test.Insert())
 
 	assert.NoError(t, test.IncrementSequence(1))
 	assert.Equal(t, 2, test.Seq)
 
-	test, err := FindTestByID(testID.Hex())
+	test, err := FindTestByID(string(testID))
 	assert.NoError(t, err)
 	assert.Equal(t, test.Seq, 2)
 }
@@ -30,9 +29,9 @@ func TestFindTestsForBuild(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-	require.NoError(t, (&Test{Id: bson.NewObjectId(), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}).Insert())
-	require.NoError(t, (&Test{Id: bson.NewObjectId(), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}).Insert())
-	require.NoError(t, (&Test{Id: bson.NewObjectId(), BuildId: "b1"}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), BuildId: "b1"}).Insert())
 
 	tests, err := FindTestsForBuild("b0")
 	assert.NoError(t, err)
@@ -45,9 +44,9 @@ func TestRemoveTestsForBuild(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-	require.NoError(t, (&Test{Id: bson.NewObjectId(), BuildId: "b0"}).Insert())
-	require.NoError(t, (&Test{Id: bson.NewObjectId(), BuildId: "b0"}).Insert())
-	require.NoError(t, (&Test{Id: bson.NewObjectId(), BuildId: "b1"}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), BuildId: "b0"}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), BuildId: "b0"}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), BuildId: "b1"}).Insert())
 
 	count, err := RemoveTestsForBuild("b0")
 	assert.NoError(t, err)
@@ -58,8 +57,8 @@ func TestFindNext(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-	t0 := Test{Id: bson.NewObjectId(), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
-	t1 := Test{Id: bson.NewObjectId(), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
+	t0 := Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
+	t1 := Test{Id: NewTestID(time.Time{}), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
 	require.NoError(t, t0.Insert())
 	require.NoError(t, t1.Insert())
 
@@ -74,7 +73,7 @@ func TestGetExecutionWindow(t *testing.T) {
 	t.Run("NoLaterTest", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-		t0 := Test{Id: bson.NewObjectId(), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
+		t0 := Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
 		assert.NoError(t, t0.Insert())
 		minTime, maxTime, err := t0.GetExecutionWindow()
 		assert.NoError(t, err)
@@ -85,9 +84,9 @@ func TestGetExecutionWindow(t *testing.T) {
 	t.Run("LaterTest", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-		t0 := Test{Id: bson.NewObjectId(), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
+		t0 := Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
 		assert.NoError(t, t0.Insert())
-		t1 := Test{Id: bson.NewObjectId(), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
+		t1 := Test{Id: NewTestID(time.Time{}), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
 		assert.NoError(t, t1.Insert())
 		minTime, maxTime, err := t0.GetExecutionWindow()
 		assert.NoError(t, err)

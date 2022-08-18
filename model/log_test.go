@@ -140,13 +140,13 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 
 	buildID := "b0"
 	t0 := Test{
-		Id:      bson.NewObjectId(),
+		Id:      NewTestID(time.Time{}),
 		BuildId: buildID,
 		Started: t0Start,
 	}
 	assert.NoError(t, t0.Insert())
 	t1 := Test{
-		Id:      bson.NewObjectId(),
+		Id:      NewTestID(time.Time{}),
 		BuildId: buildID,
 		Started: t0Start.Add(10 * time.Second),
 	}

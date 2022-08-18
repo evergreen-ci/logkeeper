@@ -50,7 +50,7 @@ func NewTestID(startTime time.Time) TestID {
 	i := atomic.AddUint32(&idCounter, 1)
 	binary.BigEndian.PutUint32(buf[8:], i)
 
-	return TestID(hex.Dump(buf))
+	return TestID(hex.EncodeToString(buf))
 }
 
 func (t *TestID) Timestamp() time.Time {
@@ -67,7 +67,7 @@ func (t *TestID) Timestamp() time.Time {
 	return time.Unix(0, int64(nSecs))
 }
 
-func (t *Test) SetBSON(raw bson.Raw) error {
+func (t *TestID) SetBSON(raw bson.Raw) error {
 	var id interface{}
 	if err := raw.Unmarshal(&id); err != nil {
 		return &bson.TypeError{
@@ -77,9 +77,9 @@ func (t *Test) SetBSON(raw bson.Raw) error {
 	}
 	switch v := id.(type) {
 	case bson.ObjectId:
-		t.Id = TestID(v.Hex())
+		*t = TestID(v.Hex())
 	case string:
-		t.Id = TestID(v)
+		*t = TestID(v)
 	default:
 		return &bson.TypeError{
 			Kind: raw.Kind,
@@ -104,14 +104,14 @@ func (t *Test) IncrementSequence(count int) error {
 	defer closeSession()
 
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": count}}, ReturnNew: true}
-	_, err := db.C("tests").Find(bson.M{"_id": t.Id}).Apply(change, t)
+	_, err := db.C("tests").Find(bson.M{"_id": testIDQuery(t.Id)}).Apply(change, t)
 	return errors.Wrap(err, "incrementing test sequence number")
 }
 
-func testIDQuery(id string) bson.M {
+func testIDQuery(id TestID) bson.M {
 	in := []interface{}{TestID(id)}
-	if bson.IsObjectIdHex(id) {
-		in = append(in, bson.ObjectIdHex(id))
+	if bson.IsObjectIdHex(string(id)) {
+		in = append(in, bson.ObjectIdHex(string(id)))
 	}
 	return bson.M{"$in": in}
 }
@@ -122,7 +122,8 @@ func FindTestByID(id string) (*Test, error) {
 	defer closeSession()
 
 	test := &Test{}
-	err := db.C(TestsCollection).Find(testIDQuery(id)).One(test)
+	query := bson.M{"_id": testIDQuery(TestID(id))}
+	err := db.C(TestsCollection).Find(query).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
