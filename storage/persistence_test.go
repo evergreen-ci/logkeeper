@@ -11,7 +11,6 @@ import (
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/mgo.v2/bson"
 )
 
 type expectedChunk struct {
@@ -52,7 +51,7 @@ func TestUploadTestMetadata(t *testing.T) {
 	defer cleanTestStorage(t)
 
 	test := model.Test{
-		Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+		Id:      model.TestID("62dba0159041307f697e6ccc"),
 		BuildId: "5a75f537726934e4b62833ab6d5dca41",
 		Name:    "test0",
 		Info:    model.TestInfo{TaskID: "t0"},

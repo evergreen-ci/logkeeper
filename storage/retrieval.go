@@ -168,6 +168,9 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 		if !strings.HasSuffix(key, metadataFilename) {
 			continue
 		}
+		if !strings.Contains(key, "/tests/") {
+			continue
+		}
 		testID, err := testIDFromKey(key)
 		if err != nil {
 			return nil, errors.Wrap(err, "getting test ID from metadata key")

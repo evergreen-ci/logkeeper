@@ -7,7 +7,6 @@ import (
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/mgo.v2/bson"
 )
 
 func TestFindBuildByID(t *testing.T) {
@@ -33,7 +32,7 @@ func TestFindTestByID(t *testing.T) {
 	defer cleanTestStorage(t)
 
 	expected := &model.Test{
-		Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+		Id:      model.TestID("17046404DE18D00000000000"),
 		BuildId: "5a75f537726934e4b62833ab6d5dca41",
 		Name:    "geo_max:CheckReplOplogs",
 		Info: model.TestInfo{
@@ -43,7 +42,7 @@ func TestFindTestByID(t *testing.T) {
 		Command: "command0",
 	}
 
-	actual, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	actual, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "17046404DE18D00000000000")
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }
@@ -54,7 +53,7 @@ func TestFindTestsForBuild(t *testing.T) {
 
 	expected := []model.Test{
 		{
-			Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+			Id:      model.TestID("0DE0B6B3BF4AC64000000000"),
 			BuildId: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs",
 			Info: model.TestInfo{
@@ -64,7 +63,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			Phase:   "phase0",
 		},
 		{
-			Id:      bson.ObjectIdHex("72dba0159041307f697e6ccd"),
+			Id:      model.TestID("0DE0B6B3CB36884000000000"),
 			BuildId: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs2",
 			Info: model.TestInfo{
@@ -97,12 +96,34 @@ func TestDownloadLogLines(t *testing.T) {
 			storagePath: "../testdata/overlapping",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
 			testID:      "DNE",
+			expectedLines: []string{
+				"Log300",
+				"Log320",
+				"Log340",
+				"Log360",
+				"Log380",
+				"Log400",
+				"Log420",
+				"Log440",
+				"Log460",
+				"Log500",
+				"Log501",
+				"Log520",
+				"Log540",
+				"Log560",
+				"Log580",
+				"Log810",
+				"Log820",
+				"Log840",
+				"Log860",
+				"Log900",
+			},
 		},
 		{
 			name:        "TestLogsSingleTest",
 			storagePath: "../testdata/simple",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "62dba0159041307f697e6ccc",
+			testID:      "17046404DE18D00000000000",
 			expectedLines: []string{
 				"First Test Log Line",
 				"[js_test:geo_max:CheckReplOplogs] New session started with sessionID: {  \"id\" : UUID(\"4983fd5c-898a-4435-8523-2aef47ce91f3\") } and options: {  \"causalConsistency\" : false }",
@@ -123,7 +144,7 @@ func TestDownloadLogLines(t *testing.T) {
 			name:        "TestLogsBetweenMultpleTests",
 			storagePath: "../testdata/between",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "62dba0159041307f697e6ccc",
+			testID:      "0DE0B6B3BF4AC64000000000",
 			expectedLines: []string{
 				"Test Log401",
 				"Test Log402",
@@ -135,7 +156,7 @@ func TestDownloadLogLines(t *testing.T) {
 			name:        "TestLogsWithOverlappingGlobalLogs",
 			storagePath: "../testdata/overlapping",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "62dba0159041307f697e6ccc",
+			testID:      "0DE0B6B3BF3B840000000000",
 			expectedLines: []string{
 				"Test Log400",
 				"Log400",
