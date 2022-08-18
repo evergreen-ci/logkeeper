@@ -50,17 +50,18 @@ func NewTestID(startTime time.Time) TestID {
 	return TestID(hex.Dump(buf))
 }
 
-func (t *TestID) TimeStamp() (time.Time, error) {
+func (t *TestID) Timestamp() time.Time {
 	if t == nil {
-		return time.Time{}, nil
+		return time.Time{}
 	}
 
 	bytes, err := hex.DecodeString(string(*t))
 	if err != nil {
-		return time.Time{}, errors.Wrap(err, "decoding id string")
+		return time.Time{}
 	}
+
 	nSecs := binary.BigEndian.Uint64([]byte(bytes))
-	return time.Unix(0, int64(nSecs)), nil
+	return time.Unix(0, int64(nSecs))
 }
 
 func (t *Test) SetBSON(raw bson.Raw) error {

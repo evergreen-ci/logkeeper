@@ -11,7 +11,6 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
-	"gopkg.in/mgo.v2/bson"
 )
 
 // FindBuildByID returns the build metadata for the given ID from the offline
@@ -162,8 +161,8 @@ func parseLogChunks(buildKeys []string) ([]LogChunkInfo, []LogChunkInfo, error) 
 }
 
 // parseTestIDs parses test IDs from the buildKeys and sorts them by creation time.
-func parseTestIDs(buildKeys []string) ([]bson.ObjectId, error) {
-	var testIDs []bson.ObjectId
+func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
+	var testIDs []model.TestID
 	for _, key := range buildKeys {
 		if !strings.HasSuffix(key, metadataFilename) {
 			continue
@@ -172,11 +171,11 @@ func parseTestIDs(buildKeys []string) ([]bson.ObjectId, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "getting test ID from metadata key")
 		}
-		testIDs = append(testIDs, bson.ObjectIdHex(testID))
+		testIDs = append(testIDs, model.TestID(testID))
 	}
 
 	sort.Slice(testIDs, func(i, j int) bool {
-		return testIDs[i].Time().Before(testIDs[j].Time())
+		return testIDs[i].Timestamp().Before(testIDs[j].Timestamp())
 	})
 
 	return testIDs, nil
@@ -184,7 +183,7 @@ func parseTestIDs(buildKeys []string) ([]bson.ObjectId, error) {
 
 // testExecutionWindow returns the TimeRange from the creation of this test to the creation
 // of the next test. If there is no later test then the end time is TimeRangeMax.
-func testExecutionWindow(allTestIDs []bson.ObjectId, testID string) TimeRange {
+func testExecutionWindow(allTestIDs []model.TestID, testID string) TimeRange {
 	tr := AllTime
 	if testID == "" {
 		return tr
@@ -193,16 +192,16 @@ func testExecutionWindow(allTestIDs []bson.ObjectId, testID string) TimeRange {
 	var found bool
 	var testIndex int
 	for i, id := range allTestIDs {
-		if id.Hex() == testID {
+		if string(id) == testID {
 			found = true
 			testIndex = i
 		}
 	}
 	if found {
-		tr.StartAt = allTestIDs[testIndex].Time()
+		tr.StartAt = allTestIDs[testIndex].Timestamp()
 	}
 	if testIndex < len(allTestIDs)-1 {
-		tr.EndAt = allTestIDs[testIndex+1].Time()
+		tr.EndAt = allTestIDs[testIndex+1].Timestamp()
 	}
 
 	return tr
