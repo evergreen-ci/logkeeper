@@ -32,8 +32,8 @@ func TestFindTestsForBuild(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}).Insert())
-	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}).Insert())
+	require.NoError(t, (&Test{Id: NewTestID(time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}).Insert())
 	require.NoError(t, (&Test{Id: NewTestID(time.Time{}), BuildId: "b1"}).Insert())
 
 	tests, err := FindTestsForBuild("b0")
@@ -60,8 +60,8 @@ func TestFindNext(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 	require.NoError(t, testutil.ClearCollections(TestsCollection))
 
-	t0 := Test{Id: NewTestID(time.Time{}), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
-	t1 := Test{Id: NewTestID(time.Time{}), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
+	t0 := Test{Id: NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)), Name: "t0", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
+	t1 := Test{Id: NewTestID(time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)), Name: "t1", BuildId: "b0", Started: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
 	require.NoError(t, t0.Insert())
 	require.NoError(t, t1.Insert())
 

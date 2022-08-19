@@ -40,6 +40,11 @@ type TestInfo struct {
 
 type TestID string
 
+// NewTestID returns a new TestID with it's timestamp set to startTime.
+// The ID is an ObjectID with its timestamp replaced with a nanosecond timestamp.
+// It is represented as a hex string of 16 bytes. The first 8 bytes are the timestamp
+// and replace the first 4 bytes of an ObjectID. The remaining 8 bytes are the rest of
+// the ObjectID.
 func NewTestID(startTime time.Time) TestID {
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
@@ -48,6 +53,9 @@ func NewTestID(startTime time.Time) TestID {
 	return TestID(hex.EncodeToString(buf))
 }
 
+// Timestamp returns the timestamp encoded in the TestID. If the TestID is wrapping
+// a legacy ObjectID then the timestamp will have second precision while if the TestID
+// is a new ID it will have nanosecond precision.
 func (t *TestID) Timestamp() time.Time {
 	if t == nil {
 		return time.Time{}
@@ -127,8 +135,7 @@ func FindTestByID(id string) (*Test, error) {
 	defer closeSession()
 
 	test := &Test{}
-	query := bson.M{"_id": TestID(id)}
-	err := db.C(TestsCollection).Find(query).One(test)
+	err := db.C(TestsCollection).Find(bson.M{"_id": TestID(id)}).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
 	}
