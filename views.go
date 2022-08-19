@@ -717,6 +717,7 @@ func (lk *logKeeper) viewDBTestLogs(r *http.Request, buildID string, testID stri
 ///////////////////////////////////////////////////////////////////////////////
 //
 // GET /status
+
 func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
@@ -800,7 +801,7 @@ func shouldWriteS3(explicitParam *bool, buildID string) bool {
 }
 
 // Takes the s3 query string parameter and a build id, and returns
-// whether we should try to read from S3, and whether we should 
+// whether we should try to read from S3, and whether we should
 // fall back to the database if the build is not in s3.
 func shouldReadS3(explicitParam string, buildID string) (bool, bool) {
 	parseResult, err := strconv.ParseBool(explicitParam)
