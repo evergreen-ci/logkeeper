@@ -5,9 +5,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/mgo.v2/bson"
 )
 
 func TestIncrementTestSequence(t *testing.T) {
@@ -107,13 +109,92 @@ func TestTestID(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
 
 	t.Run("Timestamp", func(t *testing.T) {
-		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-		newID := NewTestID(startTime)
-		assert.True(t, startTime.Equal(newID.Timestamp()))
+		t.Run("ObjectID", func(t *testing.T) {
+			startTime := time.Date(2009, time.November, 10, 23, 0, 0, 1, time.UTC)
+			objectID := bson.NewObjectIdWithTime(startTime)
+			newID := TestID(objectID.Hex())
+			assert.True(t, startTime.Equal(newID.Timestamp().Add(time.Nanosecond)))
+		})
+
+		t.Run("TestID", func(t *testing.T) {
+			startTime := time.Date(2009, time.November, 10, 23, 0, 0, 1, time.UTC)
+			newID := NewTestID(startTime)
+			assert.True(t, startTime.Equal(newID.Timestamp()))
+		})
 	})
 
 	t.Run("SetBSON", func(t *testing.T) {
-		require.NoError(t, testutil.ClearCollections(TestsCollection))
+		db, closer := db.DB()
+		defer closer()
 
+		t.Run("ObjectIDUnmarshalledToTestID", func(t *testing.T) {
+			require.NoError(t, testutil.ClearCollections(TestsCollection))
+			objectID := bson.NewObjectId()
+			require.NoError(t, db.C(TestsCollection).Insert(bson.M{"_id": objectID}))
+
+			var test Test
+			assert.NoError(t, db.C(TestsCollection).Find(bson.M{}).One(&test))
+			assert.Equal(t, TestID(objectID.Hex()), test.Id)
+		})
+
+		t.Run("TestIDUnmarshalledToTestID", func(t *testing.T) {
+			require.NoError(t, testutil.ClearCollections(TestsCollection))
+
+			newID := NewTestID(time.Time{})
+			require.NoError(t, db.C(TestsCollection).Insert(bson.M{"_id": string(newID)}))
+
+			var test Test
+			assert.NoError(t, db.C(TestsCollection).Find(bson.M{}).One(&test))
+			assert.Equal(t, newID, test.Id)
+		})
+	})
+
+	t.Run("GetBSON", func(t *testing.T) {
+		db, closer := db.DB()
+		defer closer()
+
+		t.Run("ObjectIDInsertedAsObjectID", func(t *testing.T) {
+			require.NoError(t, testutil.ClearCollections(TestsCollection))
+			objectID := bson.NewObjectId()
+			require.NoError(t, db.C(TestsCollection).Insert(Test{Id: TestID(objectID.Hex())}))
+
+			var testDoc struct {
+				ID bson.ObjectId `bson:"_id"`
+			}
+			assert.NoError(t, db.C(TestsCollection).Find(bson.M{}).One(&testDoc))
+			assert.Equal(t, objectID, testDoc.ID)
+		})
+
+		t.Run("TestIDInsertedAsString", func(t *testing.T) {
+			require.NoError(t, testutil.ClearCollections(TestsCollection))
+			test := Test{Id: NewTestID(time.Time{})}
+			require.NoError(t, db.C(TestsCollection).Insert(test))
+
+			var testDoc struct {
+				ID string `bson:"_id"`
+			}
+			assert.NoError(t, db.C(TestsCollection).Find(bson.M{}).One(&testDoc))
+			assert.Equal(t, string(test.Id), testDoc.ID)
+		})
+
+		t.Run("FindObjectID", func(t *testing.T) {
+			require.NoError(t, testutil.ClearCollections(TestsCollection))
+			objectID := bson.NewObjectId()
+			require.NoError(t, db.C(TestsCollection).Insert(bson.M{"_id": objectID}))
+
+			var test Test
+			assert.NoError(t, db.C(TestsCollection).Find(bson.M{"_id": TestID(objectID.Hex())}).One(&test))
+			assert.Equal(t, objectID.Hex(), string(test.Id))
+		})
+
+		t.Run("FindTestID", func(t *testing.T) {
+			require.NoError(t, testutil.ClearCollections(TestsCollection))
+			testID := NewTestID(time.Time{})
+			require.NoError(t, db.C(TestsCollection).Insert(bson.M{"_id": string(testID)}))
+
+			var test Test
+			assert.NoError(t, db.C(TestsCollection).Find(bson.M{"_id": testID}).One(&test))
+			assert.Equal(t, testID, test.Id)
+		})
 	})
 }

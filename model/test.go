@@ -53,6 +53,10 @@ func (t *TestID) Timestamp() time.Time {
 		return time.Time{}
 	}
 
+	if bson.IsObjectIdHex(string(*t)) {
+		return bson.ObjectIdHex(string(*t)).Time()
+	}
+
 	bytes, err := hex.DecodeString(string(*t))
 	if err != nil {
 		return time.Time{}
@@ -70,7 +74,7 @@ func (t TestID) GetBSON() (interface{}, error) {
 		return bson.ObjectIdHex(string(t)), nil
 	}
 
-	return t, nil
+	return string(t), nil
 }
 
 // SetBSON implements the bson.Setter interface.
