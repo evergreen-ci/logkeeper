@@ -312,3 +312,48 @@ func TestGetExecutionWindow(t *testing.T) {
 		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
 	})
 }
+
+func TestParseTestIDs(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		keys          []string
+		expectedIDs   []model.TestID
+		errorExpected bool
+	}{
+		"EmptyList": {
+			keys:        []string{},
+			expectedIDs: []model.TestID{},
+		},
+		"NoMetadata": {
+			keys:        []string{"key1", "key2"},
+			expectedIDs: []model.TestID{},
+		},
+		"MalformedMetadata": {
+			keys:          []string{"asdfgh/tests/0DE0B6B3BF4AC64000000000/metadata.json"},
+			errorExpected: true,
+		},
+		"MetadataAndLogChunk": {
+			keys: []string{
+				"builds/asdfgh/tests/0DE0B6B3BF4AC64000000000/metadata.json",
+				"builds/asdfgh/tests/0DE0B6B3BF4AC64000000000/1000000000301000000_1000000000302000000_2",
+			},
+			expectedIDs: []model.TestID{"0DE0B6B3BF4AC64000000000"},
+		},
+		"Sorted": {
+			keys: []string{
+				"builds/asdfgh/tests/0DE0B6B3CB36884000000000/metadata.json",
+				"builds/asdfgh/tests/0DE0B6B3BF4AC64000000000/metadata.json",
+			},
+			expectedIDs: []model.TestID{"0DE0B6B3BF4AC64000000000", "0DE0B6B3CB36884000000000"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			testIDs, err := parseTestIDs(testCase.keys)
+			if testCase.errorExpected {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, testCase.expectedIDs, testIDs)
+			}
+		})
+	}
+}

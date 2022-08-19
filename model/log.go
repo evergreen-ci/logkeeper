@@ -105,7 +105,7 @@ func MergedTestLogs(test *Test) (chan *LogLineItem, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "finding global logs during test")
 	}
-	testLogs := findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": testIDQuery(test.Id)}, []string{"seq"}, nil, nil)
+	testLogs := findLogsInWindow(bson.M{"build_id": test.BuildId, "test_id": test.Id}, []string{"seq"}, nil, nil)
 	return MergeLogChannels(testLogs, globalLogs), nil
 }
 

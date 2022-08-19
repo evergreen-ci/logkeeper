@@ -62,6 +62,20 @@ func (t *TestID) Timestamp() time.Time {
 	return time.Unix(0, int64(nSecs))
 }
 
+// GetBSON implements the bson.Getter interface.
+// When a TestID is marshalled to BSON the driver will marshal the output
+// of this function instead of the struct.
+func (t TestID) GetBSON() (interface{}, error) {
+	if bson.IsObjectIdHex((string(t))) {
+		return bson.ObjectIdHex(string(t)), nil
+	}
+
+	return t, nil
+}
+
+// SetBSON implements the bson.Setter interface.
+// When a TestID is unmarshalled from BSON the driver will call this function to
+// unmarshal into the TestID.
 func (t *TestID) SetBSON(raw bson.Raw) error {
 	var id interface{}
 	if err := raw.Unmarshal(&id); err != nil {
@@ -99,16 +113,8 @@ func (t *Test) IncrementSequence(count int) error {
 	defer closeSession()
 
 	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": count}}, ReturnNew: true}
-	_, err := db.C("tests").Find(bson.M{"_id": testIDQuery(t.Id)}).Apply(change, t)
+	_, err := db.C("tests").Find(bson.M{"_id": t.Id}).Apply(change, t)
 	return errors.Wrap(err, "incrementing test sequence number")
-}
-
-func testIDQuery(id TestID) bson.M {
-	in := []interface{}{TestID(id)}
-	if bson.IsObjectIdHex(string(id)) {
-		in = append(in, bson.ObjectIdHex(string(id)))
-	}
-	return bson.M{"$in": in}
 }
 
 // FindTestByID returns the test with the specified ID.
@@ -117,7 +123,7 @@ func FindTestByID(id string) (*Test, error) {
 	defer closeSession()
 
 	test := &Test{}
-	query := bson.M{"_id": testIDQuery(TestID(id))}
+	query := bson.M{"_id": TestID(id)}
 	err := db.C(TestsCollection).Find(query).One(test)
 	if err == mgo.ErrNotFound {
 		return nil, nil
