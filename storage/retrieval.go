@@ -192,8 +192,9 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 }
 
 // testExecutionWindow returns the TimeRange from the creation of this test to the creation
-// of the next test. If the testID isn't found the returned TimeRange is unbounded.
+// of the next test. If testID is empty the returned TimeRange is unbounded.
 // If there is no later test then the end time is TimeRangeMax.
+// Returns an error if the testID isn't found.
 func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, error) {
 	tr := AllTime
 	if testID == "" {
