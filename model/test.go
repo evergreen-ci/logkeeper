@@ -132,11 +132,8 @@ func (t *testIDAlias) GetBSON() (interface{}, error) {
 	if t == nil {
 		return nil, nil
 	}
-	if bson.IsObjectIdHex((string(*t))) {
-		return bson.ObjectIdHex(string(*t)), nil
-	}
 
-	return string(*t), nil
+	return TestID(*t).GetBSON()
 }
 
 // SetBSON implements the bson.Setter interface.
@@ -150,16 +147,13 @@ func (t *testIDAlias) SetBSON(raw bson.Raw) error {
 			Type: reflect.TypeOf(t),
 		}
 	}
-	switch v := id.(type) {
-	case bson.ObjectId:
-		*t = testIDAlias(v.Hex())
-	case string:
-		*t = testIDAlias(v)
-	default:
-		return &bson.TypeError{
-			Kind: raw.Kind,
-			Type: reflect.TypeOf(t),
-		}
+
+	var testID TestID
+	err := testID.SetBSON(raw)
+	if err != nil {
+		return err
+	} else {
+		*t = testIDAlias(testID)
 	}
 
 	return nil
