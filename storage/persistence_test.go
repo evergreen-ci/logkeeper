@@ -183,10 +183,13 @@ func TestInsertLogChunks(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
 		defer cleanTestStorage(t)
 
-		testID := "62dba0159041307f697e6ccc"
+		testID := "DE0B6B3A764000000000000"
 
-		err := storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks)
-		require.NoError(t, err)
+		require.NoError(t, storage.UploadTestMetadata(context.Background(), model.Test{
+			Id:      model.TestID(testID),
+			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+		}))
+		require.NoError(t, storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks))
 
 		verifyDataStorage(t, storage, fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID), expectedChunks)
 
