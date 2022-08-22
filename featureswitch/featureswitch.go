@@ -57,6 +57,22 @@ func matchesFeatureForString(featureSwitch string, data string) bool {
 	return matchesFeatureForHash(featureSwitch, hash)
 }
 
+func setFeatureSwitchLevel(featureSwitch string, level float64) func() {
+	oldValue, wasSet := os.LookupEnv(featureSwitch)
+	os.Setenv(featureSwitch, fmt.Sprintf("%.3f", level))
+	return func() {
+		if !wasSet {
+			os.Unsetenv(featureSwitch)
+		} else {
+			os.Setenv(featureSwitch, oldValue)
+		}
+	}
+}
+
+func SetWriteToS3Level(level float64) func() {
+	return setFeatureSwitchLevel(s3WriteFeatureSwitch, level)
+}
+
 func WriteToS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3WriteFeatureSwitch, buildID)
 }
