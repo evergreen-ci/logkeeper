@@ -83,7 +83,7 @@ func (t *TestID) Timestamp() time.Time {
 		return time.Time{}
 	}
 
-	nSecs := binary.BigEndian.Uint64([]byte(bytes))
+	nSecs := binary.BigEndian.Uint64(bytes)
 	return time.Unix(0, int64(nSecs))
 }
 
