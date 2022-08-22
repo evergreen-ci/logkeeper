@@ -59,7 +59,7 @@ func matchesFeatureForString(featureSwitch string, data string) bool {
 
 func setFeatureSwitchLevel(featureSwitch string, level float64) func() {
 	oldValue, wasSet := os.LookupEnv(featureSwitch)
-	os.Setenv(featureSwitch, strconv.FormatFloat(level, 'f', 4, 64))
+	os.Setenv(featureSwitch, fmt.Sprintf("%.3f", level))
 	return func() {
 		if !wasSet {
 			os.Unsetenv(featureSwitch)
