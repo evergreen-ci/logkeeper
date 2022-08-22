@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -46,9 +47,14 @@ type TestID string
 // and replace the first 4 bytes of an ObjectID. The remaining 8 bytes are the rest of
 // the ObjectID.
 func NewTestID(startTime time.Time) TestID {
+	objectID := bson.NewObjectId()
+	if !featureswitch.NewTestIDEnabled(objectID.Hex()) {
+		return TestID(objectID.Hex())
+	}
+
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
-	buf = append(buf, []byte(bson.NewObjectId())[4:]...)
+	buf = append(buf, []byte(objectID)[4:]...)
 
 	return TestID(hex.EncodeToString(buf))
 }
