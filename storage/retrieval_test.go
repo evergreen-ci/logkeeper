@@ -86,17 +86,20 @@ func TestDownloadLogLines(t *testing.T) {
 		buildID       string
 		testID        string
 		expectedLines []string
+		errorExpected bool
 	}{
 		{
-			name:        "BuildLogsDNE",
-			storagePath: "../testdata/simple",
-			buildID:     "DNE",
+			name:          "BuildLogsDNE",
+			storagePath:   "../testdata/simple",
+			buildID:       "DNE",
+			errorExpected: true,
 		},
 		{
-			name:        "TestLogsDNE",
-			storagePath: "../testdata/overlapping",
-			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "DNE",
+			name:          "TestLogsDNE",
+			storagePath:   "../testdata/overlapping",
+			buildID:       "5a75f537726934e4b62833ab6d5dca41",
+			testID:        "DNE",
+			errorExpected: true,
 			expectedLines: []string{
 				"Log300",
 				"Log320",
@@ -261,13 +264,17 @@ func TestDownloadLogLines(t *testing.T) {
 			defer cleanTestStorage(t)
 
 			logLines, err := storage.DownloadLogLines(context.Background(), test.buildID, test.testID)
-			require.NoError(t, err)
+			if test.errorExpected {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
 
-			var lines []string
-			for item := range logLines {
-				lines = append(lines, item.Data)
+				var lines []string
+				for item := range logLines {
+					lines = append(lines, item.Data)
+				}
+				assert.Equal(t, test.expectedLines, lines)
 			}
-			assert.Equal(t, test.expectedLines, lines)
 		})
 	}
 }
@@ -330,22 +337,22 @@ func TestParseTestIDs(t *testing.T) {
 			expectedIDs: []model.TestID{},
 		},
 		"MalformedMetadata": {
-			keys:          []string{"asdfgh/tests/0de0b6b3bf4ac6400000000000000000/metadata.json"},
+			keys:          []string{"asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/metadata.json"},
 			errorExpected: true,
 		},
 		"MetadataAndLogChunk": {
 			keys: []string{
-				"builds/asdfgh/tests/0de0b6b3bf4ac6400000000000000000/metadata.json",
-				"builds/asdfgh/tests/0de0b6b3bf4ac6400000000000000000/1000000000301000000_1000000000302000000_2",
+				"builds/asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/metadata.json",
+				"builds/asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/1000000000301000000_1000000000302000000_2",
 			},
-			expectedIDs: []model.TestID{"0de0b6b3bf4ac6400000000000000000"},
+			expectedIDs: []model.TestID{"0de0b6b3Bf4ac6400000000000000000"},
 		},
 		"Sorted": {
 			keys: []string{
 				"builds/asdfgh/tests/0de0b6b3cb3688400000000000000000/metadata.json",
-				"builds/asdfgh/tests/0de0b6b3bf4ac6400000000000000000/metadata.json",
+				"builds/asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/metadata.json",
 			},
-			expectedIDs: []model.TestID{"0de0b6b3bf4ac6400000000000000000", "0de0b6b3cb3688400000000000000000"},
+			expectedIDs: []model.TestID{"0de0b6b3Bf4ac6400000000000000000", "0de0b6b3cb3688400000000000000000"},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

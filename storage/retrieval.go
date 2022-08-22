@@ -103,6 +103,10 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 		return nil, errors.Wrapf(err, "getting keys for build '%s'", buildID)
 	}
 
+	if len(buildKeys) == 0 {
+		return nil, errors.Errorf("No keys for build '%s", buildID)
+	}
+
 	buildChunks, testChunks, err := parseLogChunks(buildKeys)
 	if err != nil {
 		return nil, errors.Wrapf(err, "parsing log chunks from keys for build '%s'", buildID)

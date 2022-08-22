@@ -80,6 +80,10 @@ func WriteToS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3WriteFeatureSwitch, buildID)
 }
 
+func SetNewTestIDLevel(level float64) func() {
+	return setFeatureSwitchLevel(newTestIDSwitch, level)
+}
+
 func NewTestIDEnabled(testID string) bool {
 	return matchesFeatureForString(newTestIDSwitch, testID)
 }

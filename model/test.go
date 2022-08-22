@@ -48,15 +48,22 @@ type TestID string
 // the ObjectID.
 func NewTestID(startTime time.Time) TestID {
 	objectID := bson.NewObjectId()
-	if !featureswitch.NewTestIDEnabled(objectID.Hex()) {
-		return TestID(objectID.Hex())
+	if featureswitch.NewTestIDEnabled(objectID.Hex()) {
+		buf := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
+		buf = append(buf, []byte(objectID)[4:]...)
+
+		return TestID(hex.EncodeToString(buf))
+	} else {
+		// This gets a TestID that is a valid ObjectID, but we need to
+		// use the startTime provided to this function rather than the
+		// base objectID
+		buf := make([]byte, 4)
+		binary.BigEndian.PutUint32(buf, uint32(startTime.Unix()))
+		buf = append(buf, []byte(objectID)[4:]...)
+
+		return TestID(hex.EncodeToString(buf))
 	}
-
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
-	buf = append(buf, []byte(objectID)[4:]...)
-
-	return TestID(hex.EncodeToString(buf))
 }
 
 // Timestamp returns the timestamp encoded in the TestID. If the TestID is wrapping
