@@ -40,11 +40,11 @@ var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 
 // Log is a slice of lines and metadata about them.
 type Log struct {
-	BuildId string     `bson:"build_id"`
-	TestId  *TestID    `bson:"test_id"`
-	Seq     int        `bson:"seq"`
-	Started *time.Time `bson:"started"`
-	Lines   []LogLine  `bson:"lines"`
+	BuildId string       `bson:"build_id"`
+	TestId  *testIDAlias `bson:"test_id"`
+	Seq     int          `bson:"seq"`
+	Started *time.Time   `bson:"started"`
+	Lines   []LogLine    `bson:"lines"`
 }
 
 // RemoveLogsForBuild removes all logs created by the specificed build.
@@ -83,7 +83,7 @@ func findLogsInWindow(query bson.M, sort []string, minTime, maxTime *time.Time) 
 					LineNum:   lineNum,
 					Timestamp: line.Time,
 					Data:      line.Msg,
-					TestId:    logItem.TestId,
+					TestId:    logItem.TestId.toTestIDPtr(),
 				}
 				lineNum++
 			}
@@ -212,7 +212,7 @@ func InsertLogChunks(buildID string, testID *TestID, lastSequence int, chunks []
 
 		logEntry := Log{
 			BuildId: buildID,
-			TestId:  testID,
+			TestId:  testID.toTestIDAliasPtr(),
 			Seq:     lastSequence - len(chunks) + i + 1,
 			Lines:   chunk,
 			Started: &chunk[0].Time,

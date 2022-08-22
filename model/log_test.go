@@ -166,7 +166,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(t, globalLog.Insert())
 	testLog0 := Log{
 		BuildId: buildID,
-		TestId:  &t0.Id,
+		TestId:  t0.Id.toTestIDAliasPtr(),
 		Seq:     1,
 		Started: &t0.Started,
 		Lines: []LogLine{
@@ -177,7 +177,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(t, testLog0.Insert())
 	testLog1 := Log{
 		BuildId: buildID,
-		TestId:  &t1.Id,
+		TestId:  t1.Id.toTestIDAliasPtr(),
 		Seq:     2,
 		Started: &t1.Started,
 		Lines: []LogLine{
