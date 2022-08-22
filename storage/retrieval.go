@@ -133,6 +133,10 @@ func (b *Bucket) getBuildKeys(ctx context.Context, buildID string) ([]string, er
 		keys = append(keys, iter.Item().Name())
 	}
 
+	if err := iter.Err(); err != nil {
+		return nil, errors.Wrap(err, "iterating build keys")
+	}
+
 	return keys, nil
 }
 
