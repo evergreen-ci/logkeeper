@@ -34,44 +34,33 @@ func TestRemoveLogsForBuild(t *testing.T) {
 
 func TestFindLogsInWindow(t *testing.T) {
 	require.NoError(t, testutil.InitDB())
+	require.NoError(t, testutil.ClearCollections(LogsCollection))
 
 	earliestTime := time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)
 	latestTime := time.Date(2009, time.November, 10, 23, 2, 0, 0, time.UTC)
+	require.NoError(t, (&Log{Seq: 0, Lines: []LogLine{
+		{Time: earliestTime.Add(-time.Hour), Msg: "line0"},
+		{Time: earliestTime, Msg: "line1"},
+	}}).Insert())
+	require.NoError(t, (&Log{Seq: 1, Lines: []LogLine{
+		{Time: latestTime, Msg: "line2"},
+		{Time: latestTime.Add(time.Hour), Msg: "line3"},
+	}}).Insert())
 
-	for name, testID := range map[string]interface{}{
-		"NoTestID": nil,
-		"ObjectID": bson.NewObjectId(),
-		"TestID":   "t0",
-	} {
-		t.Run(name, func(t *testing.T) {
-			require.NoError(t, testutil.ClearCollections(LogsCollection))
+	logChan := findLogsInWindow(bson.M{}, []string{"seq"}, &earliestTime, &latestTime)
+	var lines []*LogLineItem
+	require.Eventually(t, func() bool {
+		select {
+		case line := <-logChan:
+			lines = append(lines, line)
+		default:
+		}
 
-			require.NoError(t, (&Log{Seq: 0, TestId: testID, Lines: []LogLine{
-				{Time: earliestTime.Add(-time.Hour), Msg: "line0"},
-				{Time: earliestTime, Msg: "line1"},
-			}}).Insert())
-			require.NoError(t, (&Log{Seq: 1, TestId: testID, Lines: []LogLine{
-				{Time: latestTime, Msg: "line2"},
-				{Time: latestTime.Add(time.Hour), Msg: "line3"},
-			}}).Insert())
+		return len(lines) == 2
+	}, time.Second, 10*time.Millisecond)
 
-			logChan := findLogsInWindow(bson.M{}, []string{"seq"}, &earliestTime, &latestTime)
-			var lines []*LogLineItem
-			require.Eventually(t, func() bool {
-				select {
-				case line := <-logChan:
-					lines = append(lines, line)
-				default:
-				}
-
-				return len(lines) == 2
-			}, time.Second, 10*time.Millisecond)
-
-			assert.Equal(t, "line1", lines[0].Data)
-			assert.Equal(t, "line2", lines[1].Data)
-			assert.Equal(t, testIDFromInterface(testID), lines[0].TestId)
-		})
-	}
+	assert.Equal(t, "line1", lines[0].Data)
+	assert.Equal(t, "line2", lines[1].Data)
 }
 
 func TestGroupLines(t *testing.T) {
@@ -177,7 +166,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(t, globalLog.Insert())
 	testLog0 := Log{
 		BuildId: buildID,
-		TestId:  &t0.Id,
+		TestId:  t0.Id.toTestIDAliasPtr(),
 		Seq:     1,
 		Started: &t0.Started,
 		Lines: []LogLine{
@@ -188,7 +177,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(t, testLog0.Insert())
 	testLog1 := Log{
 		BuildId: buildID,
-		TestId:  &t1.Id,
+		TestId:  t1.Id.toTestIDAliasPtr(),
 		Seq:     2,
 		Started: &t1.Started,
 		Lines: []LogLine{

@@ -40,11 +40,11 @@ var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 
 // Log is a slice of lines and metadata about them.
 type Log struct {
-	BuildId string      `bson:"build_id"`
-	TestId  interface{} `bson:"test_id"`
-	Seq     int         `bson:"seq"`
-	Started *time.Time  `bson:"started"`
-	Lines   []LogLine   `bson:"lines"`
+	BuildId string       `bson:"build_id"`
+	TestId  *testIDAlias `bson:"test_id"`
+	Seq     int          `bson:"seq"`
+	Started *time.Time   `bson:"started"`
+	Lines   []LogLine    `bson:"lines"`
 }
 
 // RemoveLogsForBuild removes all logs created by the specificed build.
@@ -83,26 +83,13 @@ func findLogsInWindow(query bson.M, sort []string, minTime, maxTime *time.Time) 
 					LineNum:   lineNum,
 					Timestamp: line.Time,
 					Data:      line.Msg,
-					TestId:    testIDFromInterface(logItem.TestId),
+					TestId:    logItem.TestId.toTestIDPtr(),
 				}
 				lineNum++
 			}
 		}
 	}()
 	return outputLog
-}
-
-func testIDFromInterface(id interface{}) *TestID {
-	switch v := id.(type) {
-	case bson.ObjectId:
-		id := TestID(v.Hex())
-		return &id
-	case string:
-		id := TestID(v)
-		return &id
-	default:
-		return nil
-	}
 }
 
 // AllLogs returns a channel with all build and test logs for the build merged together by timestamp.
@@ -225,7 +212,7 @@ func InsertLogChunks(buildID string, testID *TestID, lastSequence int, chunks []
 
 		logEntry := Log{
 			BuildId: buildID,
-			TestId:  testID,
+			TestId:  testID.toTestIDAliasPtr(),
 			Seq:     lastSequence - len(chunks) + i + 1,
 			Lines:   chunk,
 			Started: &chunk[0].Time,
