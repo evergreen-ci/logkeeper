@@ -278,7 +278,8 @@ func TestGetExecutionWindow(t *testing.T) {
 		allTestIDs := []model.TestID{
 			model.NewTestID(startTime),
 		}
-		tr := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(startTime))
 		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
 	})
@@ -289,7 +290,8 @@ func TestGetExecutionWindow(t *testing.T) {
 			model.NewTestID(startTime),
 			model.NewTestID(startTime.Add(time.Hour)),
 		}
-		tr := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(startTime))
 		assert.True(t, tr.EndAt.Equal(startTime.Add(time.Hour)))
 	})
@@ -298,7 +300,8 @@ func TestGetExecutionWindow(t *testing.T) {
 		allTestIDs := []model.TestID{
 			model.NewTestID(time.Time{}),
 		}
-		tr := testExecutionWindow(allTestIDs, "")
+		tr, err := testExecutionWindow(allTestIDs, "")
+		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(TimeRangeMin))
 		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
 	})
@@ -307,9 +310,8 @@ func TestGetExecutionWindow(t *testing.T) {
 		allTestIDs := []model.TestID{
 			model.NewTestID(time.Time{}),
 		}
-		tr := testExecutionWindow(allTestIDs, "DNE")
-		assert.True(t, tr.StartAt.Equal(TimeRangeMin))
-		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
+		_, err := testExecutionWindow(allTestIDs, "DNE")
+		assert.Error(t, err)
 	})
 }
 

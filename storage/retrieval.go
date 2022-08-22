@@ -113,7 +113,10 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 	if err != nil {
 		return nil, errors.Wrapf(err, "parsing test IDs from keys for build '%s'", buildID)
 	}
-	tr := testExecutionWindow(testIDs, testID)
+	tr, err := testExecutionWindow(testIDs, testID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
+	}
 
 	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
 }
@@ -187,10 +190,10 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 // testExecutionWindow returns the TimeRange from the creation of this test to the creation
 // of the next test. If the testID isn't found the returned TimeRange is unbounded.
 // If there is no later test then the end time is TimeRangeMax.
-func testExecutionWindow(allTestIDs []model.TestID, testID string) TimeRange {
+func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, error) {
 	tr := AllTime
 	if testID == "" {
-		return tr
+		return tr, nil
 	}
 
 	var found bool
@@ -202,7 +205,7 @@ func testExecutionWindow(allTestIDs []model.TestID, testID string) TimeRange {
 		}
 	}
 	if !found {
-		return tr
+		return tr, errors.Errorf("test '%s' was not found", testID)
 	}
 
 	tr.StartAt = allTestIDs[testIndex].Timestamp()
@@ -211,7 +214,7 @@ func testExecutionWindow(allTestIDs []model.TestID, testID string) TimeRange {
 		tr.EndAt = allTestIDs[testIndex+1].Timestamp()
 	}
 
-	return tr
+	return tr, nil
 }
 
 // filterLogChunksByTestID returns the resulting slice of log chunks after
