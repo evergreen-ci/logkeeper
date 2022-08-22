@@ -111,69 +111,6 @@ func (t *TestID) SetBSON(raw bson.Raw) error {
 	return nil
 }
 
-func (t *TestID) toTestIDAliasPtr() *testIDAlias {
-	if t == nil {
-		return nil
-	}
-
-	alias := testIDAlias(*t)
-	return &alias
-}
-
-// testIDAlias aliases the TestID so it can implement the bson.Getter interface with a pointer receiver.
-// This is necessary for the Log type which references a pointer to a TestID. If the pointer is nil
-// a call to the GetBSON method with a value receiver will panic.
-type testIDAlias TestID
-
-// GetBSON implements the bson.Getter interface.
-// When a testIDAlias is marshalled to BSON the driver will marshal the output
-// of this function instead of the struct.
-func (t *testIDAlias) GetBSON() (interface{}, error) {
-	if t == nil {
-		return nil, nil
-	}
-	if bson.IsObjectIdHex((string(*t))) {
-		return bson.ObjectIdHex(string(*t)), nil
-	}
-
-	return string(*t), nil
-}
-
-// SetBSON implements the bson.Setter interface.
-// When a testIDAlias is unmarshalled from BSON the driver will call this function to
-// unmarshal into the TestID.
-func (t *testIDAlias) SetBSON(raw bson.Raw) error {
-	var id interface{}
-	if err := raw.Unmarshal(&id); err != nil {
-		return &bson.TypeError{
-			Kind: raw.Kind,
-			Type: reflect.TypeOf(t),
-		}
-	}
-	switch v := id.(type) {
-	case bson.ObjectId:
-		*t = testIDAlias(v.Hex())
-	case string:
-		*t = testIDAlias(v)
-	default:
-		return &bson.TypeError{
-			Kind: raw.Kind,
-			Type: reflect.TypeOf(t),
-		}
-	}
-
-	return nil
-}
-
-func (t *testIDAlias) toTestIDPtr() *TestID {
-	if t == nil {
-		return nil
-	}
-
-	id := TestID(*t)
-	return &id
-}
-
 // Insert inserts the test into the test collection.
 func (t *Test) Insert() error {
 	db, closeSession := db.DB()
