@@ -421,20 +421,19 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFall
 		testsErr error
 	)
 
-	wg.Add(2)
-	go func() {
-		defer recovery.LogStackTraceAndContinue("finding build from bucket")
-		defer wg.Done()
-
-		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
-	}()
+	// We request extra data we need in a goroutine in parallel to save latency,
+	// and fetch the build itself on the main thread. If there is an issue with
+	// fetching the build then we don't wait for the goroutine to finish before
+	// falling back to the DB
+	wg.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
 		defer wg.Done()
 
 		tests, testsErr = lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
 	}()
-	wg.Wait()
+
+	build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
 
 	if pail.IsKeyNotFoundError(buildErr) {
 		if shouldFallBack {
@@ -448,6 +447,8 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFall
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
 		return nil, nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
+
+	wg.Wait()
 
 	if testsErr != nil {
 		lk.logErrorf(r, "finding tests for build '%s': %v", buildID, testsErr)
@@ -602,13 +603,11 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		logLinesErr error
 	)
 
-	wg.Add(3)
-	go func() {
-		defer recovery.LogStackTraceAndContinue("finding build from bucket")
-		defer wg.Done()
-
-		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
-	}()
+	// We request extra data we need in goroutines in parallel to save latency,
+	// and fetch the build itself on the main thread. If there is an issue with
+	// fetching the build then we don't wait for the goroutines to finish before
+	// falling back to the DB.
+	wg.Add(2)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
 		defer wg.Done()
@@ -624,8 +623,8 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 
 		logLines, logLinesErr = lk.opts.Bucket.DownloadLogLines(r.Context(), buildID, testID)
 	}()
-	wg.Wait()
 
+	build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
 	if pail.IsKeyNotFoundError(buildErr) {
 		if shouldFallBack {
 			if testID == "" {
@@ -641,6 +640,8 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
 		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
+
+	wg.Wait()
 	if testID != "" && pail.IsKeyNotFoundError(testErr) {
 		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
 	}
