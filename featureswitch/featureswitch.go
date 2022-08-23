@@ -11,7 +11,10 @@ import (
 	"github.com/mongodb/grip"
 )
 
-const s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
+const (
+	s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
+	newTestIDSwitch      = "LK_NEW_TEST_ID_FEATURE_SWITCH"
+)
 
 func hashToFloat(hash []byte) float64 {
 	// Use the first 4 bytes of the hash to construct a Uint32, since
@@ -75,4 +78,12 @@ func SetWriteToS3Level(level float64) func() {
 
 func WriteToS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3WriteFeatureSwitch, buildID)
+}
+
+func SetNewTestIDLevel(level float64) func() {
+	return setFeatureSwitchLevel(newTestIDSwitch, level)
+}
+
+func NewTestIDEnabled(testID string) bool {
+	return matchesFeatureForString(newTestIDSwitch, testID)
 }

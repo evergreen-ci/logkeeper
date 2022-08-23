@@ -140,13 +140,13 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 
 	buildID := "b0"
 	t0 := Test{
-		Id:      bson.NewObjectId(),
+		Id:      NewTestID(time.Time{}),
 		BuildId: buildID,
 		Started: t0Start,
 	}
 	assert.NoError(t, t0.Insert())
 	t1 := Test{
-		Id:      bson.NewObjectId(),
+		Id:      NewTestID(time.Time{}),
 		BuildId: buildID,
 		Started: t0Start.Add(10 * time.Second),
 	}
@@ -166,7 +166,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(t, globalLog.Insert())
 	testLog0 := Log{
 		BuildId: buildID,
-		TestId:  &t0.Id,
+		TestId:  t0.Id.toTestIDAliasPtr(),
 		Seq:     1,
 		Started: &t0.Started,
 		Lines: []LogLine{
@@ -177,7 +177,7 @@ func TestFindGlobalLogsDuringTest(t *testing.T) {
 	assert.NoError(t, testLog0.Insert())
 	testLog1 := Log{
 		BuildId: buildID,
-		TestId:  &t1.Id,
+		TestId:  t1.Id.toTestIDAliasPtr(),
 		Seq:     2,
 		Started: &t1.Started,
 		Lines: []LogLine{

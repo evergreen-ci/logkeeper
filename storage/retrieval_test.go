@@ -3,11 +3,11 @@ package storage
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/mgo.v2/bson"
 )
 
 func TestFindBuildByID(t *testing.T) {
@@ -33,7 +33,7 @@ func TestFindTestByID(t *testing.T) {
 	defer cleanTestStorage(t)
 
 	expected := &model.Test{
-		Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+		Id:      model.TestID("17046404de18d0000000000000000000"),
 		BuildId: "5a75f537726934e4b62833ab6d5dca41",
 		Name:    "geo_max:CheckReplOplogs",
 		Info: model.TestInfo{
@@ -43,7 +43,7 @@ func TestFindTestByID(t *testing.T) {
 		Command: "command0",
 	}
 
-	actual, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "62dba0159041307f697e6ccc")
+	actual, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "17046404de18d0000000000000000000")
 	require.NoError(t, err)
 	assert.Equal(t, expected, actual)
 }
@@ -54,7 +54,7 @@ func TestFindTestsForBuild(t *testing.T) {
 
 	expected := []model.Test{
 		{
-			Id:      bson.ObjectIdHex("62dba0159041307f697e6ccc"),
+			Id:      model.TestID("0de0b6b3bf4ac6400000000000000000"),
 			BuildId: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs",
 			Info: model.TestInfo{
@@ -64,7 +64,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			Phase:   "phase0",
 		},
 		{
-			Id:      bson.ObjectIdHex("72dba0159041307f697e6ccd"),
+			Id:      model.TestID("0de0b6b3cb3688400000000000000000"),
 			BuildId: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs2",
 			Info: model.TestInfo{
@@ -86,23 +86,48 @@ func TestDownloadLogLines(t *testing.T) {
 		buildID       string
 		testID        string
 		expectedLines []string
+		errorExpected bool
 	}{
 		{
-			name:        "BuildLogsDNE",
-			storagePath: "../testdata/simple",
-			buildID:     "DNE",
+			name:          "BuildLogsDNE",
+			storagePath:   "../testdata/simple",
+			buildID:       "DNE",
+			errorExpected: true,
 		},
 		{
-			name:        "TestLogsDNE",
-			storagePath: "../testdata/overlapping",
-			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "DNE",
+			name:          "TestLogsDNE",
+			storagePath:   "../testdata/overlapping",
+			buildID:       "5a75f537726934e4b62833ab6d5dca41",
+			testID:        "DNE",
+			errorExpected: true,
+			expectedLines: []string{
+				"Log300",
+				"Log320",
+				"Log340",
+				"Log360",
+				"Log380",
+				"Log400",
+				"Log420",
+				"Log440",
+				"Log460",
+				"Log500",
+				"Log501",
+				"Log520",
+				"Log540",
+				"Log560",
+				"Log580",
+				"Log810",
+				"Log820",
+				"Log840",
+				"Log860",
+				"Log900",
+			},
 		},
 		{
 			name:        "TestLogsSingleTest",
 			storagePath: "../testdata/simple",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "62dba0159041307f697e6ccc",
+			testID:      "17046404de18d0000000000000000000",
 			expectedLines: []string{
 				"First Test Log Line",
 				"[js_test:geo_max:CheckReplOplogs] New session started with sessionID: {  \"id\" : UUID(\"4983fd5c-898a-4435-8523-2aef47ce91f3\") } and options: {  \"causalConsistency\" : false }",
@@ -123,7 +148,7 @@ func TestDownloadLogLines(t *testing.T) {
 			name:        "TestLogsBetweenMultpleTests",
 			storagePath: "../testdata/between",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "62dba0159041307f697e6ccc",
+			testID:      "0de0b6b3bf4ac6400000000000000000",
 			expectedLines: []string{
 				"Test Log401",
 				"Test Log402",
@@ -135,7 +160,7 @@ func TestDownloadLogLines(t *testing.T) {
 			name:        "TestLogsWithOverlappingGlobalLogs",
 			storagePath: "../testdata/overlapping",
 			buildID:     "5a75f537726934e4b62833ab6d5dca41",
-			testID:      "62dba0159041307f697e6ccc",
+			testID:      "0de0b6b3bf3b84000000000000000000",
 			expectedLines: []string{
 				"Test Log400",
 				"Log400",
@@ -221,19 +246,123 @@ func TestDownloadLogLines(t *testing.T) {
 				"Log900",
 			},
 		},
+		{
+			name:        "TestLogsStartAfterBuildLogs",
+			storagePath: "../testdata/delayed",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "0de0b6b3bf3b84000000000000000000",
+			expectedLines: []string{
+				"Log401",
+				"Log402",
+				"Test Log403",
+				"Test Log404",
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			storage := makeTestStorage(t, test.storagePath)
 			defer cleanTestStorage(t)
 
 			logLines, err := storage.DownloadLogLines(context.Background(), test.buildID, test.testID)
-			require.NoError(t, err)
+			if test.errorExpected {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
 
-			var lines []string
-			for item := range logLines {
-				lines = append(lines, item.Data)
+				var lines []string
+				for item := range logLines {
+					lines = append(lines, item.Data)
+				}
+				assert.Equal(t, test.expectedLines, lines)
 			}
-			assert.Equal(t, test.expectedLines, lines)
+		})
+	}
+}
+
+func TestGetExecutionWindow(t *testing.T) {
+	t.Run("NoLaterTest", func(t *testing.T) {
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		allTestIDs := []model.TestID{
+			model.NewTestID(startTime),
+		}
+		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.NoError(t, err)
+		assert.True(t, tr.StartAt.Equal(startTime))
+		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
+	})
+
+	t.Run("LaterTest", func(t *testing.T) {
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+		allTestIDs := []model.TestID{
+			model.NewTestID(startTime),
+			model.NewTestID(startTime.Add(time.Hour)),
+		}
+		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.NoError(t, err)
+		assert.True(t, tr.StartAt.Equal(startTime))
+		assert.True(t, tr.EndAt.Equal(startTime.Add(time.Hour)))
+	})
+
+	t.Run("NoTestID", func(t *testing.T) {
+		allTestIDs := []model.TestID{
+			model.NewTestID(time.Time{}),
+		}
+		tr, err := testExecutionWindow(allTestIDs, "")
+		assert.NoError(t, err)
+		assert.True(t, tr.StartAt.Equal(TimeRangeMin))
+		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
+	})
+
+	t.Run("NonExistentTestID", func(t *testing.T) {
+		allTestIDs := []model.TestID{
+			model.NewTestID(time.Time{}),
+		}
+		_, err := testExecutionWindow(allTestIDs, "DNE")
+		assert.Error(t, err)
+	})
+}
+
+func TestParseTestIDs(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		keys          []string
+		expectedIDs   []model.TestID
+		errorExpected bool
+	}{
+		"EmptyList": {
+			keys:        []string{},
+			expectedIDs: []model.TestID{},
+		},
+		"NoMetadata": {
+			keys:        []string{"key1", "key2"},
+			expectedIDs: []model.TestID{},
+		},
+		"MalformedMetadata": {
+			keys:          []string{"asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/metadata.json"},
+			errorExpected: true,
+		},
+		"MetadataAndLogChunk": {
+			keys: []string{
+				"builds/asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/metadata.json",
+				"builds/asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/1000000000301000000_1000000000302000000_2",
+			},
+			expectedIDs: []model.TestID{"0de0b6b3Bf4ac6400000000000000000"},
+		},
+		"Sorted": {
+			keys: []string{
+				"builds/asdfgh/tests/0de0b6b3cb3688400000000000000000/metadata.json",
+				"builds/asdfgh/tests/0de0b6b3Bf4ac6400000000000000000/metadata.json",
+			},
+			expectedIDs: []model.TestID{"0de0b6b3Bf4ac6400000000000000000", "0de0b6b3cb3688400000000000000000"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			testIDs, err := parseTestIDs(testCase.keys)
+			if testCase.errorExpected {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, testCase.expectedIDs, testIDs)
+			}
 		})
 	}
 }

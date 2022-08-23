@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/mongodb/grip"
@@ -99,31 +98,63 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildID string) ([]model
 // DownloadLogLines returns log lines for a given build ID and test ID. If the
 // test ID is empty, this will return all logs lines in the build.
 func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID string) (chan *model.LogLineItem, error) {
-	buildChunks, testChunks, err := b.getLogChunks(ctx, buildID)
+	buildKeys, err := b.getBuildKeys(ctx, buildID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "getting log chunks for build '%s'", buildID)
+		return nil, errors.Wrapf(err, "getting keys for build '%s'", buildID)
 	}
-	testChunks, tr := filterLogChunksByTestID(testChunks, testID)
+
+	if len(buildKeys) == 0 {
+		return nil, errors.Errorf("No keys for build '%s", buildID)
+	}
+
+	buildChunks, testChunks, err := parseLogChunks(buildKeys)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing log chunks from keys for build '%s'", buildID)
+	}
+	testChunks = filterLogChunksByTestID(testChunks, testID)
+
+	testIDs, err := parseTestIDs(buildKeys)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing test IDs from keys for build '%s'", buildID)
+	}
+	tr, err := testExecutionWindow(testIDs, testID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
+	}
 
 	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
 }
 
-// getLogChunks returns the build and test log chunks for the given build ID
-// sorted by start time.
-func (b *Bucket) getLogChunks(ctx context.Context, buildID string) ([]LogChunkInfo, []LogChunkInfo, error) {
+// getBuildKeys returns the all the keys contained within the build prefix.
+func (b *Bucket) getBuildKeys(ctx context.Context, buildID string) ([]string, error) {
 	iter, err := b.List(ctx, buildPrefix(buildID))
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "listing chunks")
+		return nil, errors.Wrapf(err, "listing keys for build '%s'", buildID)
 	}
 
-	var buildChunks, testChunks []LogChunkInfo
+	var keys []string
 	for iter.Next(ctx) {
-		if strings.HasSuffix(iter.Item().Name(), metadataFilename) {
+		keys = append(keys, iter.Item().Name())
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, errors.Wrap(err, "iterating build keys")
+	}
+
+	return keys, nil
+}
+
+// parseLogChunks parses build and test log chunks from the buildKeys that correspond to log chunks
+// and sorts them by start time.
+func parseLogChunks(buildKeys []string) ([]LogChunkInfo, []LogChunkInfo, error) {
+	var buildChunks, testChunks []LogChunkInfo
+	for _, key := range buildKeys {
+		if strings.HasSuffix(key, metadataFilename) {
 			continue
 		}
 
 		var info LogChunkInfo
-		if err := info.fromKey(iter.Item().Name()); err != nil {
+		if err := info.fromKey(key); err != nil {
 			return nil, nil, errors.Wrap(err, "getting log chunk info from key name")
 		}
 		if info.TestID != "" {
@@ -133,69 +164,82 @@ func (b *Bucket) getLogChunks(ctx context.Context, buildID string) ([]LogChunkIn
 		}
 	}
 
-	if err := iter.Err(); err != nil {
-		return nil, nil, errors.Wrap(err, "getting log chunks")
-	}
-
 	sortLogChunksByStartTime(buildChunks)
 	sortLogChunksByStartTime(testChunks)
 
 	return buildChunks, testChunks, nil
 }
 
-// filterLogChunksByTestID returns (1) the resulting slice of log chunks after
-// filtering for chunks with the given test ID and (2) the appropriate test
-// execution time range for the given test ID.
-func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) ([]LogChunkInfo, TimeRange) {
-	if testID == "" {
-		return chunks, NewTimeRange(TimeRangeMin, TimeRangeMax)
-	}
-
-	var (
-		testStart, testEnd time.Time
-		filteredChunks     []LogChunkInfo
-	)
-	for i := range chunks {
-		if chunks[i].TestID != testID {
+// parseTestIDs parses test IDs from the buildKeys that correspond to test metadata files
+// and sorts them by creation time.
+func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
+	var testIDs []model.TestID
+	for _, key := range buildKeys {
+		if !strings.HasSuffix(key, metadataFilename) {
 			continue
 		}
-
-		if chunks[i].TestID == testID {
-			if testStart.IsZero() {
-				testStart = chunks[i].Start
-			}
-			if chunks[i].End.After(testEnd) {
-				testEnd = chunks[i].End
-			}
+		if !strings.Contains(key, "/tests/") {
+			continue
 		}
-		filteredChunks = append(filteredChunks, chunks[i])
-	}
-	if testStart.IsZero() {
-		// If the testStart variable is zero, this means that we never
-		// found a test chunk matching the given test ID and we should
-		// return an empty slice and time range.
-		return nil, TimeRange{}
+		testID, err := testIDFromKey(key)
+		if err != nil {
+			return nil, errors.Wrap(err, "getting test ID from metadata key")
+		}
+		testIDs = append(testIDs, model.TestID(testID))
 	}
 
-	// We need to iterate through the original chunk slice to find the
-	// first chunk of the next test following given test ID. The start time
-	// of that chunk will serve as the end of the time range.
-	tr := TimeRange{StartAt: testStart}
+	sort.Slice(testIDs, func(i, j int) bool {
+		return testIDs[i].Timestamp().Before(testIDs[j].Timestamp())
+	})
+
+	return testIDs, nil
+}
+
+// testExecutionWindow returns the TimeRange from the creation of this test to the creation
+// of the next test. If testID is empty the returned TimeRange is unbounded.
+// If there is no later test then the end time is TimeRangeMax.
+// Returns an error if the testID isn't found.
+func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, error) {
+	tr := AllTime
+	if testID == "" {
+		return tr, nil
+	}
+
+	var found bool
+	var testIndex int
+	for i, id := range allTestIDs {
+		if string(id) == testID {
+			found = true
+			testIndex = i
+		}
+	}
+	if !found {
+		return tr, errors.Errorf("test '%s' was not found", testID)
+	}
+
+	tr.StartAt = allTestIDs[testIndex].Timestamp()
+
+	if testIndex < len(allTestIDs)-1 {
+		tr.EndAt = allTestIDs[testIndex+1].Timestamp()
+	}
+
+	return tr, nil
+}
+
+// filterLogChunksByTestID returns the resulting slice of log chunks after
+// filtering for chunks with the given test ID.
+func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) []LogChunkInfo {
+	if testID == "" {
+		return chunks
+	}
+
+	var filteredChunks []LogChunkInfo
 	for _, chunk := range chunks {
-		if chunk.Start.After(testEnd) {
-			tr.EndAt = chunk.Start
-			break
+		if chunk.TestID == testID {
+			filteredChunks = append(filteredChunks, chunk)
 		}
 	}
-	if tr.EndAt.IsZero() {
-		// If the end of the time range is not set, this means that the
-		// given test ID is the last test of the build. We can safely
-		// set the end of the time range to an "infinitely" far time
-		// in the future.
-		tr.EndAt = TimeRangeMax
-	}
-
-	return filteredChunks, tr
+	return filteredChunks
 }
 
 func sortLogChunksByStartTime(chunks []LogChunkInfo) {
