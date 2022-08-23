@@ -1,6 +1,7 @@
 package logkeeper
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -19,7 +20,6 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
-	"golang.org/x/net/context"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -427,6 +427,7 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFall
 	// fetching the build then we don't wait for the goroutine to finish before
 	// falling back to the DB
 	backgroundContext, backgroundCancel := context.WithCancel(r.Context())
+	defer backgroundCancel()
 	wg.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
@@ -612,6 +613,7 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	// fetching the build then we don't wait for the goroutines to finish before
 	// falling back to the DB.
 	backgroundContext, backgroundCancel := context.WithCancel(r.Context())
+	defer backgroundCancel()
 	wg.Add(2)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
