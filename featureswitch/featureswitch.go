@@ -11,8 +11,11 @@ import (
 	"github.com/mongodb/grip"
 )
 
-const s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
-const s3ReadFeatureSwitch = "LK_READ_S3_FEATURE_SWITCH"
+const (
+	s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
+	newTestIDSwitch      = "LK_NEW_TEST_ID_FEATURE_SWITCH"
+	s3ReadFeatureSwitch  = "LK_READ_S3_FEATURE_SWITCH"
+)
 
 func hashToFloat(hash []byte) float64 {
 	// Use the first 4 bytes of the hash to construct a Uint32, since
@@ -58,10 +61,34 @@ func matchesFeatureForString(featureSwitch string, data string) bool {
 	return matchesFeatureForHash(featureSwitch, hash)
 }
 
+func setFeatureSwitchLevel(featureSwitch string, level float64) func() {
+	oldValue, wasSet := os.LookupEnv(featureSwitch)
+	os.Setenv(featureSwitch, fmt.Sprintf("%.3f", level))
+	return func() {
+		if !wasSet {
+			os.Unsetenv(featureSwitch)
+		} else {
+			os.Setenv(featureSwitch, oldValue)
+		}
+	}
+}
+
+func SetWriteToS3Level(level float64) func() {
+	return setFeatureSwitchLevel(s3WriteFeatureSwitch, level)
+}
+
 func WriteToS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3WriteFeatureSwitch, buildID)
 }
 
 func ReadFromS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3ReadFeatureSwitch, buildID)
+}
+
+func SetNewTestIDLevel(level float64) func() {
+	return setFeatureSwitchLevel(newTestIDSwitch, level)
+}
+
+func NewTestIDEnabled(testID string) bool {
+	return matchesFeatureForString(newTestIDSwitch, testID)
 }

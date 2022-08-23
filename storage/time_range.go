@@ -18,6 +18,8 @@ var TimeRangeMin time.Time = time.Time{}
 // Chosen because it is effectively infinitely far in the future but UnixNano only works through 2262
 var TimeRangeMax time.Time = time.Date(2200, 1, 1, 1, 0, 0, 0, time.UTC)
 
+var AllTime = TimeRange{StartAt: TimeRangeMin, EndAt: TimeRangeMax}
+
 // Creates a new time range. Use TimeRangeMin and TimeRangeMax for "open ended" time ranges
 func NewTimeRange(start time.Time, end time.Time) TimeRange {
 	return TimeRange{

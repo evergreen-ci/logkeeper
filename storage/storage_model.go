@@ -10,7 +10,6 @@ import (
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/utility"
 	"github.com/pkg/errors"
-	"gopkg.in/mgo.v2/bson"
 )
 
 const metadataFilename = "metadata.json"
@@ -189,7 +188,7 @@ type testMetadata struct {
 
 func newTestMetadata(t model.Test) testMetadata {
 	return testMetadata{
-		ID:      t.Id.Hex(),
+		ID:      string(t.Id),
 		BuildID: t.BuildId,
 		Name:    t.Name,
 		TaskID:  t.Info.TaskID,
@@ -200,7 +199,7 @@ func newTestMetadata(t model.Test) testMetadata {
 
 func (m *testMetadata) toTest() model.Test {
 	return model.Test{
-		Id:      bson.ObjectIdHex(m.ID),
+		Id:      model.TestID(m.ID),
 		BuildId: m.BuildID,
 		Name:    m.Name,
 		Info: model.TestInfo{
