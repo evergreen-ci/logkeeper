@@ -155,14 +155,6 @@ func (t *testIDAlias) GetBSON() (interface{}, error) {
 // When a testIDAlias is unmarshalled from BSON the driver will call this function to
 // unmarshal into the TestID.
 func (t *testIDAlias) SetBSON(raw bson.Raw) error {
-	var id interface{}
-	if err := raw.Unmarshal(&id); err != nil {
-		return &bson.TypeError{
-			Kind: raw.Kind,
-			Type: reflect.TypeOf(t),
-		}
-	}
-
 	var testID TestID
 	err := testID.SetBSON(raw)
 	if err != nil {
