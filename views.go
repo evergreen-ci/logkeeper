@@ -19,6 +19,7 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
+	"golang.org/x/net/context"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -425,17 +426,19 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFall
 	// and fetch the build itself on the main thread. If there is an issue with
 	// fetching the build then we don't wait for the goroutine to finish before
 	// falling back to the DB
+	backgroundContext, backgroundCancel := context.WithCancel(r.Context())
 	wg.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
 		defer wg.Done()
 
-		tests, testsErr = lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
+		tests, testsErr = lk.opts.Bucket.FindTestsForBuild(backgroundContext, buildID)
 	}()
 
 	build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
 
 	if pail.IsKeyNotFoundError(buildErr) {
+		backgroundCancel()
 		if shouldFallBack {
 			return lk.viewDBBuild(r, buildID)
 		} else {
@@ -444,6 +447,7 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFall
 	}
 
 	if buildErr != nil {
+		backgroundCancel()
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
 		return nil, nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
@@ -607,6 +611,7 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	// and fetch the build itself on the main thread. If there is an issue with
 	// fetching the build then we don't wait for the goroutines to finish before
 	// falling back to the DB.
+	backgroundContext, backgroundCancel := context.WithCancel(r.Context())
 	wg.Add(2)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
@@ -615,17 +620,18 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		if testID == "" {
 			return
 		}
-		test, testErr = lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
+		test, testErr = lk.opts.Bucket.FindTestByID(backgroundContext, buildID, testID)
 	}()
 	go func() {
 		defer recovery.LogStackTraceAndContinue("downloading log lines from bucket")
 		defer wg.Done()
 
-		logLines, logLinesErr = lk.opts.Bucket.DownloadLogLines(r.Context(), buildID, testID)
+		logLines, logLinesErr = lk.opts.Bucket.DownloadLogLines(backgroundContext, buildID, testID)
 	}()
 
 	build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
 	if pail.IsKeyNotFoundError(buildErr) {
+		backgroundCancel()
 		if shouldFallBack {
 			if testID == "" {
 				return lk.viewAllDBLogs(r, buildID)
@@ -637,6 +643,7 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		}
 	}
 	if buildErr != nil {
+		backgroundCancel()
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
 		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
 	}
