@@ -13,7 +13,7 @@ import (
 
 const (
 	s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
-	newTestIDSwitch      = "NEW_TEST_ID_FEATURE_SWITCH"
+	newTestIDSwitch      = "LK_NEW_TEST_ID_FEATURE_SWITCH"
 )
 
 func hashToFloat(hash []byte) float64 {
