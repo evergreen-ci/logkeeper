@@ -16,7 +16,7 @@
     <ul>
       {{$build := .Build}}
       {{range .Tests}}
-        <li><a href="https://evergreen.mongodb.com/lobster/build/{{$build.Id}}/test/{{.Id.Hex}}/">{{.Name}}</a></li>
+        <li><a href="https://evergreen.mongodb.com/lobster/build/{{$build.Id}}/test/{{.Id}}/">{{.Name}}</a></li>
       {{end}}
     </ul>
   </body>
