@@ -114,6 +114,8 @@ func (t *TestID) SetBSON(raw bson.Raw) error {
 		*t = TestID(v.Hex())
 	case string:
 		*t = TestID(v)
+	case nil:
+		return bson.SetZero
 	default:
 		return &bson.TypeError{
 			Kind: raw.Kind,
