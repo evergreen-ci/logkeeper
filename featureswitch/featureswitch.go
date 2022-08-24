@@ -14,6 +14,7 @@ import (
 const (
 	s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
 	newTestIDSwitch      = "LK_NEW_TEST_ID_FEATURE_SWITCH"
+	s3ReadFeatureSwitch  = "LK_READ_S3_FEATURE_SWITCH"
 )
 
 func hashToFloat(hash []byte) float64 {
@@ -78,6 +79,10 @@ func SetWriteToS3Level(level float64) func() {
 
 func WriteToS3Enabled(buildID string) bool {
 	return matchesFeatureForString(s3WriteFeatureSwitch, buildID)
+}
+
+func ReadFromS3Enabled(buildID string) bool {
+	return matchesFeatureForString(s3ReadFeatureSwitch, buildID)
 }
 
 func SetNewTestIDLevel(level float64) func() {
