@@ -34,6 +34,7 @@ type LogIterator interface {
 //////////////////////
 // Serialized Iterator
 //////////////////////
+
 type serializedIterator struct {
 	bucket               pail.Bucket
 	chunks               []LogChunkInfo
@@ -178,6 +179,7 @@ func (i *serializedIterator) Stream(ctx context.Context) chan *model.LogLineItem
 ///////////////////
 // Batched Iterator
 ///////////////////
+
 type batchedIterator struct {
 	bucket               pail.Bucket
 	batchSize            int

@@ -27,8 +27,13 @@ func parseLogLineString(data string) (model.LogLineItem, error) {
 	}, nil
 }
 
-func makeLogLineString(logLine model.LogLine) string {
-	return fmt.Sprintf("  0%20d%s\n", utility.UnixMilli(logLine.Time), logLine.Msg)
+func makeLogLineStrings(logLine model.LogLine) []string {
+	singleLines := strings.Split(logLine.Msg, "\n")
+	logLines := make([]string, 0, len(singleLines))
+	for _, line := range singleLines {
+		logLines = append(logLines, fmt.Sprintf("  0%20d%s\n", utility.UnixMilli(logLine.Time), line))
+	}
+	return logLines
 }
 
 // LogChunkInfo describes a chunk of log lines stored in pail-backed offline
