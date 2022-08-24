@@ -40,9 +40,17 @@ func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID str
 			return errors.Wrap(err, "parsing log chunks")
 		}
 		var buffer bytes.Buffer
+		numLines := 0
 		for _, line := range chunk {
-			buffer.WriteString(makeLogLineString(line))
+			// We are sometimes passed in a single log line that is actually multiple lines,
+			// so we parse it into separate lines and keep track of the count to make sure
+			// we know the current number of lines.
+			for _, parsedLine := range makeLogLineStrings(line) {
+				buffer.WriteString(parsedLine)
+				numLines += 1
+			}
 		}
+		logChunkInfo.NumLines = numLines
 
 		if err := b.Put(ctx, logChunkInfo.key(), &buffer); err != nil {
 			return errors.Wrap(err, "uploading log entry to bucket")

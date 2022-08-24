@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -101,4 +102,12 @@ func TestTestMetadataJSON(t *testing.T) {
 	json, err := metadata.toJSON()
 	assert.NoError(t, err)
 	assert.Equal(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","phase":"phase0","command":"command0"}`, string(json))
+}
+
+func TestMakeLogLineString(t *testing.T) {
+	result := makeLogLineStrings(model.LogLine{
+		Msg:  "a\nb",
+		Time: time.Unix(1661354966, 0),
+	})
+	assert.Equal(t, []string{"  0       1661354966000a\n", "  0       1661354966000b\n"}, result)
 }
