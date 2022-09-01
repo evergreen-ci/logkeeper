@@ -13,7 +13,7 @@ import (
 
 const (
 	s3WriteFeatureSwitch = "LK_WRITE_S3_FEATURE_SWITCH"
-	newTestIDSwitch      = "LK_NEW_TEST_ID_FEATURE_SWITCH"
+	NewTestIDSwitch      = "LK_NEW_TEST_ID_FEATURE_SWITCH"
 	s3ReadFeatureSwitch  = "LK_READ_S3_FEATURE_SWITCH"
 )
 
@@ -61,7 +61,7 @@ func matchesFeatureForString(featureSwitch string, data string) bool {
 	return matchesFeatureForHash(featureSwitch, hash)
 }
 
-func setFeatureSwitchLevel(featureSwitch string, level float64) func() {
+func SetFeatureSwitchLevel(featureSwitch string, level float64) func() {
 	oldValue, wasSet := os.LookupEnv(featureSwitch)
 	os.Setenv(featureSwitch, fmt.Sprintf("%.3f", level))
 	return func() {
@@ -74,7 +74,7 @@ func setFeatureSwitchLevel(featureSwitch string, level float64) func() {
 }
 
 func SetWriteToS3Level(level float64) func() {
-	return setFeatureSwitchLevel(s3WriteFeatureSwitch, level)
+	return SetFeatureSwitchLevel(s3WriteFeatureSwitch, level)
 }
 
 func WriteToS3Enabled(buildID string) bool {
@@ -86,9 +86,9 @@ func ReadFromS3Enabled(buildID string) bool {
 }
 
 func SetNewTestIDLevel(level float64) func() {
-	return setFeatureSwitchLevel(newTestIDSwitch, level)
+	return SetFeatureSwitchLevel(NewTestIDSwitch, level)
 }
 
 func NewTestIDEnabled(testID string) bool {
-	return matchesFeatureForString(newTestIDSwitch, testID)
+	return matchesFeatureForString(NewTestIDSwitch, testID)
 }
