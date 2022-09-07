@@ -101,7 +101,7 @@ func TestSetFeatureSwitchLevel(t *testing.T) {
 
 	t.Run("NoVariable", func(t *testing.T) {
 		os.Clearenv()
-		clearFunc := SetFeatureSwitchLevel("Switch", 0.5)
+		clearFunc := setFeatureSwitchLevel("Switch", 0.5)
 		assert.Equal(t, 0.5, getThreshold("Switch"))
 		clearFunc()
 		assert.Equal(t, 0.0, getThreshold("Switch"))
@@ -110,7 +110,7 @@ func TestSetFeatureSwitchLevel(t *testing.T) {
 	t.Run("AlreadySet", func(t *testing.T) {
 		os.Clearenv()
 		os.Setenv(switchName, "0.25")
-		clearFunc := SetFeatureSwitchLevel("Switch", 0.5)
+		clearFunc := setFeatureSwitchLevel("Switch", 0.5)
 		assert.Equal(t, 0.5, getThreshold("Switch"))
 		clearFunc()
 		assert.Equal(t, 0.25, getThreshold("Switch"))
