@@ -133,12 +133,19 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Info:     model.BuildInfo{TaskID: buildParameters.TaskId},
 		S3:       shouldWriteS3(buildParameters.S3, newBuildId),
 	}
+
+	var (
+		wg        sync.WaitGroup
+		bucketErr error
+	)
 	if newBuild.S3 {
-		if err := lk.opts.Bucket.UploadBuildMetadata(r.Context(), newBuild); err != nil {
-			lk.logErrorf(r, "uploading build metadata: %v", err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
-			return
-		}
+		wg.Add(1)
+		go func() {
+			defer recovery.LogStackTraceAndContinue("uploading build metadata to bucket")
+
+			bucketErr = lk.opts.Bucket.UploadBuildMetadata(r.Context(), newBuild)
+			wg.Done()
+		}()
 	}
 
 	existingBuild, err := model.FindBuildByBuilder(buildParameters.Builder, buildParameters.BuildNum)
@@ -159,8 +166,14 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuildId)
+	wg.Wait()
+	if bucketErr != nil {
+		lk.logErrorf(r, "uploading build metadata: %v", bucketErr)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
+		return
+	}
 
+	newBuildUri := fmt.Sprintf("%v/build/%v", lk.opts.URL, newBuildId)
 	response := createdResponse{newBuildId, newBuildUri}
 	lk.render.WriteJSON(w, http.StatusCreated, response)
 }
@@ -192,6 +205,15 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
+	newTest := model.Test{
+		Id:      model.NewTestID(startTime),
+		BuildId: buildID,
+		Name:    testParams.TestFilename,
+		Command: testParams.Command,
+		Started: startTime,
+		Phase:   testParams.Phase,
+		Info:    model.TestInfo{TaskID: testParams.TaskId},
+	}
 
 	build, err := model.FindBuildById(buildID)
 	if err != nil {
@@ -203,27 +225,44 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
-
-	newTest := model.Test{
-		Id:        model.NewTestID(startTime),
-		BuildId:   build.Id,
-		BuildName: build.Name,
-		Name:      testParams.TestFilename,
-		Command:   testParams.Command,
-		Started:   startTime,
-		Phase:     testParams.Phase,
-		Info:      model.TestInfo{TaskID: testParams.TaskId},
-	}
 	if build.S3 {
-		if err := lk.opts.Bucket.UploadTestMetadata(r.Context(), newTest); err != nil {
-			lk.logErrorf(r, "uploading test metadata for build '%s': %v", buildID, err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading test metadata"})
+		exists, err := lk.opts.Bucket.CheckMetadata(r.Context(), buildID, "")
+		if err != nil {
+			lk.logErrorf(r, "checking metadata in build '%s': %v", buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
+			return
+		}
+		if !exists {
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "build not found"})
 			return
 		}
 	}
+	newTest.BuildName = build.Name
+
+	var (
+		wg        sync.WaitGroup
+		bucketErr error
+	)
+	if build.S3 {
+		wg.Add(1)
+		go func() {
+			defer recovery.LogStackTraceAndContinue("uploading test metadata to bucket")
+
+			bucketErr = lk.opts.Bucket.UploadTestMetadata(r.Context(), newTest)
+			wg.Done()
+		}()
+	}
+
 	if err := newTest.Insert(); err != nil {
 		lk.logErrorf(r, "inserting test for build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
+		return
+	}
+
+	wg.Wait()
+	if bucketErr != nil {
+		lk.logErrorf(r, "uploading test metadata for build '%s': %v", buildID, bucketErr)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading test metadata"})
 		return
 	}
 
@@ -256,6 +295,18 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
+	if build.S3 {
+		exists, err := lk.opts.Bucket.CheckMetadata(r.Context(), buildID, "")
+		if err != nil {
+			lk.logErrorf(r, "checking metadata in build '%s': %v", buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
+			return
+		}
+		if !exists {
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "build not found"})
+			return
+		}
+	}
 
 	var lines []model.LogLine
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
@@ -275,12 +326,18 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var (
+		wg        sync.WaitGroup
+		bucketErr error
+	)
 	if build.S3 {
-		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, "", chunks); err != nil {
-			lk.logErrorf(r, "appending log lines to build '%s': %v", buildID, err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
-			return
-		}
+		wg.Add(1)
+		go func() {
+			defer recovery.LogStackTraceAndContinue("appending global logs to bucket")
+
+			bucketErr = lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, "", chunks)
+			wg.Done()
+		}()
 	}
 
 	if err = build.IncrementSequence(len(chunks)); err != nil {
@@ -291,6 +348,13 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	if err = model.InsertLogChunks(build.Id, nil, build.Seq, chunks); err != nil {
 		lk.logErrorf(r, "inserting DB log lines to build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "inserting log lines"})
+		return
+	}
+
+	wg.Wait()
+	if bucketErr != nil {
+		lk.logErrorf(r, "appending log lines to build '%s': %v", buildID, bucketErr)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 		return
 	}
 
@@ -325,6 +389,18 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
 	}
+	if build.S3 {
+		exists, err := lk.opts.Bucket.CheckMetadata(r.Context(), buildID, testID)
+		if err != nil {
+			lk.logErrorf(r, "checking metadata of test '%s' for build '%s': %v", testID, buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding test"})
+			return
+		}
+		if !exists {
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "test not found"})
+			return
+		}
+	}
 
 	var lines []model.LogLine
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
@@ -344,12 +420,18 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var (
+		wg        sync.WaitGroup
+		bucketErr error
+	)
 	if build.S3 {
-		if err := lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, testID, chunks); err != nil {
-			lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", buildID, testID, err)
-			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
-			return
-		}
+		wg.Add(1)
+		go func() {
+			defer recovery.LogStackTraceAndContinue("appending test logs to bucket")
+
+			bucketErr = lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, testID, chunks)
+			wg.Done()
+		}()
 	}
 
 	if err = test.IncrementSequence(len(chunks)); err != nil {
@@ -361,6 +443,12 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		lk.logErrorf(r, "inserting DB log lines to test '%s' for build '%s': %v", buildID, testID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: err.Error()})
 		return
+	}
+
+	wg.Wait()
+	if bucketErr != nil {
+		lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", buildID, testID, bucketErr)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 	}
 
 	testUrl := fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, buildID, testID)
