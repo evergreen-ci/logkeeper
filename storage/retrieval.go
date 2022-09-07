@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/mongodb/grip"
@@ -217,10 +218,10 @@ func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, e
 		return tr, errors.Errorf("test '%s' was not found", testID)
 	}
 
-	tr.StartAt = allTestIDs[testIndex].Timestamp()
+	tr.StartAt = allTestIDs[testIndex].Timestamp().Truncate(time.Millisecond)
 
 	if testIndex < len(allTestIDs)-1 {
-		tr.EndAt = allTestIDs[testIndex+1].Timestamp()
+		tr.EndAt = allTestIDs[testIndex+1].Timestamp().Truncate(time.Millisecond)
 	}
 
 	return tr, nil
