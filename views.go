@@ -72,9 +72,16 @@ type apiError struct {
 }
 
 type logFetchResponse struct {
-	logLines chan *model.LogLineItem
-	build    *model.Build
-	test     *model.Test
+	logLines      chan *model.LogLineItem
+	build         *model.Build
+	test          *model.Test
+	contextCancel func()
+}
+
+func (response *logFetchResponse) Close() {
+	if response.contextCancel != nil {
+		response.contextCancel()
+	}
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
@@ -508,6 +515,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		result, fetchError = lk.viewAllDBLogs(r, buildID)
 	}
+	defer result.Close()
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
@@ -564,6 +572,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		result, fetchError = lk.viewDBTestLogs(r, buildID, testID)
 	}
+	defer result.Close()
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
@@ -614,7 +623,6 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	// fetching the build then we don't wait for the goroutines to finish before
 	// falling back to the DB.
 	backgroundContext, backgroundCancel := context.WithCancel(r.Context())
-	defer backgroundCancel()
 	wg.Add(2)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
@@ -653,21 +661,25 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 
 	wg.Wait()
 	if testID != "" && pail.IsKeyNotFoundError(testErr) {
+		backgroundCancel()
 		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
 	}
 	if testErr != nil {
 		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, testErr)
+		backgroundCancel()
 		return nil, &apiError{Err: "finding test", code: http.StatusInternalServerError}
 	}
 	if logLinesErr != nil {
 		lk.logErrorf(r, "downloading logs for build '%s': %v", buildID, logLinesErr)
+		backgroundCancel()
 		return nil, &apiError{Err: "downloading logs", code: http.StatusInternalServerError}
 	}
 
 	return &logFetchResponse{
-		logLines: logLines,
-		build:    build,
-		test:     test,
+		logLines:      logLines,
+		build:         build,
+		test:          test,
+		contextCancel: backgroundCancel,
 	}, nil
 }
 
