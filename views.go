@@ -515,11 +515,11 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		result, fetchError = lk.viewAllDBLogs(r, buildID)
 	}
-	defer result.Close()
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
 	}
+	defer result.Close()
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range result.logLines {
@@ -572,11 +572,11 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	} else {
 		result, fetchError = lk.viewDBTestLogs(r, buildID, testID)
 	}
-	defer result.Close()
 	if fetchError != nil {
 		lk.render.WriteJSON(w, fetchError.code, *fetchError)
 		return
 	}
+	defer result.Close()
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true
