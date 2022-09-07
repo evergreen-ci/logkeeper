@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -258,6 +259,19 @@ func TestDownloadLogLines(t *testing.T) {
 				"Test Log404",
 			},
 		},
+		{
+			name:        "TestWithNanosecondPrecision",
+			storagePath: "../testdata/precision",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "17046404de28123f0000000000000000",
+			expectedLines: []string{
+				"First Test Log Line",
+				"Global log within the test start/stop ranges",
+				"Middle Test Log Line",
+				"Last Test Log Line",
+				"Global log after test logging ends",
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			storage := makeTestStorage(t, test.storagePath)
@@ -279,7 +293,7 @@ func TestDownloadLogLines(t *testing.T) {
 	}
 }
 
-func TestGetExecutionWindow(t *testing.T) {
+func TestTestExecutionWindow(t *testing.T) {
 	t.Run("NoLaterTest", func(t *testing.T) {
 		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
 		allTestIDs := []model.TestID{
@@ -301,6 +315,19 @@ func TestGetExecutionWindow(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(startTime))
 		assert.True(t, tr.EndAt.Equal(startTime.Add(time.Hour)))
+	})
+
+	t.Run("NanosecondsTruncated", func(t *testing.T) {
+		defer featureswitch.SetNewTestIDLevel(1)()
+
+		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 1000001, time.UTC)
+		allTestIDs := []model.TestID{
+			model.NewTestID(startTime),
+		}
+		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		assert.NoError(t, err)
+		assert.True(t, tr.StartAt.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 1000000, time.UTC)))
+		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
 	})
 
 	t.Run("NoTestID", func(t *testing.T) {
