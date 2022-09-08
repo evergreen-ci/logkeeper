@@ -49,11 +49,12 @@ type serializedIterator struct {
 	catcher              grip.Catcher
 	exhausted            bool
 	closed               bool
+	testID               *model.TestID
 }
 
 // NewSerializedLogIterator returns a LogIterator that serially fetches chunks
 // from blob storage while iterating over lines of a buildlogger log.
-func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
+func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange, testID *model.TestID) LogIterator {
 	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &serializedIterator{
@@ -61,6 +62,7 @@ func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRan
 		chunks:    chunks,
 		timeRange: timeRange,
 		catcher:   grip.NewBasicCatcher(),
+		testID:    testID,
 	}
 }
 
@@ -136,6 +138,7 @@ func (i *serializedIterator) Next(ctx context.Context) bool {
 			i.catcher.Wrap(err, "parsing timestamp")
 			return false
 		}
+		item.TestId = i.testID
 		i.lineCount++
 
 		if item.Timestamp.After(i.timeRange.EndAt) && !i.reverse {
@@ -196,12 +199,13 @@ type batchedIterator struct {
 	catcher              grip.Catcher
 	exhausted            bool
 	closed               bool
+	testID               *model.TestID
 }
 
 // NewBatchedLog returns a LogIterator that fetches batches (size set by the
 // caller) of chunks from blob storage in parallel while iterating over lines
 // of a buildlogger log.
-func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize int, timeRange TimeRange) LogIterator {
+func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize int, timeRange TimeRange, testID *model.TestID) LogIterator {
 	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &batchedIterator{
@@ -210,13 +214,14 @@ func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize 
 		chunks:    chunks,
 		timeRange: timeRange,
 		catcher:   grip.NewBasicCatcher(),
+		testID:    testID,
 	}
 }
 
 // NewParallelizedLogIterator returns a LogIterator that fetches all chunks
 // from blob storage in parallel while iterating over lines of a buildlogger
 // log.
-func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
+func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange, testID *model.TestID) LogIterator {
 	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &batchedIterator{
@@ -225,6 +230,7 @@ func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeR
 		chunks:    chunks,
 		timeRange: timeRange,
 		catcher:   grip.NewBasicCatcher(),
+		testID:    testID,
 	}
 }
 
@@ -356,6 +362,7 @@ func (i *batchedIterator) Next(ctx context.Context) bool {
 			i.catcher.Wrap(err, "parsing timestamp")
 			return false
 		}
+		item.TestId = i.testID
 		i.lineCount++
 
 		if item.Timestamp.After(i.timeRange.EndAt) && !i.reverse {
@@ -570,11 +577,17 @@ func (h LogIteratorHeap) Len() int { return len(h.its) }
 // j in the heap, false otherwise, when min is true. When min is false, the
 // opposite is returned.
 func (h LogIteratorHeap) Less(i, j int) bool {
-	if h.min {
-		return h.its[i].Item().Timestamp.Before(h.its[j].Item().Timestamp)
-	} else {
-		return h.its[i].Item().Timestamp.After(h.its[j].Item().Timestamp)
+	iItem := h.its[i].Item()
+	jItem := h.its[j].Item()
+
+	if iItem.Timestamp.Equal(jItem.Timestamp) {
+		if iItem.TestId == nil {
+			return h.min
+		}
+		return !h.min
 	}
+
+	return iItem.Timestamp.Before(jItem.Timestamp) && h.min || iItem.Timestamp.After(jItem.Timestamp) && !h.min
 }
 
 // Swap swaps the objects at indexes i and j.

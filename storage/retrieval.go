@@ -123,7 +123,8 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
 	}
 
-	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
+	testIDModel := model.TestID(testID)
+	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr, &testIDModel), NewBatchedLogIterator(b, buildChunks, 4, tr, nil)).Stream(ctx), nil
 }
 
 // getBuildKeys returns the all the keys contained within the build prefix.
