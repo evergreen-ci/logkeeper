@@ -15,7 +15,7 @@ import (
 )
 
 // CheckMetadata returns whether the metadata file exists for the given build
-// or test. If a test ID is not empty, the metadata of the test for the given
+// or test. If the test ID is not empty, the metadata of the test for the given
 // build is checked, otherwise the top-level build metadata is checked. A build
 // ID is required in both cases.
 func (b *Bucket) CheckMetadata(ctx context.Context, buildID string, testID string) (bool, error) {

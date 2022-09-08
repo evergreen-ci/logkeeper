@@ -33,7 +33,7 @@ func (b *Bucket) UploadTestMetadata(ctx context.Context, test model.Test) error 
 }
 
 // InsertLogChunks uploads a new chunk of logs for a given build or test to the
-// offline blob bucket storage. If a test ID is not empty, the logs are
+// offline blob bucket storage. If the test ID is not empty, the logs are
 // appended to the test for the given build, otherwise the logs are appended to
 // the top-level build. A build ID is required in both cases.
 func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID string, chunks []model.LogChunk) error {
