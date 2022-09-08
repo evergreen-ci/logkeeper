@@ -3,7 +3,7 @@ module github.com/evergreen-ci/logkeeper
 go 1.16
 
 require (
-	github.com/evergreen-ci/pail v0.0.0-20220705141756-9b2747c62b29
+	github.com/evergreen-ci/pail v0.0.0-20220908201135-8a2090a672b7
 	github.com/evergreen-ci/render v0.0.0-20141211045555-c9e0e54c798f
 	github.com/evergreen-ci/utility v0.0.0-20220404192535-d16eb64796e6
 	github.com/gorilla/handlers v1.5.1
