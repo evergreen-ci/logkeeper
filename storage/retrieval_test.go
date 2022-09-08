@@ -11,9 +11,62 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCheckMetadata(t *testing.T) {
+	storage := makeTestStorage(t, "../testdata/simple")
+
+	for _, test := range []struct {
+		name     string
+		buildID  string
+		testID   string
+		expected bool
+	}{
+		{
+			name:     "BuildExists",
+			buildID:  "5a75f537726934e4b62833ab6d5dca41",
+			expected: true,
+		},
+		{
+			name:     "TestExists",
+			buildID:  "5a75f537726934e4b62833ab6d5dca41",
+			testID:   "17046404de18d0000000000000000000",
+			expected: true,
+		},
+		{
+			name:     "BuildDNE",
+			buildID:  "DNE",
+			expected: false,
+		},
+		{
+			name:     "BuildExistsTestDNE",
+			buildID:  "5a75f537726934e4b62833ab6d5dca41",
+			testID:   "DNE",
+			expected: false,
+		},
+		{
+			name:     "BuildDNETestDNE",
+			buildID:  "DNE",
+			testID:   "DNE",
+			expected: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			actual, err := storage.CheckMetadata(context.TODO(), test.buildID, test.testID)
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, actual)
+		})
+	}
+	t.Run("ServerError", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		exists, err := storage.CheckMetadata(ctx, "5a75f537726934e4b62833ab6d5dca41", "")
+		require.Error(t, err)
+		assert.False(t, exists)
+	})
+}
+
 func TestFindBuildByID(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer cleanTestStorage(t)
 
 	expected := &model.Build{
 		Id:       "5a75f537726934e4b62833ab6d5dca41",
@@ -31,7 +84,6 @@ func TestFindBuildByID(t *testing.T) {
 
 func TestFindTestByID(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer cleanTestStorage(t)
 
 	expected := &model.Test{
 		Id:      model.TestID("17046404de18d0000000000000000000"),
@@ -51,7 +103,6 @@ func TestFindTestByID(t *testing.T) {
 
 func TestFindTestsForBuild(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/between")
-	defer cleanTestStorage(t)
 
 	expected := []model.Test{
 		{
@@ -275,7 +326,6 @@ func TestDownloadLogLines(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			storage := makeTestStorage(t, test.storagePath)
-			defer cleanTestStorage(t)
 
 			logLines, err := storage.DownloadLogLines(context.Background(), test.buildID, test.testID)
 			if test.errorExpected {
