@@ -14,6 +14,33 @@ import (
 	"github.com/pkg/errors"
 )
 
+// CheckMetadata returns whether the metadata file exists for the given build
+// or test. If the test ID is not empty, the metadata of the test for the given
+// build is checked, otherwise the top-level build metadata is checked. A build
+// ID is required in both cases.
+func (b *Bucket) CheckMetadata(ctx context.Context, buildID string, testID string) (bool, error) {
+	var key string
+	if testID == "" {
+		key = metadataKeyForBuild(buildID)
+	} else {
+		key = metadataKeyForTest(buildID, testID)
+	}
+
+	iter, err := b.List(ctx, key)
+	if err != nil {
+		return false, errors.Wrap(err, "listing metadata files")
+	}
+
+	for iter.Next(ctx) {
+		// We set the prefix to the entire metadata filename, so
+		// finding a single file in the bucket with the given prefix
+		// suffices.
+		return true, nil
+	}
+
+	return false, errors.Wrap(iter.Err(), "iterating over metadata files")
+}
+
 // FindBuildByID returns the build metadata for the given ID from the offline
 // blob storage bucket.
 func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {

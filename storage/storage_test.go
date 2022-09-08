@@ -10,17 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const tempDir = "../_bucketdata"
-
 func makeTestStorage(t *testing.T, initDir string) Bucket {
-	err := os.RemoveAll(tempDir)
-	require.NoError(t, err)
-	err = os.Mkdir(tempDir, 0755)
-	require.NoError(t, err)
-
 	bucket, err := NewBucket(BucketOpts{
 		Location: PailLocal,
-		Path:     tempDir,
+		Path:     t.TempDir(),
 	})
 	require.NoError(t, err)
 
@@ -35,14 +28,9 @@ func makeTestStorage(t *testing.T, initDir string) Bucket {
 	return bucket
 }
 
-func cleanTestStorage(t *testing.T) {
-	err := os.RemoveAll(tempDir)
-	require.NoError(t, err)
-}
-
 func TestBasicStorage(t *testing.T) {
 	storage := makeTestStorage(t, "../testdata/simple")
-	defer cleanTestStorage(t)
+
 	results, err := storage.Get(context.Background(), "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	assert.NoError(t, err)
 	assert.NotEqual(t, nil, results)

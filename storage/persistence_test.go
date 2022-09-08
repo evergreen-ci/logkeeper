@@ -27,7 +27,6 @@ func newExpectedChunk(filename string, lines []string) expectedChunk {
 
 func TestUploadBuildMetadata(t *testing.T) {
 	storage := makeTestStorage(t, "")
-	defer cleanTestStorage(t)
 
 	build := model.Build{
 		Id:       "5a75f537726934e4b62833ab6d5dca41",
@@ -48,7 +47,6 @@ func TestUploadBuildMetadata(t *testing.T) {
 
 func TestUploadTestMetadata(t *testing.T) {
 	storage := makeTestStorage(t, "")
-	defer cleanTestStorage(t)
 
 	test := model.Test{
 		Id:      model.TestID("62dba0159041307f697e6ccc"),
@@ -160,7 +158,6 @@ func TestInsertLogChunks(t *testing.T) {
 
 	t.Run("Global", func(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
-		defer cleanTestStorage(t)
 
 		err := storage.InsertLogChunks(context.Background(), buildID, "", uploadChunks)
 		require.NoError(t, err)
@@ -181,7 +178,6 @@ func TestInsertLogChunks(t *testing.T) {
 
 	t.Run("Test", func(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
-		defer cleanTestStorage(t)
 
 		testID := "DE0B6B3A764000000000000"
 
