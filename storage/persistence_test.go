@@ -124,38 +124,7 @@ func TestInsertLogChunks(t *testing.T) {
 			"  0       1000000005000line5\n",
 		}),
 	}
-	expected := []model.LogLineItem{
-		{
-			LineNum:   0,
-			Timestamp: time.Unix(1000000000, 0).UTC(),
-			Data:      "line0",
-		},
-		{
-			LineNum:   0,
-			Timestamp: time.Unix(1000000001, 0).UTC(),
-			Data:      "line1",
-		},
-		{
-			LineNum:   0,
-			Timestamp: time.Unix(1000000002, 0).UTC(),
-			Data:      "line2",
-		},
-		{
-			LineNum:   0,
-			Timestamp: time.Unix(1000000003, 0).UTC(),
-			Data:      "line3",
-		},
-		{
-			LineNum:   0,
-			Timestamp: time.Unix(1000000004, 0).UTC(),
-			Data:      "line4",
-		},
-		{
-			LineNum:   0,
-			Timestamp: time.Unix(1000000005, 0).UTC(),
-			Data:      "line5",
-		},
-	}
+
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 
 	t.Run("Global", func(t *testing.T) {
@@ -176,14 +145,46 @@ func TestInsertLogChunks(t *testing.T) {
 			result = append(result, *item)
 		}
 
-		assert.Equal(t, expected, result)
+		assert.Equal(t, []model.LogLineItem{
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000000, 0).UTC(),
+				Data:      "line0",
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000001, 0).UTC(),
+				Data:      "line1",
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000002, 0).UTC(),
+				Data:      "line2",
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000003, 0).UTC(),
+				Data:      "line3",
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000004, 0).UTC(),
+				Data:      "line4",
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000005, 0).UTC(),
+				Data:      "line5",
+			},
+		}, result)
 	})
 
 	t.Run("Test", func(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
 		defer cleanTestStorage(t)
 
-		testID := "DE0B6B3A764000000000000"
+		testID := "de0b6b3a764000000000000"
+		modelTestID := model.TestID(testID)
 
 		require.NoError(t, storage.UploadTestMetadata(context.Background(), model.Test{
 			Id:      model.TestID(testID),
@@ -202,6 +203,43 @@ func TestInsertLogChunks(t *testing.T) {
 			result = append(result, *item)
 		}
 
-		assert.Equal(t, expected, result)
+		assert.Equal(t, []model.LogLineItem{
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000000, 0).UTC(),
+				Data:      "line0",
+				TestId:    &modelTestID,
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000001, 0).UTC(),
+				Data:      "line1",
+				TestId:    &modelTestID,
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000002, 0).UTC(),
+				Data:      "line2",
+				TestId:    &modelTestID,
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000003, 0).UTC(),
+				Data:      "line3",
+				TestId:    &modelTestID,
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000004, 0).UTC(),
+				Data:      "line4",
+				TestId:    &modelTestID,
+			},
+			{
+				LineNum:   0,
+				Timestamp: time.Unix(1000000005, 0).UTC(),
+				Data:      "line5",
+				TestId:    &modelTestID,
+			},
+		}, result)
 	})
 }
