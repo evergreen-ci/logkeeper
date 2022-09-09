@@ -524,6 +524,11 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string, shouldFall
 	if pail.IsKeyNotFoundError(buildErr) {
 		backgroundCancel()
 		if shouldFallBack {
+			grip.Info(message.Fields{
+				"message":   "fallback to db",
+				"operation": "viewBucketBuild",
+				"build_id":  buildID,
+			})
 			return lk.viewDBBuild(r, buildID)
 		} else {
 			return nil, nil, &apiError{Err: "finding build", code: http.StatusNotFound}
@@ -719,6 +724,12 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 	if pail.IsKeyNotFoundError(buildErr) {
 		backgroundCancel()
 		if shouldFallBack {
+			grip.Info(message.Fields{
+				"message":   "fallback to db",
+				"operation": "viewBucketLogs",
+				"build_id":  buildID,
+				"test_id":   testID,
+			})
 			if testID == "" {
 				return lk.viewAllDBLogs(r, buildID)
 			} else {
