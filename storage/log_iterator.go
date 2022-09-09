@@ -576,6 +576,7 @@ func (h LogIteratorHeap) Len() int { return len(h.its) }
 // Less returns true if the object at index i is less than the object at index
 // j in the heap, false otherwise, when min is true. When min is false, the
 // opposite is returned.
+// When the timestamps are equal precedence is given to build log lines.
 func (h LogIteratorHeap) Less(i, j int) bool {
 	iItem := h.its[i].Item()
 	jItem := h.its[j].Item()
