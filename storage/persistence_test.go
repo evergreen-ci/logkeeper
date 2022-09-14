@@ -13,72 +13,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type expectedChunk struct {
-	filename string
-	body     string
-}
-
-func newExpectedChunk(filename string, lines []string) expectedChunk {
-	return expectedChunk{
-		filename: filename,
-		body:     strings.Join(lines, ""),
-	}
-}
-
 func TestUploadBuildMetadata(t *testing.T) {
-	storage := makeTestStorage(t, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	build := model.Build{
-		Id:       "5a75f537726934e4b62833ab6d5dca41",
+	storage := makeTestStorage(t, "")
+	build := Build{
+		ID:       "5a75f537726934e4b62833ab6d5dca41",
 		Builder:  "builder0",
 		BuildNum: 1,
-		Info:     model.BuildInfo{TaskID: "t0"},
+		TaskID:   "t0",
 	}
+	expectedData, err := build.toJSON()
+	require.NoError(t, err)
+	require.NoError(t, storage.UploadBuildMetadata(ctx, build))
 
-	assert.NoError(t, storage.UploadBuildMetadata(context.Background(), build))
-	results, err := storage.Get(context.Background(), "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
-	assert.NoError(t, err)
-	contents, err := io.ReadAll(results)
-	assert.NoError(t, err)
-
-	expectedMetadata := `{"id":"5a75f537726934e4b62833ab6d5dca41","builder":"builder0","buildnum":1,"task_id":"t0"}`
-	assert.JSONEq(t, expectedMetadata, string(contents))
+	r, err := storage.Get(ctx, "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	require.NoError(t, err)
+	defer r.Close()
+	data, err := io.ReadAll(r)
+	require.NoError(t, err)
+	assert.Equal(t, expectedData, data)
 }
 
 func TestUploadTestMetadata(t *testing.T) {
-	storage := makeTestStorage(t, "")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	test := model.Test{
-		Id:      model.TestID("62dba0159041307f697e6ccc"),
-		BuildId: "5a75f537726934e4b62833ab6d5dca41",
+	storage := makeTestStorage(t, "")
+	test := Test{
+		ID:      string(model.TestID("62dba0159041307f697e6ccc")),
 		Name:    "test0",
-		Info:    model.TestInfo{TaskID: "t0"},
+		BuildID: "5a75f537726934e4b62833ab6d5dca41",
+		TaskID:  "t0",
 		Phase:   "phase0",
 		Command: "command0",
 	}
+	expectedData, err := test.toJSON()
+	require.NoError(t, err)
+	require.NoError(t, storage.UploadTestMetadata(ctx, test))
 
-	assert.NoError(t, storage.UploadTestMetadata(context.Background(), test))
-	results, err := storage.Get(context.Background(), "/builds/5a75f537726934e4b62833ab6d5dca41/tests/62dba0159041307f697e6ccc/metadata.json")
-	assert.NoError(t, err)
-	contents, err := io.ReadAll(results)
-	assert.NoError(t, err)
-
-	expectedMetadata := `{"id":"62dba0159041307f697e6ccc","name":"test0","build_id":"5a75f537726934e4b62833ab6d5dca41","task_id":"t0","phase":"phase0", "command":"command0"}`
-	assert.JSONEq(t, expectedMetadata, string(contents))
-}
-
-func verifyDataStorage(t *testing.T, storage Bucket, prefix string, expectedChunks []expectedChunk) {
-	for _, expectedChunk := range expectedChunks {
-		actualChunkStream, err := storage.Get(context.Background(), fmt.Sprintf("%s%s", prefix, expectedChunk.filename))
-		require.NoError(t, err)
-
-		actualChunkBody, err := io.ReadAll(actualChunkStream)
-		require.NoError(t, err)
-		assert.Equal(t, expectedChunk.body, string(actualChunkBody))
-	}
+	r, err := storage.Get(ctx, "/builds/5a75f537726934e4b62833ab6d5dca41/tests/62dba0159041307f697e6ccc/metadata.json")
+	require.NoError(t, err)
+	data, err := io.ReadAll(r)
+	require.NoError(t, err)
+	assert.Equal(t, expectedData, data)
 }
 
 func TestInsertLogChunks(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	uploadChunks := []model.LogChunk{
 		{
 			{
@@ -109,7 +94,6 @@ func TestInsertLogChunks(t *testing.T) {
 			},
 		},
 	}
-
 	expectedChunks := []expectedChunk{
 		newExpectedChunk("1000000000000000000_1000000002000000000_3", []string{
 			"  0       1000000000000line0\n",
@@ -158,32 +142,23 @@ func TestInsertLogChunks(t *testing.T) {
 
 	t.Run("Global", func(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
-
-		err := storage.InsertLogChunks(context.Background(), buildID, "", uploadChunks)
-		require.NoError(t, err)
-
+		require.NoError(t, storage.InsertLogChunks(ctx, buildID, "", uploadChunks))
 		verifyDataStorage(t, storage, fmt.Sprintf("/builds/%s/", buildID), expectedChunks)
 
-		logsChannel, err := storage.DownloadLogLines(context.Background(), buildID, "")
+		logsChannel, err := storage.DownloadLogLines(ctx, buildID, "")
 		require.NoError(t, err)
-
 		result := []model.LogLineItem{}
-
 		for item := range logsChannel {
 			result = append(result, *item)
 		}
-
 		assert.Equal(t, expected, result)
 	})
-
 	t.Run("Test", func(t *testing.T) {
 		storage := makeTestStorage(t, "nolines")
-
 		testID := "DE0B6B3A764000000000000"
-
-		require.NoError(t, storage.UploadTestMetadata(context.Background(), model.Test{
-			Id:      model.TestID(testID),
-			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+		require.NoError(t, storage.UploadTestMetadata(ctx, Test{
+			ID:      string(model.TestID(testID)),
+			BuildID: "5a75f537726934e4b62833ab6d5dca41",
 		}))
 		require.NoError(t, storage.InsertLogChunks(context.Background(), buildID, testID, uploadChunks))
 
@@ -191,13 +166,33 @@ func TestInsertLogChunks(t *testing.T) {
 
 		logsChannel, err := storage.DownloadLogLines(context.Background(), buildID, testID)
 		require.NoError(t, err)
-
 		result := []model.LogLineItem{}
-
 		for item := range logsChannel {
 			result = append(result, *item)
 		}
-
 		assert.Equal(t, expected, result)
 	})
+}
+
+type expectedChunk struct {
+	filename string
+	body     string
+}
+
+func newExpectedChunk(filename string, lines []string) expectedChunk {
+	return expectedChunk{
+		filename: filename,
+		body:     strings.Join(lines, ""),
+	}
+}
+
+func verifyDataStorage(t *testing.T, storage Bucket, prefix string, expectedChunks []expectedChunk) {
+	for _, expectedChunk := range expectedChunks {
+		actualChunkStream, err := storage.Get(context.Background(), fmt.Sprintf("%s%s", prefix, expectedChunk.filename))
+		require.NoError(t, err)
+
+		actualChunkBody, err := io.ReadAll(actualChunkStream)
+		require.NoError(t, err)
+		assert.Equal(t, expectedChunk.body, string(actualChunkBody))
+	}
 }

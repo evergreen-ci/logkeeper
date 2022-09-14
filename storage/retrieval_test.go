@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -368,8 +367,6 @@ func TestTestExecutionWindow(t *testing.T) {
 	})
 
 	t.Run("NanosecondsTruncated", func(t *testing.T) {
-		defer featureswitch.SetNewTestIDLevel(1)()
-
 		startTime := time.Date(2009, time.November, 10, 23, 0, 0, 1000001, time.UTC)
 		allTestIDs := []model.TestID{
 			model.NewTestID(startTime),

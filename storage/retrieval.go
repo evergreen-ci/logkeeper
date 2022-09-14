@@ -38,7 +38,7 @@ func (b *Bucket) CheckMetadata(ctx context.Context, buildID string, testID strin
 		return true, nil
 	}
 
-	return false, errors.Wrap(iter.Err(), "iterating over metadata files")
+	return false, errors.Wrap(iter.Err(), "iterating metadata files")
 }
 
 // FindBuildByID returns the build metadata for the given ID from the offline
@@ -50,13 +50,12 @@ func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, er
 		return nil, errors.Wrapf(err, "getting build metadata for build '%s'", id)
 	}
 
-	var metadata buildMetadata
-	if err = json.NewDecoder(reader).Decode(&metadata); err != nil {
+	var build Build
+	if err = json.NewDecoder(reader).Decode(&build); err != nil {
 		return nil, errors.Wrapf(err, "parsing build metadata for build '%s'", id)
 	}
-	build := metadata.toBuild()
 
-	return &build, nil
+	return build.export(), nil
 }
 
 // FindTestByID returns the test metadata for the given build ID and test ID
@@ -68,13 +67,12 @@ func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string
 		return nil, errors.Wrapf(err, "getting test metadata for build '%s' and test '%s'", buildID, testID)
 	}
 
-	var metadata testMetadata
-	if err = json.NewDecoder(reader).Decode(&metadata); err != nil {
+	var test Test
+	if err = json.NewDecoder(reader).Decode(&test); err != nil {
 		return nil, errors.Wrapf(err, "parsing test metadata for build '%s' and test '%s'", buildID, testID)
 	}
-	test := metadata.toTest()
 
-	return &test, nil
+	return test.export(), nil
 }
 
 // FindTestsForBuild returns all of the test metadata for the given build ID
@@ -132,7 +130,7 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 	}
 
 	if len(buildKeys) == 0 {
-		return nil, errors.Errorf("No keys for build '%s", buildID)
+		return nil, errors.Errorf("no keys found for build '%s", buildID)
 	}
 
 	buildChunks, testChunks, err := parseLogChunks(buildKeys)

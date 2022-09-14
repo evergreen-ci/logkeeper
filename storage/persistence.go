@@ -8,32 +8,30 @@ import (
 	"github.com/pkg/errors"
 )
 
-// UploadBuildMetadata uploads metadata for a new build to the offline blob
-// bucket storage.
-func (b *Bucket) UploadBuildMetadata(ctx context.Context, build model.Build) error {
-	metadata := newBuildMetadata(build)
-	json, err := metadata.toJSON()
+// UploadBuildMetadata uploads metadata for a new build to the pail-backed
+// offline storage.
+func (b *Bucket) UploadBuildMetadata(ctx context.Context, build Build) error {
+	data, err := build.toJSON()
 	if err != nil {
-		return errors.Wrap(err, "getting metadata JSON for build")
+		return err
 	}
 
-	return errors.Wrapf(b.Put(ctx, metadata.key(), bytes.NewReader(json)), "putting metadata for build '%s'", build.Id)
+	return errors.Wrapf(b.Put(ctx, build.key(), bytes.NewReader(data)), "uploading metadata for build '%s'", build.ID)
 }
 
-// UploadBuildMetadata uploads metadata for a new test to the offline blob
-// bucket storage.
-func (b *Bucket) UploadTestMetadata(ctx context.Context, test model.Test) error {
-	metadata := newTestMetadata(test)
-	json, err := metadata.toJSON()
+// UploadTestMetadata uploads metadata for a new test to the pail-backed
+// offline storage.
+func (b *Bucket) UploadTestMetadata(ctx context.Context, test Test) error {
+	data, err := test.toJSON()
 	if err != nil {
-		return errors.Wrap(err, "getting metadata JSON for test")
+		return nil
 	}
 
-	return errors.Wrapf(b.Put(ctx, metadata.key(), bytes.NewReader(json)), "putting metadata for test '%s'", test.Id)
+	return errors.Wrapf(b.Put(ctx, test.key(), bytes.NewReader(data)), "uploading metadata for test '%s'", test.ID)
 }
 
 // InsertLogChunks uploads a new chunk of logs for a given build or test to the
-// offline blob bucket storage. If the test ID is not empty, the logs are
+// pail-backed offline storage. If the test ID is not empty, the logs are
 // appended to the test for the given build, otherwise the logs are appended to
 // the top-level build. A build ID is required in both cases.
 func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID string, chunks []model.LogChunk) error {
@@ -62,7 +60,7 @@ func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID str
 		logChunkInfo.NumLines = numLines
 
 		if err := b.Put(ctx, logChunkInfo.key(), &buffer); err != nil {
-			return errors.Wrap(err, "uploading log entry to bucket")
+			return errors.Wrap(err, "uploading log chunk")
 		}
 	}
 

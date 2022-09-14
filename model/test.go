@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
-	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/pkg/errors"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -42,33 +41,22 @@ type TestInfo struct {
 type TestID string
 
 // NewTestID returns a new TestID with it's timestamp set to startTime.
-// The ID is an ObjectID with its timestamp replaced with a nanosecond timestamp.
-// It is represented as a hex string of 16 bytes. The first 8 bytes are the timestamp
-// and replace the first 4 bytes of an ObjectID. The remaining 8 bytes are the rest of
-// the ObjectID.
+// The ID is an ObjectID with its timestamp replaced with a nanosecond
+// timestamp. It is represented as a hex string of 16 bytes. The first 8 bytes
+// are the timestamp and replace the first 4 bytes of an ObjectID. The
+// remaining 8 bytes are the rest of the ObjectID.
 func NewTestID(startTime time.Time) TestID {
 	objectID := bson.NewObjectId()
-	if featureswitch.NewTestIDEnabled(objectID.Hex()) {
-		buf := make([]byte, 8)
-		binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
-		buf = append(buf, []byte(objectID)[4:]...)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
+	buf = append(buf, []byte(objectID)[4:]...)
 
-		return TestID(hex.EncodeToString(buf))
-	} else {
-		// This gets a TestID that is a valid ObjectID, but we need to
-		// use the startTime provided to this function rather than the
-		// base objectID
-		buf := make([]byte, 4)
-		binary.BigEndian.PutUint32(buf, uint32(startTime.Unix()))
-		buf = append(buf, []byte(objectID)[4:]...)
-
-		return TestID(hex.EncodeToString(buf))
-	}
+	return TestID(hex.EncodeToString(buf))
 }
 
-// Timestamp returns the timestamp encoded in the TestID. If the TestID is wrapping
-// a legacy ObjectID then the timestamp will have second precision while if the TestID
-// is a new ID it will have nanosecond precision.
+// Timestamp returns the timestamp encoded in the TestID. If the TestID is
+// wrapping a legacy ObjectID then the timestamp will have second precision,
+// otherwise it will have nanosecond precision.
 func (t *TestID) Timestamp() time.Time {
 	if t == nil {
 		return time.Time{}
