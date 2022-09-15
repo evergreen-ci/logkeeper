@@ -153,7 +153,10 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
 	}
 
-	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, tr), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
+	// Tests should never be filtered by a time range other than AllTime
+	// since we always want to capture all the lines of either a single
+	// test or all tests.
+	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, AllTime), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
 }
 
 // getBuildKeys returns the all the keys contained within the build prefix.
@@ -226,10 +229,19 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 	return testIDs, nil
 }
 
-// testExecutionWindow returns the TimeRange from the creation of this test to the creation
-// of the next test. If testID is empty the returned TimeRange is unbounded.
-// If there is no later test then the end time is TimeRangeMax.
-// Returns an error if the testID isn't found.
+// testExecutionWindow returns the time range from the creation of this test to
+// the creation of the next test. If the given test ID is empty, the returned
+// time range is unbounded. If there is no subsequent test then the end time is
+// TimeRangeMax.
+//
+// Tests are expected to be run and, thus, logged sequentially. In cases where
+// they overlap, the test execution window can exclude log lines from the test
+// if the subsequent test begins before the previous test ended. To ensure that
+// we capture all the log lines of a test, we do not filter the test chunks by
+// by this time range. This does mean, though, that the build logs returned
+// with the logs the test may be filtered by a time range shorter than that of
+// the test itself—this behavior is okay since tests are expected to be run
+// serially.
 func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, error) {
 	tr := AllTime
 	if testID == "" {

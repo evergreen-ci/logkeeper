@@ -102,6 +102,14 @@ func metadataKeyForTest(buildID string, testID string) string {
 	return fmt.Sprintf("%s%s", testPrefix(buildID, testID), metadataFilename)
 }
 
+func testIDFromKey(path string) (string, error) {
+	keyParts := strings.Split(path, "/")
+	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
+		return keyParts[3], nil
+	}
+	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
+}
+
 // LogChunkInfo describes a chunk of log lines stored in pail-backed offline
 // storage.
 type LogChunkInfo struct {
@@ -205,11 +213,4 @@ func makeLogLineStrings(logLine model.LogLine) []string {
 		logLines = append(logLines, fmt.Sprintf("  0%20d%s\n", utility.UnixMilli(logLine.Time), line))
 	}
 	return logLines
-}
-func testIDFromKey(path string) (string, error) {
-	keyParts := strings.Split(path, "/")
-	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
-		return keyParts[3], nil
-	}
-	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
 }
