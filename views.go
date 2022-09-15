@@ -425,9 +425,10 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	var (
 		resp     *logFetchResponse
 		fetchErr *apiError
+		fallback bool
 	)
-	resp, fetchErr = lk.viewBucketLogs(r, buildID, "")
-	if fetchErr != nil && fetchErr.code == http.StatusNotFound {
+	resp, fetchErr, fallback = lk.viewBucketLogs(r, buildID, "")
+	if fallback {
 		// If not found in the pail-backed offline storage, fallback to
 		// the DB.
 		resp, fetchErr = lk.viewAllDBLogs(r, buildID)
@@ -483,9 +484,10 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	var (
 		resp     *logFetchResponse
 		fetchErr *apiError
+		fallback bool
 	)
-	resp, fetchErr = lk.viewBucketLogs(r, buildID, testID)
-	if fetchErr != nil && fetchErr.code == http.StatusNotFound {
+	resp, fetchErr, fallback = lk.viewBucketLogs(r, buildID, testID)
+	if fallback {
 		// If not found in the pail-backed offline storage, fallback to
 		// the DB.
 		resp, fetchErr = lk.viewDBTestLogs(r, buildID, testID)
@@ -525,7 +527,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError, bool) {
 	var (
 		wg          sync.WaitGroup
 		build       *model.Build
@@ -562,28 +564,28 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 
 	if buildErr != nil {
 		lk.logErrorf(r, "finding build '%s': %v", buildID, buildErr)
-		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding build", code: http.StatusInternalServerError}, false
 	}
 	if build == nil {
-		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}
+		return nil, &apiError{Err: "build not found", code: http.StatusNotFound}, true
 	}
 	if testErr != nil {
 		lk.logErrorf(r, "finding test '%s' for build '%s': %v", testID, buildID, testErr)
-		return nil, &apiError{Err: "finding test", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "finding test", code: http.StatusInternalServerError}, false
 	}
 	if testID != "" && test == nil {
-		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}
+		return nil, &apiError{Err: "test not found", code: http.StatusNotFound}, false
 	}
 	if logLinesErr != nil {
 		lk.logErrorf(r, "downloading logs for build '%s': %v", buildID, logLinesErr)
-		return nil, &apiError{Err: "downloading logs", code: http.StatusInternalServerError}
+		return nil, &apiError{Err: "downloading logs", code: http.StatusInternalServerError}, false
 	}
 
 	return &logFetchResponse{
 		logLines: logLines,
 		build:    build,
 		test:     test,
-	}, nil
+	}, nil, false
 }
 
 func (lk *logKeeper) viewAllDBLogs(r *http.Request, buildID string) (*logFetchResponse, *apiError) {
