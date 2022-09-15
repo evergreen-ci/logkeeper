@@ -11,8 +11,10 @@ import (
 )
 
 func TestCheckMetadata(t *testing.T) {
-	storage := makeTestStorage(t, "../testdata/simple")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
+	storage := makeTestStorage(t, "../testdata/simple")
 	for _, test := range []struct {
 		name     string
 		buildID  string
@@ -55,9 +57,6 @@ func TestCheckMetadata(t *testing.T) {
 		})
 	}
 	t.Run("ServerError", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
-
 		exists, err := storage.CheckMetadata(ctx, "5a75f537726934e4b62833ab6d5dca41", "")
 		require.Error(t, err)
 		assert.False(t, exists)
@@ -65,39 +64,60 @@ func TestCheckMetadata(t *testing.T) {
 }
 
 func TestFindBuildByID(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	storage := makeTestStorage(t, "../testdata/simple")
-
-	expected := &model.Build{
-		Id:       "5a75f537726934e4b62833ab6d5dca41",
-		Builder:  "MCI_enterprise-rhel_job0",
-		BuildNum: 157865445,
-		Info: model.BuildInfo{
-			TaskID: "mongodb_mongo_master_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
-		},
-	}
-
-	actual, err := storage.FindBuildByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
-	require.NoError(t, err)
-	assert.Equal(t, expected, actual)
+	t.Run("Exists", func(t *testing.T) {
+		expected := &model.Build{
+			Id:       "5a75f537726934e4b62833ab6d5dca41",
+			Builder:  "MCI_enterprise-rhel_job0",
+			BuildNum: 157865445,
+			Info: model.BuildInfo{
+				TaskID: "mongodb_mongo_master_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
+			},
+		}
+		actual, err := storage.FindBuildByID(ctx, "5a75f537726934e4b62833ab6d5dca41")
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+	t.Run("DNE", func(t *testing.T) {
+		build, err := storage.FindBuildByID(ctx, "DNE")
+		require.NoError(t, err)
+		assert.Nil(t, build)
+	})
 }
 
 func TestFindTestByID(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	storage := makeTestStorage(t, "../testdata/simple")
-
-	expected := &model.Test{
-		Id:      model.TestID("17046404de18d0000000000000000000"),
-		BuildId: "5a75f537726934e4b62833ab6d5dca41",
-		Name:    "geo_max:CheckReplOplogs",
-		Info: model.TestInfo{
-			TaskID: "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
-		},
-		Phase:   "phase0",
-		Command: "command0",
-	}
-
-	actual, err := storage.FindTestByID(context.Background(), "5a75f537726934e4b62833ab6d5dca41", "17046404de18d0000000000000000000")
-	require.NoError(t, err)
-	assert.Equal(t, expected, actual)
+	t.Run("Exists", func(t *testing.T) {
+		expected := &model.Test{
+			Id:      model.TestID("17046404de18d0000000000000000000"),
+			BuildId: "5a75f537726934e4b62833ab6d5dca41",
+			Name:    "geo_max:CheckReplOplogs",
+			Info: model.TestInfo{
+				TaskID: "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
+			},
+			Phase:   "phase0",
+			Command: "command0",
+		}
+		actual, err := storage.FindTestByID(ctx, "5a75f537726934e4b62833ab6d5dca41", "17046404de18d0000000000000000000")
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+	t.Run("BuildDNE", func(t *testing.T) {
+		test, err := storage.FindTestByID(ctx, "DNE", "17046404de18d0000000000000000000")
+		require.NoError(t, err)
+		assert.Nil(t, test)
+	})
+	t.Run("TestDNE", func(t *testing.T) {
+		test, err := storage.FindTestByID(ctx, "5a75f537726934e4b62833ab6d5dca41", "DNE")
+		require.NoError(t, err)
+		assert.Nil(t, test)
+	})
 }
 
 func TestFindTestsForBuild(t *testing.T) {

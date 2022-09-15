@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/evergreen-ci/pail"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
@@ -44,8 +45,10 @@ func (b *Bucket) CheckMetadata(ctx context.Context, buildID string, testID strin
 // FindBuildByID returns the build metadata for the given ID from the offline
 // blob storage bucket.
 func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
-	key := metadataKeyForBuild(id)
-	reader, err := b.Get(ctx, key)
+	reader, err := b.Get(ctx, metadataKeyForBuild(id))
+	if pail.IsKeyNotFoundError(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting build metadata for build '%s'", id)
 	}
@@ -61,8 +64,10 @@ func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, er
 // FindTestByID returns the test metadata for the given build ID and test ID
 // from the offline blob storage bucket.
 func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string) (*model.Test, error) {
-	key := metadataKeyForTest(buildID, testID)
-	reader, err := b.Get(ctx, key)
+	reader, err := b.Get(ctx, metadataKeyForTest(buildID, testID))
+	if pail.IsKeyNotFoundError(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting test metadata for build '%s' and test '%s'", buildID, testID)
 	}
