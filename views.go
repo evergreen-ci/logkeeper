@@ -68,16 +68,9 @@ type apiError struct {
 }
 
 type logFetchResponse struct {
-	logLines      chan *model.LogLineItem
-	build         *model.Build
-	test          *model.Test
-	contextCancel func()
-}
-
-func (response *logFetchResponse) Close() {
-	if response.contextCancel != nil {
-		response.contextCancel()
-	}
+	logLines chan *model.LogLineItem
+	build    *model.Build
+	test     *model.Test
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
@@ -270,7 +263,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	testID := vars["test_id"]
 
 	if err := lk.checkContentLength(r); err != nil {
-		lk.logWarningf(r, "content length limit exceeded for append log lines to test '%s' for build '%s': %s", buildID, testID, err.Err)
+		lk.logWarningf(r, "content length limit exceeded for append log lines to test '%s' for build '%s': %s", testID, buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
@@ -304,7 +297,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err = lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, testID, chunks); err != nil {
-		lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", buildID, testID, err)
+		lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", testID, buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 	}
 
@@ -437,7 +430,6 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, fetchErr.code, *fetchErr)
 		return
 	}
-	defer resp.Close()
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range resp.logLines {
@@ -496,7 +488,6 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, fetchErr.code, *fetchErr)
 		return
 	}
-	defer resp.Close()
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		emptyLog := true

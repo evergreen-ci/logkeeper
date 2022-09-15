@@ -153,7 +153,6 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
 	}
 
-
 	// Tests should never be filtered by a time range other than AllTime
 	// since we always want to capture all the lines of either a single
 	// test or all tests.
