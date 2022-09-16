@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/model"
+	"github.com/evergreen-ci/pail"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
@@ -38,43 +39,45 @@ func (b *Bucket) CheckMetadata(ctx context.Context, buildID string, testID strin
 		return true, nil
 	}
 
-	return false, errors.Wrap(iter.Err(), "iterating over metadata files")
+	return false, errors.Wrap(iter.Err(), "iterating metadata files")
 }
 
 // FindBuildByID returns the build metadata for the given ID from the offline
 // blob storage bucket.
 func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
-	key := metadataKeyForBuild(id)
-	reader, err := b.Get(ctx, key)
+	reader, err := b.Get(ctx, metadataKeyForBuild(id))
+	if pail.IsKeyNotFoundError(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting build metadata for build '%s'", id)
 	}
 
-	var metadata buildMetadata
-	if err = json.NewDecoder(reader).Decode(&metadata); err != nil {
+	var build Build
+	if err = json.NewDecoder(reader).Decode(&build); err != nil {
 		return nil, errors.Wrapf(err, "parsing build metadata for build '%s'", id)
 	}
-	build := metadata.toBuild()
 
-	return &build, nil
+	return build.export(), nil
 }
 
 // FindTestByID returns the test metadata for the given build ID and test ID
 // from the offline blob storage bucket.
 func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string) (*model.Test, error) {
-	key := metadataKeyForTest(buildID, testID)
-	reader, err := b.Get(ctx, key)
+	reader, err := b.Get(ctx, metadataKeyForTest(buildID, testID))
+	if pail.IsKeyNotFoundError(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting test metadata for build '%s' and test '%s'", buildID, testID)
 	}
 
-	var metadata testMetadata
-	if err = json.NewDecoder(reader).Decode(&metadata); err != nil {
+	var test Test
+	if err = json.NewDecoder(reader).Decode(&test); err != nil {
 		return nil, errors.Wrapf(err, "parsing test metadata for build '%s' and test '%s'", buildID, testID)
 	}
-	test := metadata.toTest()
 
-	return &test, nil
+	return test.export(), nil
 }
 
 // FindTestsForBuild returns all of the test metadata for the given build ID
@@ -132,7 +135,7 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 	}
 
 	if len(buildKeys) == 0 {
-		return nil, errors.Errorf("No keys for build '%s", buildID)
+		return nil, errors.Errorf("no keys found for build '%s", buildID)
 	}
 
 	buildChunks, testChunks, err := parseLogChunks(buildKeys)
@@ -150,6 +153,9 @@ func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID st
 		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
 	}
 
+	// Tests should never be filtered by a time range other than AllTime
+	// since we always want to capture all the lines of either a single
+	// test or all tests.
 	return NewMergingIterator(NewBatchedLogIterator(b, testChunks, 4, AllTime), NewBatchedLogIterator(b, buildChunks, 4, tr)).Stream(ctx), nil
 }
 
@@ -223,10 +229,19 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 	return testIDs, nil
 }
 
-// testExecutionWindow returns the TimeRange from the creation of this test to the creation
-// of the next test. If testID is empty the returned TimeRange is unbounded.
-// If there is no later test then the end time is TimeRangeMax.
-// Returns an error if the testID isn't found.
+// testExecutionWindow returns the time range from the creation of this test to
+// the creation of the next test. If the given test ID is empty, the returned
+// time range is unbounded. If there is no subsequent test then the end time is
+// TimeRangeMax.
+//
+// Tests are expected to be run and, thus, logged sequentially. In cases where
+// they overlap, the test execution window can exclude log lines from the test
+// if the subsequent test begins before the previous test ended. To ensure that
+// we capture all the log lines of a test, we do not filter the test chunks by
+// by this time range. This does mean, though, that the build logs returned
+// with the logs the test may be filtered by a time range shorter than that of
+// the test itself—this behavior is okay since tests are expected to be run
+// serially.
 func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, error) {
 	tr := AllTime
 	if testID == "" {

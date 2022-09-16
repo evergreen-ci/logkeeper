@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper/db"
-	"github.com/evergreen-ci/logkeeper/featureswitch"
 	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +84,6 @@ func TestGetExecutionWindow(t *testing.T) {
 		assert.True(t, t0.Started.Equal(minTime))
 		assert.Nil(t, maxTime)
 	})
-
 	t.Run("LaterTest", func(t *testing.T) {
 		require.NoError(t, testutil.ClearCollections(TestsCollection))
 
@@ -103,25 +101,10 @@ func TestGetExecutionWindow(t *testing.T) {
 }
 
 func TestNewTestID(t *testing.T) {
-	t.Run("WithFeatureOn", func(t *testing.T) {
-		cleanup := featureswitch.SetNewTestIDLevel(1.0)
-		defer cleanup()
-		assert.True(t, strings.HasPrefix(string(NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC))), "1174efedab186000"))
-
-	})
-
-	t.Run("WithFeatureOff", func(t *testing.T) {
-		cleanup := featureswitch.SetNewTestIDLevel(0.0)
-		defer cleanup()
-		testID := string(NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)))
-		// Should return a normal testID if r
-		assert.Equal(t, 24, len(testID))
-	})
+	assert.True(t, strings.HasPrefix(string(NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC))), "1174efedab186000"))
 }
 
 func TestTestID(t *testing.T) {
-	cleanup := featureswitch.SetNewTestIDLevel(1.0)
-	defer cleanup()
 	require.NoError(t, testutil.InitDB())
 
 	t.Run("Timestamp", func(t *testing.T) {
@@ -138,7 +121,6 @@ func TestTestID(t *testing.T) {
 			assert.True(t, startTime.Equal(newID.Timestamp()))
 		})
 	})
-
 	t.Run("SetBSON", func(t *testing.T) {
 		db, closer := db.DB()
 		defer closer()
@@ -164,7 +146,6 @@ func TestTestID(t *testing.T) {
 			assert.Equal(t, newID, test.Id)
 		})
 	})
-
 	t.Run("GetBSON", func(t *testing.T) {
 		db, closer := db.DB()
 		defer closer()

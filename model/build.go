@@ -17,7 +17,7 @@ import (
 const (
 	// DeletePassedTestCutoff is the TTL for passed tests.
 	DeletePassedTestCutoff = 30 * (24 * time.Hour)
-	// BuildsCollection is the name of the builds collection in the database.
+	// BuildsCollection is the name of the builds collection in the DB.
 	BuildsCollection = "builds"
 )
 
@@ -32,7 +32,6 @@ type Build struct {
 	Failed   bool      `bson:"failed"`
 	Phases   []string  `bson:"phases"`
 	Seq      int       `bson:"seq"`
-	S3       bool      `bson:"s3,omitempty"`
 }
 
 // BuildInfo contains additional metadata about a build.
@@ -153,12 +152,13 @@ func RemoveBuild(buildID string) error {
 	return errors.Wrap(db.C(BuildsCollection).RemoveId(buildID), "deleting build record")
 }
 
-// Generates a new build ID based on the hash of builder and buildNum
-func NewBuildId(builder string, buildNum int) (string, error) {
+// NewBuildID generates a new build ID based on the hash of the given builder
+// and build number.
+func NewBuildID(builder string, buildNum int) (string, error) {
 	hasher := md5.New()
 
-	// This depends on the fact that Go's json implementation sorts json keys
-	// lexicographically for maps, which ensures consistent encoding
+	// This depends on the fact that Go's JSON implementation sorts JSON
+	// keys lexicographically for maps, which ensures consistent encoding.
 	jsonMap := make(map[string]interface{})
 	jsonMap["builder"] = builder
 	jsonMap["buildNum"] = buildNum

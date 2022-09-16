@@ -14,26 +14,100 @@ import (
 
 const metadataFilename = "metadata.json"
 
-func parseLogLineString(data string) (model.LogLineItem, error) {
-	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
-	if err != nil {
-		return model.LogLineItem{}, errors.Wrap(err, "parsing log line timestamp")
-	}
-
-	return model.LogLineItem{
-		Timestamp: time.Unix(0, ts*1e6).UTC(),
-		// We need to Trim the newline here because Logkeeper doesn't expect newlines to be included in the LogLineItem.
-		Data: strings.TrimRight(data[23:], "\n"),
-	}, nil
+// Build describes metadata of a build stored in pail-backed offline storage.
+type Build struct {
+	ID       string `json:"id"`
+	Builder  string `json:"builder"`
+	BuildNum int    `json:"buildnum"`
+	TaskID   string `json:"task_id"`
 }
 
-func makeLogLineStrings(logLine model.LogLine) []string {
-	singleLines := strings.Split(logLine.Msg, "\n")
-	logLines := make([]string, 0, len(singleLines))
-	for _, line := range singleLines {
-		logLines = append(logLines, fmt.Sprintf("  0%20d%s\n", utility.UnixMilli(logLine.Time), line))
+func (b Build) export() *model.Build {
+	return &model.Build{
+		Id:       b.ID,
+		Builder:  b.Builder,
+		BuildNum: b.BuildNum,
+		Info: model.BuildInfo{
+			TaskID: b.TaskID,
+		},
 	}
-	return logLines
+}
+
+func (b Build) key() string {
+	return metadataKeyForBuild(b.ID)
+}
+
+func (b *Build) toJSON() ([]byte, error) {
+	data, err := json.Marshal(b)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshalling build metadata")
+	}
+
+	return data, nil
+}
+
+// Test describes metadata of a test stored in pail-backed offline storage.
+type Test struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	BuildID string `json:"build_id"`
+	TaskID  string `json:"task_id"`
+	Phase   string `json:"phase"`
+	Command string `json:"command"`
+}
+
+func (t Test) export() *model.Test {
+	return &model.Test{
+		Id:      model.TestID(t.ID),
+		BuildId: t.BuildID,
+		Name:    t.Name,
+		Info: model.TestInfo{
+			TaskID: t.TaskID,
+		},
+		Phase:   t.Phase,
+		Command: t.Command,
+	}
+}
+
+func (t Test) key() string {
+	return metadataKeyForTest(t.BuildID, t.ID)
+}
+
+func (t *Test) toJSON() ([]byte, error) {
+	data, err := json.Marshal(t)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshalling test metadata")
+	}
+
+	return data, nil
+}
+
+func buildPrefix(buildID string) string {
+	return fmt.Sprintf("builds/%s/", buildID)
+}
+
+func buildTestsPrefix(buildID string) string {
+	return fmt.Sprintf("%stests/", buildPrefix(buildID))
+}
+
+func testPrefix(buildID, testID string) string {
+	return fmt.Sprintf("%s%s/", buildTestsPrefix(buildID), testID)
+}
+
+func metadataKeyForBuild(id string) string {
+	return fmt.Sprintf("%s%s", buildPrefix(id), metadataFilename)
+}
+
+func metadataKeyForTest(buildID string, testID string) string {
+	return fmt.Sprintf("%s%s", testPrefix(buildID, testID), metadataFilename)
+}
+
+func testIDFromKey(path string) (string, error) {
+	keyParts := strings.Split(path, "/")
+	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
+		return keyParts[3], nil
+	}
+	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
 }
 
 // LogChunkInfo describes a chunk of log lines stored in pail-backed offline
@@ -118,116 +192,25 @@ func (info *LogChunkInfo) fromLogChunk(buildID string, testID string, logChunk m
 	return nil
 }
 
-func testIDFromKey(path string) (string, error) {
-	keyParts := strings.Split(path, "/")
-	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
-		return keyParts[3], nil
-	}
-	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
-}
-
-func buildPrefix(buildID string) string {
-	return fmt.Sprintf("builds/%s/", buildID)
-}
-
-func buildTestsPrefix(buildID string) string {
-	return fmt.Sprintf("%stests/", buildPrefix(buildID))
-}
-
-func testPrefix(buildID, testID string) string {
-	return fmt.Sprintf("%s%s/", buildTestsPrefix(buildID), testID)
-}
-
-type buildMetadata struct {
-	ID       string `json:"id"`
-	Builder  string `json:"builder"`
-	BuildNum int    `json:"buildnum"`
-	TaskID   string `json:"task_id"`
-}
-
-func newBuildMetadata(b model.Build) buildMetadata {
-	return buildMetadata{
-		ID:       b.Id,
-		Builder:  b.Builder,
-		BuildNum: b.BuildNum,
-		TaskID:   b.Info.TaskID,
-	}
-}
-
-func (m *buildMetadata) toBuild() model.Build {
-	return model.Build{
-		Id:       m.ID,
-		Builder:  m.Builder,
-		BuildNum: m.BuildNum,
-		Info: model.BuildInfo{
-			TaskID: m.TaskID,
-		},
-	}
-}
-
-func (m *buildMetadata) key() string {
-	return metadataKeyForBuild(m.ID)
-}
-
-func metadataKeyForBuild(id string) string {
-	return fmt.Sprintf("%s%s", buildPrefix(id), metadataFilename)
-}
-
-func (m *buildMetadata) toJSON() ([]byte, error) {
-	metadataJSON, err := json.Marshal(m)
+func parseLogLineString(data string) (model.LogLineItem, error) {
+	ts, err := strconv.ParseInt(strings.TrimSpace(data[3:23]), 10, 64)
 	if err != nil {
-		return nil, errors.Wrap(err, "marshaling metadata")
+		return model.LogLineItem{}, errors.Wrap(err, "parsing log line timestamp")
 	}
 
-	return metadataJSON, nil
+	return model.LogLineItem{
+		Timestamp: time.Unix(0, ts*1e6).UTC(),
+		// We need to Trim the newline here because Logkeeper doesn't
+		// expect newlines to be included in the LogLineItem.
+		Data: strings.TrimRight(data[23:], "\n"),
+	}, nil
 }
 
-type testMetadata struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	BuildID string `json:"build_id"`
-	TaskID  string `json:"task_id"`
-	Phase   string `json:"phase"`
-	Command string `json:"command"`
-}
-
-func newTestMetadata(t model.Test) testMetadata {
-	return testMetadata{
-		ID:      string(t.Id),
-		BuildID: t.BuildId,
-		Name:    t.Name,
-		TaskID:  t.Info.TaskID,
-		Phase:   t.Phase,
-		Command: t.Command,
+func makeLogLineStrings(logLine model.LogLine) []string {
+	singleLines := strings.Split(logLine.Msg, "\n")
+	logLines := make([]string, 0, len(singleLines))
+	for _, line := range singleLines {
+		logLines = append(logLines, fmt.Sprintf("  0%20d%s\n", utility.UnixMilli(logLine.Time), line))
 	}
-}
-
-func (m *testMetadata) toTest() model.Test {
-	return model.Test{
-		Id:      model.TestID(m.ID),
-		BuildId: m.BuildID,
-		Name:    m.Name,
-		Info: model.TestInfo{
-			TaskID: m.TaskID,
-		},
-		Phase:   m.Phase,
-		Command: m.Command,
-	}
-}
-
-func (m *testMetadata) key() string {
-	return metadataKeyForTest(m.BuildID, m.ID)
-}
-
-func metadataKeyForTest(buildId string, testId string) string {
-	return fmt.Sprintf("%s%s", testPrefix(buildId, testId), metadataFilename)
-}
-
-func (m *testMetadata) toJSON() ([]byte, error) {
-	metadataJSON, err := json.Marshal(m)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshaling metadata")
-	}
-
-	return metadataJSON, nil
+	return logLines
 }
