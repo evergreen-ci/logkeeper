@@ -312,6 +312,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}
 
 func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
+	// TODO: EVG-17938 - Check this value against an allow list
 	requester := r.Header.Get("Origin")
 	w.Header().Add("Access-Control-Allow-Origin", requester)
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
