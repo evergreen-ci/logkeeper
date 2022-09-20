@@ -312,7 +312,10 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}
 
 func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "*")
+	requester := r.Header.Get("Origin")
+	w.Header().Add("Access-Control-Allow-Origin", requester)
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
+
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
@@ -404,7 +407,11 @@ func (lk *logKeeper) viewDBBuild(r *http.Request, buildID string) (*model.Build,
 // GET /build/{build_id}/all
 
 func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "*")
+	// TODO: EVG-17938 - Check this value against an allow list
+	requester := r.Header.Get("Origin")
+	w.Header().Add("Access-Control-Allow-Origin", requester)
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
+
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
@@ -461,7 +468,10 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}/test/{test_id}
 
 func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "*")
+	// TODO: EVG-17938 - Check this value against an allow list
+	requester := r.Header.Get("Origin")
+	w.Header().Add("Access-Control-Allow-Origin", requester)
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
@@ -671,7 +681,11 @@ func lobsterRedirect(r *http.Request) bool {
 }
 
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Access-Control-Allow-Origin", "*")
+	// TODO: EVG-17938 - Check this value against an allow list
+	requester := r.Header.Get("Origin")
+	w.Header().Add("Access-Control-Allow-Origin", requester)
+	w.Header().Add("Access-Control-Allow-Credentials", "true")
+
 	err := lk.render.StreamHTML(w, http.StatusOK, nil, "base", "lobster/build/index.html")
 	if err != nil {
 		lk.logErrorf(r, "Error rendering template: %v", err)
