@@ -30,9 +30,6 @@ const (
 
 func getCorsOrigins() []string {
 	origins := os.Getenv(corsOriginsEnvVariable)
-	if origins == "" {
-		return []string{}
-	}
 	return strings.Split(origins, ",")
 }
 
