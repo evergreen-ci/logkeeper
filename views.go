@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/logkeeper/storage"
 	"github.com/evergreen-ci/render"
+	"github.com/evergreen-ci/utility"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/mongodb/amboy"
@@ -20,6 +23,30 @@ import (
 )
 
 const maxLogBytes = 4 * 1024 * 1024 // 4 MB
+
+const (
+	corsOriginsEnvVariable = "LK_CORS_ORIGINS"
+)
+
+func getCorsOrigins() []string {
+	origins := os.Getenv(corsOriginsEnvVariable)
+	if origins == "" {
+		return []string{}
+	}
+	return strings.Split(origins, ",")
+}
+
+func addCorsHeaders(w http.ResponseWriter, r *http.Request) {
+	requester := r.Header.Get("Origin")
+	// check if requester is in cors origins list
+	if utility.StringMatchesAnyRegex(requester, getCorsOrigins()) {
+		w.Header().Add("Access-Control-Allow-Origin", requester)
+		w.Header().Add("Access-Control-Allow-Credentials", "true")
+	} else {
+		// Maintain backwards compatibility with the old CORS header
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+	}
+}
 
 type Options struct {
 	//Base URL to append to relative paths
@@ -312,11 +339,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}
 
 func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
-	// TODO: EVG-17938 - Check this value against an allow list
-	requester := r.Header.Get("Origin")
-	w.Header().Add("Access-Control-Allow-Origin", requester)
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
-
+	addCorsHeaders(w, r)
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
@@ -408,11 +431,7 @@ func (lk *logKeeper) viewDBBuild(r *http.Request, buildID string) (*model.Build,
 // GET /build/{build_id}/all
 
 func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
-	// TODO: EVG-17938 - Check this value against an allow list
-	requester := r.Header.Get("Origin")
-	w.Header().Add("Access-Control-Allow-Origin", requester)
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
-
+	addCorsHeaders(w, r)
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
@@ -469,10 +488,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}/test/{test_id}
 
 func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
-	// TODO: EVG-17938 - Check this value against an allow list
-	requester := r.Header.Get("Origin")
-	w.Header().Add("Access-Control-Allow-Origin", requester)
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
+	addCorsHeaders(w, r)
+
 	defer r.Body.Close()
 
 	vars := mux.Vars(r)
@@ -682,10 +699,7 @@ func lobsterRedirect(r *http.Request) bool {
 }
 
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
-	// TODO: EVG-17938 - Check this value against an allow list
-	requester := r.Header.Get("Origin")
-	w.Header().Add("Access-Control-Allow-Origin", requester)
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
+	addCorsHeaders(w, r)
 
 	err := lk.render.StreamHTML(w, http.StatusOK, nil, "base", "lobster/build/index.html")
 	if err != nil {
