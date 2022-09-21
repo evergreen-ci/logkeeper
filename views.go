@@ -28,18 +28,20 @@ const (
 	corsOriginsEnvVariable = "LK_CORS_ORIGINS"
 )
 
-func getCorsOrigins() []string {
+var corsOrigins []string
+
+func init() {
 	origins := os.Getenv(corsOriginsEnvVariable)
 	if origins == "" {
-		return []string{}
+		corsOrigins = []string{}
 	}
-	return strings.Split(origins, ",")
+	corsOrigins = strings.Split(origins, ",")
 }
 
 func addCorsHeaders(w http.ResponseWriter, r *http.Request) {
 	requester := r.Header.Get("Origin")
 	// check if requester is in cors origins list
-	if utility.StringMatchesAnyRegex(requester, getCorsOrigins()) {
+	if utility.StringMatchesAnyRegex(requester, corsOrigins) {
 		w.Header().Add("Access-Control-Allow-Origin", requester)
 		w.Header().Add("Access-Control-Allow-Credentials", "true")
 	} else {
