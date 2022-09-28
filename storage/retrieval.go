@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/pail"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/recovery"
@@ -44,7 +43,7 @@ func (b *Bucket) CheckMetadata(ctx context.Context, buildID string, testID strin
 
 // FindBuildByID returns the build metadata for the given ID from the offline
 // blob storage bucket.
-func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, error) {
+func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*Build, error) {
 	reader, err := b.Get(ctx, metadataKeyForBuild(id))
 	if pail.IsKeyNotFoundError(err) {
 		return nil, nil
@@ -53,17 +52,17 @@ func (b *Bucket) FindBuildByID(ctx context.Context, id string) (*model.Build, er
 		return nil, errors.Wrapf(err, "getting build metadata for build '%s'", id)
 	}
 
-	var build Build
-	if err = json.NewDecoder(reader).Decode(&build); err != nil {
+	var build *Build
+	if err = json.NewDecoder(reader).Decode(build); err != nil {
 		return nil, errors.Wrapf(err, "parsing build metadata for build '%s'", id)
 	}
 
-	return build.export(), nil
+	return build, nil
 }
 
 // FindTestByID returns the test metadata for the given build ID and test ID
 // from the offline blob storage bucket.
-func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string) (*model.Test, error) {
+func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string) (*Test, error) {
 	reader, err := b.Get(ctx, metadataKeyForTest(buildID, testID))
 	if pail.IsKeyNotFoundError(err) {
 		return nil, nil
@@ -72,17 +71,17 @@ func (b *Bucket) FindTestByID(ctx context.Context, buildID string, testID string
 		return nil, errors.Wrapf(err, "getting test metadata for build '%s' and test '%s'", buildID, testID)
 	}
 
-	var test Test
-	if err = json.NewDecoder(reader).Decode(&test); err != nil {
+	var test *Test
+	if err = json.NewDecoder(reader).Decode(test); err != nil {
 		return nil, errors.Wrapf(err, "parsing test metadata for build '%s' and test '%s'", buildID, testID)
 	}
 
-	return test.export(), nil
+	return test, nil
 }
 
 // FindTestsForBuild returns all of the test metadata for the given build ID
 // from the offline blob storage bucket.
-func (b *Bucket) FindTestsForBuild(ctx context.Context, buildID string) ([]model.Test, error) {
+func (b *Bucket) FindTestsForBuild(ctx context.Context, buildID string) ([]Test, error) {
 	iterator, err := b.List(ctx, buildTestsPrefix(buildID))
 	if err != nil {
 		return nil, errors.Wrapf(err, "listing test keys for build '%s'", buildID)
@@ -103,7 +102,7 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildID string) ([]model
 
 	var wg sync.WaitGroup
 	catcher := grip.NewBasicCatcher()
-	tests := make([]model.Test, len(testIDs))
+	tests := make([]Test, len(testIDs))
 	for i, id := range testIDs {
 		wg.Add(1)
 		go func(testID string, idx int) {
@@ -128,7 +127,7 @@ func (b *Bucket) FindTestsForBuild(ctx context.Context, buildID string) ([]model
 
 // DownloadLogLines returns log lines for a given build ID and test ID. If the
 // test ID is empty, this will return all logs lines in the build.
-func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID string) (chan *model.LogLineItem, error) {
+func (b *Bucket) DownloadLogLines(ctx context.Context, buildID string, testID string) (chan *LogLineItem, error) {
 	buildKeys, err := b.getBuildKeys(ctx, buildID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting keys for build '%s'", buildID)
@@ -206,8 +205,8 @@ func parseLogChunks(buildKeys []string) ([]LogChunkInfo, []LogChunkInfo, error) 
 
 // parseTestIDs parses test IDs from the buildKeys that correspond to test metadata files
 // and sorts them by creation time.
-func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
-	var testIDs []model.TestID
+func parseTestIDs(buildKeys []string) ([]string, error) {
+	var testIDs []string
 	for _, key := range buildKeys {
 		if !strings.HasSuffix(key, metadataFilename) {
 			continue
@@ -219,11 +218,11 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "getting test ID from metadata key")
 		}
-		testIDs = append(testIDs, model.TestID(testID))
+		testIDs = append(testIDs, testID)
 	}
 
 	sort.Slice(testIDs, func(i, j int) bool {
-		return testIDs[i].Timestamp().Before(testIDs[j].Timestamp())
+		return testIDTimestamp(testIDs[i]).Before(testIDTimestamp(testIDs[j]))
 	})
 
 	return testIDs, nil
@@ -242,7 +241,7 @@ func parseTestIDs(buildKeys []string) ([]model.TestID, error) {
 // with the logs the test may be filtered by a time range shorter than that of
 // the test itself—this behavior is okay since tests are expected to be run
 // serially.
-func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, error) {
+func testExecutionWindow(allTestIDs []string, testID string) (TimeRange, error) {
 	tr := AllTime
 	if testID == "" {
 		return tr, nil
@@ -260,10 +259,10 @@ func testExecutionWindow(allTestIDs []model.TestID, testID string) (TimeRange, e
 		return tr, errors.Errorf("test '%s' was not found", testID)
 	}
 
-	tr.StartAt = allTestIDs[testIndex].Timestamp().Truncate(time.Millisecond)
+	tr.StartAt = testIDTimestamp(allTestIDs[testIndex]).Truncate(time.Millisecond)
 
 	if testIndex < len(allTestIDs)-1 {
-		tr.EndAt = allTestIDs[testIndex+1].Timestamp().Truncate(time.Millisecond)
+		tr.EndAt = testIDTimestamp(allTestIDs[testIndex+1]).Truncate(time.Millisecond)
 	}
 
 	return tr, nil

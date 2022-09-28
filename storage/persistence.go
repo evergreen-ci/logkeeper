@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/pkg/errors"
 )
 
@@ -34,7 +33,7 @@ func (b *Bucket) UploadTestMetadata(ctx context.Context, test Test) error {
 // pail-backed offline storage. If the test ID is not empty, the logs are
 // appended to the test for the given build, otherwise the logs are appended to
 // the top-level build. A build ID is required in both cases.
-func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID string, chunks []model.LogChunk) error {
+func (b *Bucket) InsertLogChunks(ctx context.Context, buildID string, testID string, chunks []LogChunk) error {
 	for _, chunk := range chunks {
 		if len(chunk) == 0 {
 			continue
