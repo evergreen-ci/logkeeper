@@ -1,249 +1,425 @@
 package model
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"math"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/mgo.v2/bson"
 )
-
-func TestRemoveLogsForBuild(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	t.Run("NoLogs", func(t *testing.T) {
-		require.NoError(t, testutil.ClearCollections(LogsCollection))
-		count, err := RemoveLogsForBuild("")
-		assert.NoError(t, err)
-		assert.Zero(t, count)
-	})
-
-	t.Run("MixOfBuilds", func(t *testing.T) {
-		require.NoError(t, testutil.ClearCollections(LogsCollection))
-		require.NoError(t, (&Log{BuildId: "b0"}).Insert())
-		require.NoError(t, (&Log{BuildId: "b1"}).Insert())
-		count, err := RemoveLogsForBuild("b0")
-		assert.NoError(t, err)
-		assert.Equal(t, 1, count)
-	})
-}
-
-func TestFindLogsInWindow(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(LogsCollection))
-
-	earliestTime := time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)
-	latestTime := time.Date(2009, time.November, 10, 23, 2, 0, 0, time.UTC)
-	require.NoError(t, (&Log{Seq: 0, Lines: []LogLine{
-		{Time: earliestTime.Add(-time.Hour), Msg: "line0"},
-		{Time: earliestTime, Msg: "line1"},
-	}}).Insert())
-	require.NoError(t, (&Log{Seq: 1, Lines: []LogLine{
-		{Time: latestTime, Msg: "line2"},
-		{Time: latestTime.Add(time.Hour), Msg: "line3"},
-	}}).Insert())
-
-	logChan := findLogsInWindow(bson.M{}, []string{"seq"}, &earliestTime, &latestTime)
-	var lines []*LogLineItem
-	require.Eventually(t, func() bool {
-		select {
-		case line := <-logChan:
-			lines = append(lines, line)
-		default:
-		}
-
-		return len(lines) == 2
-	}, time.Second, 10*time.Millisecond)
-
-	assert.Equal(t, "line1", lines[0].Data)
-	assert.Equal(t, "line2", lines[1].Data)
-}
-
-func TestGroupLines(t *testing.T) {
-	makeLines := func(lineSize, numLines int) []LogLine {
-		builder := strings.Builder{}
-		for i := 0; i < lineSize; i++ {
-			builder.WriteString("a")
-		}
-		msg := builder.String()
-		var lines []LogLine
-		for i := 0; i < numLines; i++ {
-			lines = append(lines, LogLine{Msg: msg})
-		}
-
-		return lines
-	}
-
-	t.Run("UnderThreshold", func(t *testing.T) {
-		chunks, err := GroupLines(makeLines(5, 2), 10)
-		assert.NoError(t, err)
-		require.Len(t, chunks, 1)
-		assert.Len(t, chunks[0], 2)
-	})
-
-	t.Run("SingleLineOverThreshold", func(t *testing.T) {
-		_, err := GroupLines(makeLines(11, 1), 10)
-		assert.Error(t, err)
-	})
-
-	t.Run("MultipleGroups", func(t *testing.T) {
-		chunks, err := GroupLines(makeLines(1, 20), 10)
-		assert.NoError(t, err)
-		require.Len(t, chunks, 2)
-		assert.Len(t, chunks[0], 10)
-		assert.Len(t, chunks[1], 10)
-	})
-}
 
 func TestUnmarshalJSON(t *testing.T) {
 	logLineJSON := "[1257894000, \"message\"]"
-	line := LogLine{}
+	line := LogLineItem{}
 	assert.NoError(t, json.Unmarshal([]byte(logLineJSON), &line))
-	assert.True(t, line.Time.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)))
-	assert.Equal(t, "message", line.Msg)
+	assert.True(t, line.Timestamp.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)))
+	assert.Equal(t, "message", line.Data)
 }
 
-func TestMergeLogChannels(t *testing.T) {
-	logger0 := make(chan *LogLineItem, 1)
-	logger1 := make(chan *LogLineItem, 1)
+func TestLogChunkInfoKey(t *testing.T) {
+	t.Run("WithTest", func(t *testing.T) {
+		info := LogChunkInfo{
+			BuildID:  "b0",
+			TestID:   "t0",
+			NumLines: 1,
+			Start:    time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+			End:      time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
+		}
+		key := info.key()
+		require.Equal(t, "builds/b0/tests/t0/1257894000000000000_1257894060000000000_1", key)
 
-	logger0 <- &LogLineItem{Data: "m0", Timestamp: time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)}
-	close(logger0)
-	logger1 <- &LogLineItem{Data: "m1", Timestamp: time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC)}
-	close(logger1)
+		newInfo := LogChunkInfo{}
+		require.NoError(t, newInfo.fromKey(key))
+		assert.Equal(t, info, newInfo)
 
-	outChan := MergeLogChannels(logger0, logger1)
-	var items []*LogLineItem
-	assert.Eventually(t, func() bool {
-		select {
-		case item := <-outChan:
-			items = append(items, item)
-		default:
+		parsedTestID, err := testIDFromKey(key)
+		require.NoError(t, err)
+		assert.Equal(t, info.TestID, parsedTestID)
+	})
+	t.Run("WithoutTest", func(t *testing.T) {
+		info := LogChunkInfo{
+			BuildID:  "b0",
+			NumLines: 1,
+			Start:    time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+			End:      time.Date(2009, time.November, 10, 23, 1, 0, 0, time.UTC),
+		}
+		key := info.key()
+		require.Equal(t, "builds/b0/1257894000000000000_1257894060000000000_1", key)
+
+		newInfo := LogChunkInfo{}
+		require.NoError(t, newInfo.fromKey(key))
+		assert.Equal(t, info, newInfo)
+
+		_, err := testIDFromKey(key)
+		assert.Error(t, err)
+	})
+}
+
+func TestFromKey(t *testing.T) {
+	t.Run("InvalidKey", func(t *testing.T) {
+		newInfo := LogChunkInfo{}
+		assert.NotPanics(t, func() {
+			err := newInfo.fromKey("asdf")
+			assert.Error(t, err)
+		})
+
+	})
+}
+
+func TestMakeLogLineString(t *testing.T) {
+	result := makeLogLineStrings(LogLineItem{
+		Data:      "a\nb",
+		Timestamp: time.Unix(1661354966, 0),
+	})
+	assert.Equal(t, []string{"  0       1661354966000a\n", "  0       1661354966000b\n"}, result)
+}
+
+func TestDownloadLogLines(t *testing.T) {
+	for _, test := range []struct {
+		name          string
+		storagePath   string
+		buildID       string
+		testID        string
+		expectedLines []string
+		errorExpected bool
+	}{
+		{
+			name:          "BuildLogsDNE",
+			storagePath:   "../testdata/simple",
+			buildID:       "DNE",
+			errorExpected: true,
+		},
+		{
+			name:          "TestLogsDNE",
+			storagePath:   "../testdata/overlapping",
+			buildID:       "5a75f537726934e4b62833ab6d5dca41",
+			testID:        "DNE",
+			errorExpected: true,
+			expectedLines: []string{
+				"Log300",
+				"Log320",
+				"Log340",
+				"Log360",
+				"Log380",
+				"Log400",
+				"Log420",
+				"Log440",
+				"Log460",
+				"Log500",
+				"Log501",
+				"Log520",
+				"Log540",
+				"Log560",
+				"Log580",
+				"Log810",
+				"Log820",
+				"Log840",
+				"Log860",
+				"Log900",
+			},
+		},
+		{
+			name:        "TestLogsSingleTest",
+			storagePath: "../testdata/simple",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "17046404de18d0000000000000000000",
+			expectedLines: []string{
+				"First Test Log Line",
+				"[js_test:geo_max:CheckReplOplogs] New session started with sessionID: {  \"id\" : UUID(\"4983fd5c-898a-4435-8523-2aef47ce91f3\") } and options: {  \"causalConsistency\" : false }",
+				"I am a global log within the test start/stop ranges.",
+				"[js_test:geo_max:CheckReplOplogs] Recreating replica set from config {",
+				"[js_test:geo_max:CheckReplOplogs] \\t\"_id\" : \"rs\",",
+				"[js_test:geo_max:CheckReplOplogs] \\t\"version\" : 5,",
+				"[js_test:geo_max:CheckReplOplogs] \\t\"term\" : 3,",
+				"[js_test:geo_max:CheckReplOplogs] \\t\"members\" : [",
+				"[js_test:geo_max:CheckReplOplogs] \\t\\t{",
+				"[js_test:geo_max:CheckReplOplogs] \\t\\t\\t\"_id\" : 0,",
+				"[js_test:geo_max:CheckReplOplogs] \\t\\t\\t\"host\" : \"localhost:20000\",",
+				"Last Test Log Line",
+				"[j0:n1] {\"t\":{\"$date\":\"2022-07-23T07:15:35.740+00:00\"},\"s\":\"D2\", \"c\":\"REPL_HB\",  \"id\":4615618, \"ctx\":\"ReplCoord-9\",\"msg\":\"Scheduling heartbeat\",\"attr\":{\"target\":\"localhost:20000\",\"when\":{\"$date\":\"2022-07-23T07:15:37.740Z\"}}}",
+			},
+		},
+		{
+			name:        "TestLogsBetweenMultpleTests",
+			storagePath: "../testdata/between",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "0de0b6b3bf4ac6400000000000000000",
+			expectedLines: []string{
+				"Test Log401",
+				"Test Log402",
+				"Log501",
+				"Log502",
+			},
+		},
+		{
+			name:        "TestLogsWithOverlappingGlobalLogs",
+			storagePath: "../testdata/overlapping",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "0de0b6b3bf3b84000000000000000000",
+			expectedLines: []string{
+				"Test Log400",
+				"Log400",
+				"Test Log420",
+				"Log420",
+				"Test Log440",
+				"Log440",
+				"Test Log460",
+				"Log460",
+				"Test Log480",
+				"Log500",
+				"Test Log500",
+				"Log501",
+				"Test Log520",
+				"Log520",
+				"Test Log540",
+				"Log540",
+				"Test Log560",
+				"Log560",
+				"Log580",
+				"Test Log600",
+				"Test Log601",
+				"Test Log620",
+				"Test Log640",
+				"Test Log660",
+				"Test Log680",
+				"Test Log700",
+				"Test Log720",
+				"Test Log740",
+				"Test Log760",
+				"Test Log800",
+				"Log810",
+				"Log820",
+				"Log840",
+				"Log860",
+				"Log900",
+			},
+		},
+		{
+			name:        "AllLogs",
+			storagePath: "../testdata/overlapping",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			expectedLines: []string{
+				"Log300",
+				"Log320",
+				"Log340",
+				"Log360",
+				"Log380",
+				"Test Log400",
+				"Log400",
+				"Test Log420",
+				"Log420",
+				"Test Log440",
+				"Log440",
+				"Test Log460",
+				"Log460",
+				"Test Log480",
+				"Log500",
+				"Test Log500",
+				"Log501",
+				"Test Log520",
+				"Log520",
+				"Test Log540",
+				"Log540",
+				"Test Log560",
+				"Log560",
+				"Log580",
+				"Test Log600",
+				"Test Log601",
+				"Test Log620",
+				"Test Log640",
+				"Test Log660",
+				"Test Log680",
+				"Test Log700",
+				"Test Log720",
+				"Test Log740",
+				"Test Log760",
+				"Test Log800",
+				"Log810",
+				"Log820",
+				"Log840",
+				"Log860",
+				"Log900",
+			},
+		},
+		{
+			name:        "TestLogsStartAfterBuildLogs",
+			storagePath: "../testdata/delayed",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "0de0b6b3bf3b84000000000000000000",
+			expectedLines: []string{
+				"Log401",
+				"Log402",
+				"Test Log403",
+				"Test Log404",
+			},
+		},
+		{
+			name:        "TestWithNanosecondPrecision",
+			storagePath: "../testdata/precision",
+			buildID:     "5a75f537726934e4b62833ab6d5dca41",
+			testID:      "17046404de28123f0000000000000000",
+			expectedLines: []string{
+				"First Test Log Line",
+				"Global log within the test start/stop ranges",
+				"Middle Test Log Line",
+				"Last Test Log Line",
+				"Global log after test logging ends",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			defer testutil.SetBucket(t, test.storagePath)()
+
+			logLines, err := DownloadLogLines(context.Background(), test.buildID, test.testID)
+			if test.errorExpected {
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+
+				var lines []string
+				for item := range logLines {
+					lines = append(lines, item.Data)
+				}
+				assert.Equal(t, test.expectedLines, lines)
+			}
+		})
+	}
+}
+
+func TestInsertLogLines(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	testLines := []LogLineItem{
+		{
+			Timestamp: time.Unix(1000000000, 0).UTC(),
+			Data:      "line0",
+		},
+		{
+			Timestamp: time.Unix(1000000001, 0).UTC(),
+			Data:      "line1",
+		},
+		{
+			Timestamp: time.Unix(1000000002, 0).UTC(),
+			Data:      "line2",
+		},
+		{
+			Timestamp: time.Unix(1000000003, 0).UTC(),
+			Data:      "line3",
+		},
+		{
+			Timestamp: time.Unix(1000000004, 0).UTC(),
+			Data:      "line4",
+		},
+		{
+			Timestamp: time.Unix(1000000005, 0).UTC(),
+			Data:      "line5",
+		},
+	}
+
+	globalLines := []LogLineItem{
+		{
+			Timestamp: time.Unix(1000000000, 0).UTC(),
+			Data:      "line0",
+			Global:    true,
+		},
+		{
+			Timestamp: time.Unix(1000000001, 0).UTC(),
+			Data:      "line1",
+			Global:    true,
+		},
+		{
+			Timestamp: time.Unix(1000000002, 0).UTC(),
+			Data:      "line2",
+			Global:    true,
+		},
+		{
+			Timestamp: time.Unix(1000000003, 0).UTC(),
+			Data:      "line3",
+			Global:    true,
+		},
+		{
+			Timestamp: time.Unix(1000000004, 0).UTC(),
+			Data:      "line4",
+			Global:    true,
+		},
+		{
+			Timestamp: time.Unix(1000000005, 0).UTC(),
+			Data:      "line5",
+			Global:    true,
+		},
+	}
+	expectedStorage := newExpectedChunk("1000000000000000000_1000000005000000000_6", []string{
+		"  0       1000000000000line0\n",
+		"  0       1000000001000line1\n",
+		"  0       1000000002000line2\n",
+		"  0       1000000003000line3\n",
+		"  0       1000000004000line4\n",
+		"  0       1000000005000line5\n",
+	})
+
+	buildID := "5a75f537726934e4b62833ab6d5dca41"
+
+	t.Run("Global", func(t *testing.T) {
+		defer testutil.SetBucket(t, "nolines")()
+		require.NoError(t, InsertLogLines(ctx, buildID, "", globalLines, math.MaxInt))
+		verifyDataStorage(t, fmt.Sprintf("/builds/%s/", buildID), expectedStorage)
+
+		logsChannel, err := DownloadLogLines(ctx, buildID, "")
+		require.NoError(t, err)
+		result := []LogLineItem{}
+		for item := range logsChannel {
+			result = append(result, *item)
 		}
 
-		return len(items) == 2
-	}, time.Second, 10*time.Millisecond)
+		assert.Equal(t, globalLines, result)
+	})
+	t.Run("Test", func(t *testing.T) {
+		defer testutil.SetBucket(t, "nolines")()
+		testID := "DE0B6B3A764000000000000"
+		require.NoError(t, (&Test{
+			ID:      testID,
+			BuildID: "5a75f537726934e4b62833ab6d5dca41",
+		}).UploadTestMetadata(ctx))
+		require.NoError(t, InsertLogLines(context.Background(), buildID, testID, testLines, math.MaxInt))
 
-	assert.Equal(t, "m0", items[0].Data)
-	assert.Equal(t, "m1", items[1].Data)
+		verifyDataStorage(t, fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID), expectedStorage)
+
+		logsChannel, err := DownloadLogLines(context.Background(), buildID, testID)
+		require.NoError(t, err)
+		result := []LogLineItem{}
+		for item := range logsChannel {
+			result = append(result, *item)
+		}
+		assert.Equal(t, testLines, result)
+	})
 }
 
-func TestFindGlobalLogsDuringTest(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(LogsCollection))
-
-	t0Start := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-
-	buildID := "b0"
-	t0 := Test{
-		Id:      NewTestID(time.Time{}),
-		BuildId: buildID,
-		Started: t0Start,
-	}
-	assert.NoError(t, t0.Insert())
-	t1 := Test{
-		Id:      NewTestID(time.Time{}),
-		BuildId: buildID,
-		Started: t0Start.Add(10 * time.Second),
-	}
-	assert.NoError(t, t1.Insert())
-
-	globalLogTime := t0Start.Add(5 * time.Second)
-	globalLog := Log{
-		BuildId: buildID,
-		TestId:  nil,
-		Seq:     3,
-		Started: &globalLogTime,
-		Lines: []LogLine{
-			{Time: t0Start.Add(5 * time.Second), Msg: "build 0-0"},
-			{Time: t0Start.Add(15 * time.Second), Msg: "build 0-1"},
-		},
-	}
-	assert.NoError(t, globalLog.Insert())
-	testLog0 := Log{
-		BuildId: buildID,
-		TestId:  t0.Id.toTestIDAliasPtr(),
-		Seq:     1,
-		Started: &t0.Started,
-		Lines: []LogLine{
-			{Time: t0.Started, Msg: "test 0-0"},
-			{Time: t0.Started.Add(10 * time.Second), Msg: "test 0-1"},
-		},
-	}
-	assert.NoError(t, testLog0.Insert())
-	testLog1 := Log{
-		BuildId: buildID,
-		TestId:  t1.Id.toTestIDAliasPtr(),
-		Seq:     2,
-		Started: &t1.Started,
-		Lines: []LogLine{
-			{Time: t1.Started, Msg: "test 1-0"},
-			{Time: t1.Started.Add(10 * time.Second), Msg: "test 1-1"},
-		},
-	}
-	assert.NoError(t, testLog1.Insert())
-
-	// build logs from during a test should be returned as part of the test, even
-	// if the build itself started after the test
-	logChan, err := findGlobalLogsDuringTest(&t0)
-	assert.NoError(t, err)
-	count := 0
-	for logLine := range logChan {
-		count++
-		assert.Equal(t, "build 0-0", logLine.Data)
-	}
-	assert.Equal(t, 1, count)
-
-	// test that we can correctly find global logs during a test that start before the test starts
-	logChan, err = findGlobalLogsDuringTest(&t1)
-	assert.NoError(t, err)
-	count = 0
-	for logLine := range logChan {
-		count++
-		assert.Equal(t, "build 0-1", logLine.Data)
-	}
-	assert.Equal(t, 1, count)
+type expectedChunk struct {
+	filename string
+	body     string
 }
 
-func TestSetBSON(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(LogsCollection))
-
-	db, closer := db.DB()
-	defer closer()
-
-	lineTime := time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC)
-	lineMsg := "the message"
-	require.NoError(t, db.C(LogsCollection).Insert(bson.M{
-		"lines": [][]interface{}{
-			{lineTime, lineMsg},
-		},
-	}))
-
-	log := Log{}
-	assert.NoError(t, db.C(LogsCollection).Find(bson.M{}).One(&log))
-	require.Len(t, log.Lines, 1)
-	assert.Equal(t, lineTime, log.Lines[0].Time)
-	assert.Equal(t, lineMsg, log.Lines[0].Msg)
+func newExpectedChunk(filename string, lines []string) expectedChunk {
+	return expectedChunk{
+		filename: filename,
+		body:     strings.Join(lines, ""),
+	}
 }
 
-func TestGetBSON(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(LogsCollection))
+func verifyDataStorage(t *testing.T, prefix string, expectedStorage expectedChunk) {
+	actualChunkStream, err := env.Bucket().Get(context.Background(), fmt.Sprintf("%s%s", prefix, expectedStorage.filename))
+	require.NoError(t, err)
 
-	db, closer := db.DB()
-	defer closer()
-
-	line := LogLine{Time: time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC), Msg: "the message"}
-	assert.NoError(t, (&Log{Lines: []LogLine{line}}).Insert())
-
-	log := Log{}
-	assert.NoError(t, db.C(LogsCollection).Find(bson.M{}).One(&log))
-	require.Len(t, log.Lines, 1)
-	assert.Equal(t, line.Time, log.Lines[0].Time)
-	assert.Equal(t, line.Msg, log.Lines[0].Msg)
+	actualChunkBody, err := io.ReadAll(actualChunkStream)
+	require.NoError(t, err)
+	assert.Equal(t, expectedStorage.body, string(actualChunkBody))
 }

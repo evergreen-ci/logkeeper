@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/evergreen-ci/logkeeper"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/storage"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -19,8 +20,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
 )
-
-const dbName = "buildlogs"
 
 func main() {
 	defer recovery.LogStackTraceAndExit("logkeeper.main")
@@ -42,11 +41,11 @@ func main() {
 
 	bucket, err := makeBucket(localPath)
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
+	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
-		Bucket:         bucket,
 	})
 	go logkeeper.BackgroundLogging(ctx)
 

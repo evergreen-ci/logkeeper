@@ -1,4 +1,4 @@
-package storage
+package model
 
 import (
 	"bufio"
@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/evergreen-ci/pail"
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
@@ -35,7 +35,6 @@ type LogIterator interface {
 //////////////////////
 
 type serializedIterator struct {
-	bucket               pail.Bucket
 	chunks               []LogChunkInfo
 	timeRange            TimeRange
 	reverse              bool
@@ -52,11 +51,10 @@ type serializedIterator struct {
 
 // NewSerializedLogIterator returns a LogIterator that serially fetches chunks
 // from blob storage while iterating over lines of a buildlogger log.
-func NewSerializedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
+func NewSerializedLogIterator(chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
 	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &serializedIterator{
-		bucket:    bucket,
 		chunks:    chunks,
 		timeRange: timeRange,
 		catcher:   grip.NewBasicCatcher(),
@@ -69,7 +67,6 @@ func (i *serializedIterator) Reverse() LogIterator {
 	reverseChunks(chunks)
 
 	return &serializedIterator{
-		bucket:    i.bucket,
 		chunks:    chunks,
 		timeRange: i.timeRange,
 		reverse:   !i.reverse,
@@ -92,7 +89,7 @@ func (i *serializedIterator) Next(ctx context.Context) bool {
 			}
 
 			var err error
-			i.currentReadCloser, err = i.bucket.Get(ctx, i.chunks[i.keyIndex].key())
+			i.currentReadCloser, err = env.Bucket().Get(ctx, i.chunks[i.keyIndex].key())
 			if err != nil {
 				i.catcher.Wrap(err, "downloading log artifact")
 				return false
@@ -135,7 +132,7 @@ func (i *serializedIterator) Next(ctx context.Context) bool {
 			i.catcher.Wrap(err, "parsing timestamp")
 			return false
 		}
-		item.Global = i.chunks[i.keyIndex].TestID != ""
+		item.Global = i.chunks[i.keyIndex].TestID == ""
 
 		i.lineCount++
 
@@ -182,7 +179,6 @@ func (i *serializedIterator) Stream(ctx context.Context) chan *LogLineItem {
 ///////////////////
 
 type batchedIterator struct {
-	bucket               pail.Bucket
 	batchSize            int
 	chunks               []LogChunkInfo
 	chunkIndex           int
@@ -202,11 +198,10 @@ type batchedIterator struct {
 // NewBatchedLog returns a LogIterator that fetches batches (size set by the
 // caller) of chunks from blob storage in parallel while iterating over lines
 // of a buildlogger log.
-func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize int, timeRange TimeRange) LogIterator {
+func NewBatchedLogIterator(chunks []LogChunkInfo, batchSize int, timeRange TimeRange) LogIterator {
 	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &batchedIterator{
-		bucket:    bucket,
 		batchSize: batchSize,
 		chunks:    chunks,
 		timeRange: timeRange,
@@ -217,11 +212,10 @@ func NewBatchedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, batchSize 
 // NewParallelizedLogIterator returns a LogIterator that fetches all chunks
 // from blob storage in parallel while iterating over lines of a buildlogger
 // log.
-func NewParallelizedLogIterator(bucket pail.Bucket, chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
+func NewParallelizedLogIterator(chunks []LogChunkInfo, timeRange TimeRange) LogIterator {
 	chunks = filterChunksByTimeRange(timeRange, chunks)
 
 	return &batchedIterator{
-		bucket:    bucket,
 		batchSize: len(chunks),
 		chunks:    chunks,
 		timeRange: timeRange,
@@ -235,7 +229,6 @@ func (i *batchedIterator) Reverse() LogIterator {
 	reverseChunks(chunks)
 
 	return &batchedIterator{
-		bucket:    i.bucket,
 		batchSize: i.batchSize,
 		chunks:    chunks,
 		timeRange: i.timeRange,
@@ -283,7 +276,7 @@ func (i *batchedIterator) getNextBatch(ctx context.Context) error {
 					return
 				}
 
-				r, err := i.bucket.Get(ctx, chunk.key())
+				r, err := env.Bucket().Get(ctx, chunk.key())
 				if err != nil {
 					catcher.Add(err)
 					return
@@ -357,6 +350,8 @@ func (i *batchedIterator) Next(ctx context.Context) bool {
 			i.catcher.Wrap(err, "parsing timestamp")
 			return false
 		}
+		item.Global = i.chunks[i.keyIndex].TestID == ""
+
 		i.lineCount++
 
 		if item.Timestamp.After(i.timeRange.EndAt) && !i.reverse {

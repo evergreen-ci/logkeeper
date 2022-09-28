@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/storage"
+	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/render"
 	"github.com/evergreen-ci/utility"
 	"github.com/gorilla/handlers"
@@ -53,9 +53,6 @@ type Options struct {
 
 	// Maximum Request Size
 	MaxRequestSize int
-
-	// Bucket stores data in offline storage.
-	Bucket storage.Bucket
 }
 
 type logKeeper struct {
@@ -94,9 +91,9 @@ type apiError struct {
 }
 
 type logFetchResponse struct {
-	logLines chan *storage.LogLineItem
-	build    *storage.Build
-	test     *storage.Test
+	logLines chan *model.LogLineItem
+	build    *model.Build
+	test     *model.Test
 }
 
 func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
@@ -139,20 +136,20 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := storage.NewBuildID(payload.Builder, payload.BuildNum)
+	id, err := model.NewBuildID(payload.Builder, payload.BuildNum)
 	if err != nil {
 		lk.logErrorf(r, "creating new build ID: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "creating new build ID"})
 		return
 	}
 
-	build := storage.Build{
+	build := model.Build{
 		ID:       id,
 		Builder:  payload.Builder,
 		BuildNum: payload.BuildNum,
 		TaskID:   payload.TaskID,
 	}
-	if err = lk.opts.Bucket.UploadBuildMetadata(r.Context(), build); err != nil {
+	if err = build.UploadMetadata(r.Context()); err != nil {
 		lk.logErrorf(r, "uploading build metadata: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
 		return
@@ -172,7 +169,6 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	buildID := mux.Vars(r)["build_id"]
-	testID := string(storage.NewTestID(time.Now()))
 
 	if err := lk.checkContentLength(r); err != nil {
 		lk.logErrorf(r, "content length limit exceeded for create test: %s", err.Err)
@@ -192,7 +188,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := lk.opts.Bucket.CheckMetadata(r.Context(), buildID, "")
+	exists, err := model.CheckBuildMetadata(r.Context(), buildID)
 	if err != nil {
 		lk.logErrorf(r, "checking metadata in build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
@@ -203,23 +199,23 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	test := storage.Test{
-		ID:      testID,
+	test := model.Test{
+		ID:      model.NewTestID(time.Now()),
 		Name:    payload.TestFilename,
 		BuildID: buildID,
 		TaskID:  payload.TaskID,
 		Phase:   payload.Phase,
 		Command: payload.Command,
 	}
-	if err = lk.opts.Bucket.UploadTestMetadata(r.Context(), test); err != nil {
+	if err = test.UploadTestMetadata(r.Context()); err != nil {
 		lk.logErrorf(r, "uploading test metadata for build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading test metadata"})
 		return
 	}
 
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{
-		ID:  testID,
-		URI: fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, buildID, testID),
+		ID:  test.ID,
+		URI: fmt.Sprintf("%s/build/%s/test/%s", lk.opts.URL, buildID, test.ID),
 	})
 }
 
@@ -238,7 +234,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := lk.opts.Bucket.CheckMetadata(r.Context(), buildID, "")
+	exists, err := model.CheckBuildMetadata(r.Context(), buildID)
 	if err != nil {
 		lk.logErrorf(r, "checking metadata in build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
@@ -249,7 +245,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var lines []storage.LogLineItem
+	var lines []model.LogLineItem
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
 		lk.logErrorf(r, "bad request to append log lines to build '%s': %s", buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
@@ -259,13 +255,8 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
-	chunks, err := storage.GroupLines(lines, maxLogBytes)
-	if err != nil {
-		lk.logErrorf(r, "unmarshalling log lines for build '%s': %v", buildID, err)
-		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
-		return
-	}
-	if err = lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, "", chunks); err != nil {
+
+	if err = model.InsertLogLines(r.Context(), buildID, "", lines, maxLogBytes); err != nil {
 		lk.logErrorf(r, "appending log lines to build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 		return
@@ -294,7 +285,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exists, err := lk.opts.Bucket.CheckMetadata(r.Context(), buildID, testID)
+	exists, err := model.CheckTestMetadata(r.Context(), buildID, testID)
 	if err != nil {
 		lk.logErrorf(r, "checking metadata of test '%s' for build '%s': %v", testID, buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding test"})
@@ -305,7 +296,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var lines []storage.LogLineItem
+	var lines []model.LogLineItem
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
 		lk.logErrorf(r, "bad request to append log to test '%s' for build '%s': %s", testID, buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
@@ -315,14 +306,8 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
-	chunks, err := storage.GroupLines(lines, maxLogBytes)
-	if err != nil {
-		lk.logErrorf(r, "unmarshalling log lines: %v", err)
-		lk.render.WriteJSON(w, http.StatusBadRequest, apiError{Err: err.Error()})
-		return
-	}
 
-	if err = lk.opts.Bucket.InsertLogChunks(r.Context(), buildID, testID, chunks); err != nil {
+	if err = model.InsertLogLines(r.Context(), buildID, testID, lines, maxLogBytes); err != nil {
 		lk.logErrorf(r, "appending log lines to test '%s' for build '%s': %v", testID, buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "appending log lines"})
 	}
@@ -345,8 +330,8 @@ func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	buildID := vars["build_id"]
 
 	var (
-		build    *storage.Build
-		tests    []storage.Test
+		build    *model.Build
+		tests    []model.Test
 		fetchErr *apiError
 	)
 	build, tests, fetchErr = lk.viewBucketBuild(r, buildID)
@@ -356,17 +341,17 @@ func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lk.render.WriteHTML(w, http.StatusOK, struct {
-		Build *storage.Build
-		Tests []storage.Test
+		Build *model.Build
+		Tests []model.Test
 	}{build, tests}, "base", "build.html")
 }
 
-func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*storage.Build, []storage.Test, *apiError) {
+func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
 	var (
 		wg       sync.WaitGroup
-		build    *storage.Build
+		build    *model.Build
 		buildErr error
-		tests    []storage.Test
+		tests    []model.Test
 		testsErr error
 	)
 
@@ -375,13 +360,13 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*storage.
 		defer recovery.LogStackTraceAndContinue("finding build from bucket")
 		defer wg.Done()
 
-		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+		build, buildErr = model.FindBuildByID(r.Context(), buildID)
 	}()
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
 		defer wg.Done()
 
-		tests, testsErr = lk.opts.Bucket.FindTestsForBuild(r.Context(), buildID)
+		tests, testsErr = model.FindTestsForBuild(r.Context(), buildID)
 	}()
 	wg.Wait()
 
@@ -435,7 +420,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		err := lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *storage.LogLineItem
+			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
 			TestId   string
@@ -488,7 +473,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		err := lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *storage.LogLineItem
+			LogLines chan *model.LogLineItem
 			BuildId  string
 			Builder  string
 			TestId   string
@@ -504,11 +489,11 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
 	var (
 		wg          sync.WaitGroup
-		build       *storage.Build
+		build       *model.Build
 		buildErr    error
-		test        *storage.Test
+		test        *model.Test
 		testErr     error
-		logLines    chan *storage.LogLineItem
+		logLines    chan *model.LogLineItem
 		logLinesErr error
 	)
 
@@ -517,7 +502,7 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		defer recovery.LogStackTraceAndContinue("finding build from bucket")
 		defer wg.Done()
 
-		build, buildErr = lk.opts.Bucket.FindBuildByID(r.Context(), buildID)
+		build, buildErr = model.FindBuildByID(r.Context(), buildID)
 	}()
 	go func() {
 		defer recovery.LogStackTraceAndContinue("finding test for build from bucket")
@@ -526,13 +511,13 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		if testID == "" {
 			return
 		}
-		test, testErr = lk.opts.Bucket.FindTestByID(r.Context(), buildID, testID)
+		test, testErr = model.FindTestByID(r.Context(), buildID, testID)
 	}()
 	go func() {
 		defer recovery.LogStackTraceAndContinue("downloading log lines from bucket")
 		defer wg.Done()
 
-		logLines, logLinesErr = lk.opts.Bucket.DownloadLogLines(r.Context(), buildID, testID)
+		logLines, logLinesErr = model.DownloadLogLines(r.Context(), buildID, testID)
 	}()
 	wg.Wait()
 

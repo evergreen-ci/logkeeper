@@ -1,14 +1,18 @@
-package storage
+package model
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/utility"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -51,12 +55,70 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// DownloadLogLines returns log lines for a given build ID and test ID. If the
+// test ID is empty, this will return all logs lines in the build.
+func DownloadLogLines(ctx context.Context, buildID string, testID string) (chan *LogLineItem, error) {
+	buildKeys, err := getBuildKeys(ctx, buildID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting keys for build '%s'", buildID)
+	}
+
+	if len(buildKeys) == 0 {
+		return nil, errors.Errorf("no keys found for build '%s", buildID)
+	}
+
+	buildChunks, testChunks, err := parseLogChunks(buildKeys)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing log chunks from keys for build '%s'", buildID)
+	}
+	testChunks = filterLogChunksByTestID(testChunks, testID)
+
+	testIDs, err := parseTestIDs(buildKeys)
+	if err != nil {
+		return nil, errors.Wrapf(err, "parsing test IDs from keys for build '%s'", buildID)
+	}
+	tr, err := testExecutionWindow(testIDs, testID)
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting execution window for test '%s'", testID)
+	}
+
+	// Tests should never be filtered by a time range other than AllTime
+	// since we always want to capture all the lines of either a single
+	// test or all tests.
+	return NewMergingIterator(NewBatchedLogIterator(testChunks, 4, AllTime), NewBatchedLogIterator(buildChunks, 4, tr)).Stream(ctx), nil
+}
+
+func (item *LogLineItem) Color() string {
+	found := colorRegex.FindStringSubmatch(item.Data)
+	if len(found) > 0 {
+		return found[0]
+	} else {
+		return ""
+	}
+}
+
+func (item *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
+	if previousItem == nil {
+		return true
+	}
+
+	if previousLogLine, ok := previousItem.(*LogLineItem); ok {
+		diff := item.Timestamp.Sub(previousLogLine.Timestamp)
+		if diff > 1*time.Second {
+			return true
+		} else {
+			return false
+		}
+	}
+	return true
+}
+
 // LogChunk is a grouping of lines.
 type LogChunk []LogLineItem
 
-// GroupLines breaks up a slice of LogLineItems into chunks. The sum of the sizes of lines' Data in each chunk is
+// groupLines breaks up a slice of LogLineItems into chunks. The sum of the sizes of lines' Data in each chunk is
 // less than or equal to maxSize.
-func GroupLines(lines []LogLineItem, maxSize int) ([]LogChunk, error) {
+func groupLines(lines []LogLineItem, maxSize int) ([]LogChunk, error) {
 	var chunks []LogChunk
 	var currentChunk LogChunk
 
@@ -83,29 +145,46 @@ func GroupLines(lines []LogLineItem, maxSize int) ([]LogChunk, error) {
 	return chunks, nil
 }
 
-func (item *LogLineItem) Color() string {
-	found := colorRegex.FindStringSubmatch(item.Data)
-	if len(found) > 0 {
-		return found[0]
-	} else {
-		return ""
-	}
-}
-
-func (item *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
-	if previousItem == nil {
-		return true
+// InsertLogLines uploads log lines for a given build or test to the
+// pail-backed offline storage. If the test ID is not empty, the logs are
+// appended to the test for the given build, otherwise the logs are appended to
+// the top-level build. A build ID is required in both cases.
+func InsertLogLines(ctx context.Context, buildID string, testID string, lines []LogLineItem, maxSize int) error {
+	if len(lines) == 0 {
+		return nil
 	}
 
-	if previousLogLine, ok := previousItem.(*LogLineItem); ok {
-		diff := item.Timestamp.Sub(previousLogLine.Timestamp)
-		if diff > 1*time.Second {
-			return true
-		} else {
-			return false
+	chunks, err := groupLines(lines, maxSize)
+	if err != nil {
+		return errors.Errorf("grouping lines for build '%s' test '%s'", buildID, testID)
+	}
+
+	for _, chunk := range chunks {
+		logChunkInfo := LogChunkInfo{}
+		if err := logChunkInfo.fromLogChunk(buildID, testID, chunk); err != nil {
+			return errors.Wrap(err, "parsing log chunk info")
+		}
+
+		var buffer bytes.Buffer
+		numLines := 0
+		for _, line := range chunk {
+			// We are sometimes passed in a single log line that is
+			// actually multiple lines, so we parse it into
+			// separate lines and keep track of the count to make
+			// sure we know the current number of lines.
+			for _, parsedLine := range makeLogLineStrings(line) {
+				buffer.WriteString(parsedLine)
+				numLines += 1
+			}
+		}
+		logChunkInfo.NumLines = numLines
+
+		if err := env.Bucket().Put(ctx, logChunkInfo.key(), &buffer); err != nil {
+			return errors.Wrap(err, "uploading log chunk")
 		}
 	}
-	return true
+
+	return nil
 }
 
 // LogChunkInfo describes a chunk of log lines stored in pail-backed offline
@@ -202,6 +281,54 @@ func parseLogLineString(data string) (LogLineItem, error) {
 		// expect newlines to be included in the LogLineItem.
 		Data: strings.TrimRight(data[23:], "\n"),
 	}, nil
+}
+
+// parseLogChunks parses build and test log chunks from the buildKeys that correspond to log chunks
+// and sorts them by start time.
+func parseLogChunks(buildKeys []string) ([]LogChunkInfo, []LogChunkInfo, error) {
+	var buildChunks, testChunks []LogChunkInfo
+	for _, key := range buildKeys {
+		if strings.HasSuffix(key, metadataFilename) {
+			continue
+		}
+
+		var info LogChunkInfo
+		if err := info.fromKey(key); err != nil {
+			return nil, nil, errors.Wrap(err, "getting log chunk info from key name")
+		}
+		if info.TestID != "" {
+			testChunks = append(testChunks, info)
+		} else {
+			buildChunks = append(buildChunks, info)
+		}
+	}
+
+	sortLogChunksByStartTime(buildChunks)
+	sortLogChunksByStartTime(testChunks)
+
+	return buildChunks, testChunks, nil
+}
+
+// filterLogChunksByTestID returns the resulting slice of log chunks after
+// filtering for chunks with the given test ID.
+func filterLogChunksByTestID(chunks []LogChunkInfo, testID string) []LogChunkInfo {
+	if testID == "" {
+		return chunks
+	}
+
+	var filteredChunks []LogChunkInfo
+	for _, chunk := range chunks {
+		if chunk.TestID == testID {
+			filteredChunks = append(filteredChunks, chunk)
+		}
+	}
+	return filteredChunks
+}
+
+func sortLogChunksByStartTime(chunks []LogChunkInfo) {
+	sort.Slice(chunks, func(i, j int) bool {
+		return chunks[i].Start.Before(chunks[j].Start)
+	})
 }
 
 func makeLogLineStrings(logLine LogLineItem) []string {
