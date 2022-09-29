@@ -202,7 +202,7 @@ func testExecutionWindow(allTestIDs []string, testID string) (TimeRange, error) 
 	var found bool
 	var testIndex int
 	for i, id := range allTestIDs {
-		if string(id) == testID {
+		if id == testID {
 			found = true
 			testIndex = i
 		}
