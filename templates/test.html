@@ -55,17 +55,19 @@
   <body>
     <div>
       <h3>
-        {{.TestName}} on <a href ="/build/{{.BuildId}}">{{.Builder}}</a>
-        <a href ="https://evergreen.mongodb.com/task/{{.TaskID}}"> {{.TaskID}} </a>
+        {{.TestName}} on <a href ="/build/{{.BuildID}}">{{.Builder}}</a>
+        {{ if .TaskID }}
+          <a href ="https://evergreen.mongodb.com/task/{{.TaskID}}"> {{.TaskID}} </a>
+        {{ end }}
       </h3>
     </div>
     <div>
-  	  {{ if .TestId }}
-        <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
-        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildId}}/test/{{.TestId}}">Lobster Log Viewer</a>
+      {{ if .TestID }}
+        <a href ="/build/{{.BuildID}}/test/{{.TestID}}?raw=1">Plain Text</a>
+        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildID}}/test/{{.TestID}}">Lobster Log Viewer</a>
   	  {{ else }}
-        <a href ="/build/{{.BuildId}}/all?raw=1">Plain Text</a>
-        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildId}}/all">Lobster Log Viewer</a>
+        <a href ="/build/{{.BuildID}}/all?raw=1">Plain Text</a>
+        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildID}}/all">Lobster Log Viewer</a>
   	  {{ end }}
     </div>
     <table>
