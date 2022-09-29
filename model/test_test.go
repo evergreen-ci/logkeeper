@@ -217,7 +217,7 @@ func TestTestExecutionWindow(t *testing.T) {
 		allTestIDs := []string{
 			NewTestID(startTime),
 		}
-		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		tr, err := testExecutionWindow(allTestIDs, allTestIDs[0])
 		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 1000000, time.UTC)))
 		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
