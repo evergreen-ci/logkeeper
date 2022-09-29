@@ -15,7 +15,7 @@ import (
 )
 
 func TestNewTestID(t *testing.T) {
-	assert.True(t, strings.HasPrefix(string(NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC))), "1174efedab186000"))
+	assert.True(t, strings.HasPrefix(NewTestID(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)), "1174efedab186000"))
 }
 
 func TestTestID(t *testing.T) {
@@ -194,7 +194,7 @@ func TestTestExecutionWindow(t *testing.T) {
 		allTestIDs := []string{
 			NewTestID(startTime),
 		}
-		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		tr, err := testExecutionWindow(allTestIDs, allTestIDs[0])
 		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(startTime))
 		assert.True(t, tr.EndAt.Equal(TimeRangeMax))
@@ -206,7 +206,7 @@ func TestTestExecutionWindow(t *testing.T) {
 			NewTestID(startTime),
 			NewTestID(startTime.Add(time.Hour)),
 		}
-		tr, err := testExecutionWindow(allTestIDs, string(allTestIDs[0]))
+		tr, err := testExecutionWindow(allTestIDs, allTestIDs[0])
 		assert.NoError(t, err)
 		assert.True(t, tr.StartAt.Equal(startTime))
 		assert.True(t, tr.EndAt.Equal(startTime.Add(time.Hour)))
