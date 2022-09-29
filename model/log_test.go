@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
 	"strings"
 	"testing"
 	"time"
@@ -370,7 +369,7 @@ func TestInsertLogLines(t *testing.T) {
 
 	t.Run("Global", func(t *testing.T) {
 		defer testutil.SetBucket(t, "nolines")()
-		require.NoError(t, InsertLogLines(ctx, buildID, "", globalLines, math.MaxInt))
+		require.NoError(t, InsertLogLines(ctx, buildID, "", globalLines, 4*1024*1024))
 		verifyDataStorage(t, fmt.Sprintf("/builds/%s/", buildID), expectedStorage)
 
 		logsChannel, err := DownloadLogLines(ctx, buildID, "")
@@ -389,7 +388,7 @@ func TestInsertLogLines(t *testing.T) {
 			ID:      testID,
 			BuildID: "5a75f537726934e4b62833ab6d5dca41",
 		}).UploadTestMetadata(ctx))
-		require.NoError(t, InsertLogLines(context.Background(), buildID, testID, testLines, math.MaxInt))
+		require.NoError(t, InsertLogLines(context.Background(), buildID, testID, testLines, 4*1024*1024))
 
 		verifyDataStorage(t, fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID), expectedStorage)
 
