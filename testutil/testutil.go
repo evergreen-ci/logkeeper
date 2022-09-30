@@ -12,8 +12,8 @@ import (
 
 // SetBucket sets the bucket in the environment to a local pail bucket
 // backed by a temporary directory.
-// If initDir is not the empty string the contents of initDir are copied into the local bucket.
-// If an error is encounter it will fail the test.
+// If initDir is not empty, the contents of the directory with the given path are copied to the local bucket.
+// If an error is encountered it will fail the test.
 func SetBucket(t *testing.T, initDir string) func() {
 	originalBucket := env.Bucket()
 

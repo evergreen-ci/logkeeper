@@ -18,7 +18,7 @@ func init() {
 	globalEnv = &environment{}
 }
 
-// SetBucket caches a storage Bucket to be available from the environment.
+// SetBucket caches a storage bucket to be available from the environment.
 func SetBucket(b *storage.Bucket) error {
 	if b == nil {
 		return errors.New("cannot set a nil bucket")
