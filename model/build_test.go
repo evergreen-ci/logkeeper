@@ -2,135 +2,14 @@ package model
 
 import (
 	"context"
+	"io"
 	"testing"
-	"time"
 
+	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func TestFindBuildByBuilder(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(BuildsCollection))
-
-	b0 := Build{
-		Id:       "b0",
-		Builder:  "builder0",
-		BuildNum: 0,
-	}
-	require.NoError(t, b0.Insert())
-
-	b1 := Build{
-		Id:       "b1",
-		Builder:  "builder1",
-		BuildNum: 0,
-	}
-	require.NoError(t, b1.Insert())
-
-	b, err := FindBuildByBuilder(b0.Builder, b0.BuildNum)
-	assert.NoError(t, err)
-	assert.Equal(t, b0.Id, b.Id)
-}
-
-func TestFindBuildById(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(BuildsCollection))
-
-	b0 := Build{Id: "b0"}
-	require.NoError(t, b0.Insert())
-
-	b1 := Build{Id: "b1"}
-	require.NoError(t, b1.Insert())
-
-	b, err := FindBuildById(b0.Id)
-	assert.NoError(t, err)
-	assert.Equal(t, b0.Id, b.Id)
-}
-
-func TestUpdateFailedBuild(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(BuildsCollection))
-
-	buildID := "b0"
-	assert.NoError(t, (&Build{Id: buildID}).Insert())
-	assert.NoError(t, UpdateFailedBuild(buildID))
-
-	b, err := FindBuildById(buildID)
-	assert.NoError(t, err)
-	assert.Equal(t, buildID, b.Id)
-	assert.True(t, b.Failed)
-}
-
-func TestIncrementBuildSequence(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(BuildsCollection))
-
-	buildID := "b0"
-	b := &Build{Id: buildID, Seq: 1}
-	require.NoError(t, b.Insert())
-
-	assert.NoError(t, b.IncrementSequence(1))
-	assert.Equal(t, 2, b.Seq)
-
-	b, err := FindBuildById(buildID)
-	assert.NoError(t, err)
-	assert.Equal(t, b.Seq, 2)
-}
-
-func TestStreamingGetOldBuilds(t *testing.T) {
-	require.NoError(t, testutil.InitDB())
-	require.NoError(t, testutil.ClearCollections(BuildsCollection))
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	oldBuild := Build{
-		Id:      "old_build",
-		Started: time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC),
-		Info:    BuildInfo{TaskID: "t0"},
-	}
-	require.NoError(t, oldBuild.Insert())
-	newBuild := Build{
-		Id:      "new_build",
-		Started: time.Now(),
-		Info:    BuildInfo{TaskID: "t0"},
-	}
-	require.NoError(t, newBuild.Insert())
-	failedBuild := Build{
-		Id:      "failed_build",
-		Started: time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC),
-		Info:    BuildInfo{TaskID: "t0"},
-		Failed:  true,
-	}
-	require.NoError(t, failedBuild.Insert())
-
-	buildsChan, errChan := StreamingGetOldBuilds(ctx)
-	require.Never(t, func() bool {
-		select {
-		case <-errChan:
-			return true
-		default:
-			return false
-		}
-	}, time.Second, 10*time.Millisecond)
-
-	var builds []Build
-	require.Eventually(t, func() bool {
-		select {
-		case b, ok := <-buildsChan:
-			if !ok {
-				return true
-			}
-			builds = append(builds, b)
-			return false
-		default:
-			return false
-		}
-	}, time.Second, 10*time.Millisecond)
-	require.Len(t, builds, 1)
-	assert.Equal(t, oldBuild.Id, builds[0].Id)
-}
 
 func TestNewBuildID(t *testing.T) {
 	result, err := NewBuildID("A", 123)
@@ -152,4 +31,85 @@ func TestNewBuildID(t *testing.T) {
 	result, err = NewBuildID("100", 10)
 	require.NoError(t, err)
 	assert.Equal(t, "b2f7b29a7f76e38abe38fc8145c0cf98", result)
+}
+
+func TestUploadBuildMetadata(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer testutil.SetBucket(t, "")()
+	build := Build{
+		ID:       "5a75f537726934e4b62833ab6d5dca41",
+		Builder:  "builder0",
+		BuildNum: 1,
+		TaskID:   "t0",
+	}
+	expectedData, err := build.toJSON()
+	require.NoError(t, err)
+	require.NoError(t, build.UploadMetadata(ctx))
+
+	r, err := env.Bucket().Get(ctx, "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
+	require.NoError(t, err)
+	defer r.Close()
+	data, err := io.ReadAll(r)
+	require.NoError(t, err)
+	assert.Equal(t, expectedData, data)
+}
+
+func TestBuildKey(t *testing.T) {
+	build := Build{
+		ID:       "b0",
+		Builder:  "builder0",
+		BuildNum: 1,
+		TaskID:   "t0",
+	}
+	assert.Equal(t, "builds/b0/metadata.json", build.key())
+}
+
+func TestBuildToJSON(t *testing.T) {
+	build := Build{
+		ID:       "b0",
+		Builder:  "builder0",
+		BuildNum: 1,
+		TaskID:   "t0",
+	}
+	data, err := build.toJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"id":"b0","builder":"builder0","buildnum":1,"task_id":"t0"}`, string(data))
+}
+
+func TestCheckBuildMetadata(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	defer testutil.SetBucket(t, "../testdata/simple")()
+
+	t.Run("ServerError", func(t *testing.T) {
+		exists, err := CheckBuildMetadata(ctx, "5a75f537726934e4b62833ab6d5dca41")
+		require.Error(t, err)
+		assert.False(t, exists)
+	})
+}
+
+func TestFindBuildByID(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	defer testutil.SetBucket(t, "../testdata/simple")()
+	t.Run("Exists", func(t *testing.T) {
+		expected := &Build{
+			ID:       "5a75f537726934e4b62833ab6d5dca41",
+			Builder:  "MCI_enterprise-rhel_job0",
+			BuildNum: 157865445,
+			TaskID:   "mongodb_mongo_master_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
+		}
+		actual, err := FindBuildByID(ctx, "5a75f537726934e4b62833ab6d5dca41")
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+	t.Run("DNE", func(t *testing.T) {
+		build, err := FindBuildByID(ctx, "DNE")
+		require.NoError(t, err)
+		assert.Nil(t, build)
+	})
 }

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -15,26 +14,17 @@ import (
 	"github.com/evergreen-ci/logkeeper"
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/storage"
-	"github.com/evergreen-ci/logkeeper/units"
-	"github.com/mongodb/amboy/pool"
-	"github.com/mongodb/amboy/queue"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"github.com/urfave/negroni"
-	"gopkg.in/mgo.v2"
 )
-
-const dbName = "buildlogs"
 
 func main() {
 	defer recovery.LogStackTraceAndExit("logkeeper.main")
 
 	httpPort := flag.Int("port", 8080, "port to listen on for HTTP.")
-	dbHost := flag.String("dbhost", "localhost:27017", "host/port to connect to DB server. Comma separated.")
-	rsName := flag.String("rsName", "", "name of replica set that the DB instances belong to. "+
-		"Leave empty for stand-alone and mongos instances.")
 	localPath := flag.String("localPath", "", "local path to save data to. Omit to save data to S3.")
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
@@ -47,39 +37,16 @@ func main() {
 	sender, err := logkeeper.GetSender(ctx, *logPath)
 	grip.EmergencyFatal(err)
 	defer sender.Close()
-
 	grip.EmergencyFatal(grip.SetSender(sender))
-
-	dialInfo := mgo.DialInfo{
-		Addrs: strings.Split(*dbHost, ","),
-	}
-
-	if *rsName != "" {
-		dialInfo.ReplicaSetName = *rsName
-	}
-
-	session, err := mgo.DialWithInfo(&dialInfo)
-	grip.EmergencyFatal(err)
-	grip.EmergencyFatal(env.SetSession(session))
-
-	cleanupQueue := queue.NewLocalLimitedSize(logkeeper.AmboyWorkers, logkeeper.QueueSizeCap)
-	runner, err := pool.NewMovingAverageRateLimitedWorkers(logkeeper.AmboyWorkers, logkeeper.AmboyTargetNumJobs, logkeeper.AmboyInterval, cleanupQueue)
-	grip.EmergencyFatal(errors.Wrap(err, "problem constructing worker pool"))
-	grip.EmergencyFatal(cleanupQueue.SetRunner(runner))
-	grip.EmergencyFatal(cleanupQueue.Start(ctx))
-	grip.EmergencyFatal(env.SetCleanupQueue(cleanupQueue))
-
-	grip.EmergencyFatal(units.StartCrons(ctx, cleanupQueue))
 
 	bucket, err := makeBucket(localPath)
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
+	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
 
 	lk := logkeeper.New(logkeeper.Options{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
-		Bucket:         bucket,
 	})
-	env.SetDBName(dbName)
 	go logkeeper.BackgroundLogging(ctx)
 
 	catcher := grip.NewCatcher()

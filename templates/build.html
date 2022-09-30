@@ -4,19 +4,17 @@
     <div>
         <h2>
           {{.Build.Builder}} - {{.Build.BuildNum}}       
-          {{if .Build.Info}}
-            {{if .Build.Info.TaskID}}
-              (<a href="https://evergreen.mongodb.com/task/{{.Build.Info.TaskID}}"> {{.Build.Info.TaskID}}</a>) 
-            {{end}}
+          {{if .Build.TaskID}}
+            (<a href="https://evergreen.mongodb.com/task/{{.Build.TaskID}}"> {{.Build.TaskID}}</a>)
           {{end}}
         </h2>
-      <h3><a href="https://evergreen.mongodb.com/lobster/build/{{.Build.Id}}/all">Complete logs for all</a></h3>
+      <h3><a href="https://evergreen.mongodb.com/lobster/build/{{.Build.ID}}/all">Complete logs for all</a></h3>
 
     </div>
     <ul>
       {{$build := .Build}}
       {{range .Tests}}
-        <li><a href="https://evergreen.mongodb.com/lobster/build/{{$build.Id}}/test/{{.Id}}/">{{.Name}}</a></li>
+        <li><a href="https://evergreen.mongodb.com/lobster/build/{{$build.ID}}/test/{{.ID}}/">{{.Name}}</a></li>
       {{end}}
     </ul>
   </body>

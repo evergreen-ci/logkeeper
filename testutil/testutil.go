@@ -1,49 +1,40 @@
 package testutil
 
 import (
-	"time"
+	"context"
+	"testing"
 
-	"github.com/evergreen-ci/logkeeper/db"
 	"github.com/evergreen-ci/logkeeper/env"
-	"github.com/pkg/errors"
-	"gopkg.in/mgo.v2"
-	"gopkg.in/mgo.v2/bson"
+	"github.com/evergreen-ci/logkeeper/storage"
+	"github.com/evergreen-ci/pail"
+	"github.com/stretchr/testify/require"
 )
 
-const testDBName = "logkeeper_test"
+// SetBucket sets the bucket in the environment to a local pail bucket
+// backed by a temporary directory.
+// If initDir is not empty, the contents of the directory with the given path are copied to the local bucket.
+// If an error is encountered it will fail the test.
+func SetBucket(t *testing.T, initDir string) func() {
+	originalBucket := env.Bucket()
 
-func InitDB() error {
-	connInfo := mgo.DialInfo{
-		Addrs:   []string{"localhost"},
-		Timeout: 5 * time.Second,
+	bucket, err := storage.NewBucket(storage.BucketOpts{
+		Location: storage.PailLocal,
+		Path:     t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	if initDir != "" {
+		err = bucket.Push(context.Background(), pail.SyncOptions{
+			Local:  initDir,
+			Remote: "/",
+		})
+		require.NoError(t, err)
 	}
-	session, err := mgo.DialWithInfo(&connInfo)
-	if err != nil {
-		return errors.Wrap(err, "can't connect to the db")
-	}
+	require.NoError(t, env.SetBucket(&bucket))
 
-	if err = env.SetSession(session); err != nil {
-		return errors.Wrap(err, "setting session")
-	}
-
-	env.SetDBName("logkeeper_test")
-	return nil
-}
-
-// ClearCollections clears all documents from all the specified collections,
-// returning an error immediately if clearing any one of them fails.
-func ClearCollections(collections ...string) error {
-	if env.DBName() != testDBName {
-		return errors.New("ClearCollections should only be used against the test database")
-	}
-	db, closer := db.DB()
-	defer closer()
-
-	for _, collection := range collections {
-		_, err := db.C(collection).RemoveAll(bson.M{})
-		if err != nil {
-			return errors.Wrapf(err, "clearing collection '%s'", collection)
+	return func() {
+		if originalBucket != nil {
+			require.NoError(t, env.SetBucket(originalBucket))
 		}
 	}
-	return nil
 }

@@ -55,21 +55,19 @@
   <body>
     <div>
       <h3>
-        {{.TestName}} on <a href ="/build/{{.BuildId}}">{{.Builder}}</a>
-        {{ if .Info }}
-          {{ if .Info.TaskID }}
-            (<a href ="https://evergreen.mongodb.com/task/{{.Info.TaskID}}"> {{.Info.TaskID}} </a>)
-          {{ end }}
+        {{.TestName}} on <a href ="/build/{{.BuildID}}">{{.Builder}}</a>
+        {{ if .TaskID }}
+          <a href ="https://evergreen.mongodb.com/task/{{.TaskID}}"> {{.TaskID}} </a>
         {{ end }}
       </h3>
     </div>
     <div>
-  	  {{ if .TestId }}
-        <a href ="/build/{{.BuildId}}/test/{{.TestId}}?raw=1">Plain Text</a>
-        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildId}}/test/{{.TestId}}">Lobster Log Viewer</a>
+      {{ if .TestID }}
+        <a href ="/build/{{.BuildID}}/test/{{.TestID}}?raw=1">Plain Text</a>
+        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildID}}/test/{{.TestID}}">Lobster Log Viewer</a>
   	  {{ else }}
-        <a href ="/build/{{.BuildId}}/all?raw=1">Plain Text</a>
-        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildId}}/all">Lobster Log Viewer</a>
+        <a href ="/build/{{.BuildID}}/all?raw=1">Plain Text</a>
+        <a href ="https://evergreen.mongodb.com/lobster/build/{{.BuildID}}/all">Lobster Log Viewer</a>
   	  {{ end }}
     </div>
     <table>
@@ -77,7 +75,7 @@
 	  {{ $colorSet := ColorSet }}
 	  {{ $lastLine := MutableVar }}
 	  {{ $lastLine.Set nil }}
-	  {{range $index, $line := .LogLines}}{{$color := .Color}}<tr><td id="L{{$index}}" class="line-num" data-line-number="{{$index}}"></td><td class="time">{{ if $line.OlderThanThreshold $lastLine.Get}} {{DateFormat $line.Timestamp "2006-01-02 15:04:05 -0700"}}{{end}}</td><td class="log {{if $line.Global}}global{{else}} {{$colorSet.GetColor $color}}{{end}}"><pre id="line-{{$index}}">{{.Data}}</pre></td></tr>{{ $lastLine.Set . }}{{end}}
+	  {{range $index, $line := .LogLines}}{{$logger := .LoggerName}}<tr><td id="L{{$index}}" class="line-num" data-line-number="{{$index}}"></td><td class="time">{{ if $line.OneSecondNewer $lastLine.Get}} {{DateFormat $line.Timestamp "2006-01-02 15:04:05 -0700"}}{{end}}</td><td class="log {{if $line.Global}}global{{else}} {{$colorSet.GetColor $logger}}{{end}}"><pre id="line-{{$index}}">{{.Data}}</pre></td></tr>{{ $lastLine.Set . }}{{end}}
   </tbody>
     </table>
     <style>

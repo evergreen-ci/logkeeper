@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 )
@@ -23,14 +22,6 @@ func BackgroundLogging(ctx context.Context) {
 		case <-ticker.C:
 			grip.Info(message.CollectSystemInfo())
 			grip.Info(message.CollectBasicGoStats())
-
-			if IsLeader() {
-				grip.Info(message.Fields{
-					"message": "amboy queue stats",
-					"stats":   env.CleanupQueue().Stats(ctx),
-				})
-			}
-
 		}
 	}
 }

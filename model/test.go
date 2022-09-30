@@ -1,72 +1,152 @@
 package model
 
 import (
+	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/hex"
-	"reflect"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
+	"sync"
 	"time"
 
-	"github.com/evergreen-ci/logkeeper/db"
+	"github.com/evergreen-ci/logkeeper/env"
+	"github.com/evergreen-ci/pail"
+	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
-	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
-const (
-	// TestsCollection is the name of the tests collection in the database.
-	TestsCollection = "tests"
-)
-
-// Test contains metadata about a test's logs.
+// Test describes metadata of a test stored in pail-backed offline storage.
 type Test struct {
-	Id        TestID     `bson:"_id"`
-	BuildId   string     `bson:"build_id"`
-	BuildName string     `bson:"build_name"`
-	Name      string     `bson:"name"`
-	Command   string     `bson:"command"`
-	Started   time.Time  `bson:"started"`
-	Ended     *time.Time `bson:"ended"`
-	Info      TestInfo   `bson:"info"`
-	Failed    bool       `bson:"failed,omitempty"`
-	Phase     string     `bson:"phase"`
-	Seq       int        `bson:"seq"`
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	BuildID string `json:"build_id"`
+	TaskID  string `json:"task_id"`
+	Phase   string `json:"phase"`
+	Command string `json:"command"`
 }
-
-// TestInfo contains additional metadata about a test.
-type TestInfo struct {
-	// TaskID is the ID of the task in Evergreen that generated this test.
-	TaskID string `bson:"task_id"`
-}
-
-type TestID string
 
 // NewTestID returns a new TestID with it's timestamp set to startTime.
 // The ID is an ObjectID with its timestamp replaced with a nanosecond
 // timestamp. It is represented as a hex string of 16 bytes. The first 8 bytes
 // are the timestamp and replace the first 4 bytes of an ObjectID. The
 // remaining 8 bytes are the rest of the ObjectID.
-func NewTestID(startTime time.Time) TestID {
+func NewTestID(startTime time.Time) string {
 	objectID := bson.NewObjectId()
 	buf := make([]byte, 8)
 	binary.BigEndian.PutUint64(buf, uint64(startTime.UnixNano()))
 	buf = append(buf, []byte(objectID)[4:]...)
 
-	return TestID(hex.EncodeToString(buf))
+	return hex.EncodeToString(buf)
 }
 
-// Timestamp returns the timestamp encoded in the TestID. If the TestID is
-// wrapping a legacy ObjectID then the timestamp will have second precision,
+func (t *Test) key() string {
+	return metadataKeyForTest(t.BuildID, t.ID)
+}
+
+func (t *Test) toJSON() ([]byte, error) {
+	data, err := json.Marshal(t)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshalling test metadata")
+	}
+
+	return data, nil
+}
+
+// UploadTestMetadata uploads metadata for a new test to the pail-backed
+// offline storage.
+func (t *Test) UploadTestMetadata(ctx context.Context) error {
+	data, err := t.toJSON()
+	if err != nil {
+		return nil
+	}
+
+	return errors.Wrapf(env.Bucket().Put(ctx, t.key(), bytes.NewReader(data)), "uploading metadata for test '%s'", t.ID)
+}
+
+// FindTestByID returns the test metadata for the given build ID and test ID
+// from the pail-backed offline storage.
+func FindTestByID(ctx context.Context, buildID string, testID string) (*Test, error) {
+	reader, err := env.Bucket().Get(ctx, metadataKeyForTest(buildID, testID))
+	if pail.IsKeyNotFoundError(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, errors.Wrapf(err, "getting test metadata for build '%s' and test '%s'", buildID, testID)
+	}
+
+	test := &Test{}
+	if err = json.NewDecoder(reader).Decode(test); err != nil {
+		return nil, errors.Wrapf(err, "parsing test metadata for build '%s' and test '%s'", buildID, testID)
+	}
+
+	return test, nil
+}
+
+// CheckBuildMetadata returns whether the metadata file exists for the given test.
+func CheckTestMetadata(ctx context.Context, buildID string, testID string) (bool, error) {
+	return checkMetadata(ctx, buildID, testID)
+}
+
+// FindTestsForBuild returns all of the test metadata for the given build ID
+// from the pail-backed offline storage.
+func FindTestsForBuild(ctx context.Context, buildID string) ([]Test, error) {
+	iterator, err := env.Bucket().List(ctx, buildTestsPrefix(buildID))
+	if err != nil {
+		return nil, errors.Wrapf(err, "listing test keys for build '%s'", buildID)
+	}
+
+	testIDs := []string{}
+	for iterator.Next(ctx) {
+		if !strings.HasSuffix(iterator.Item().Name(), metadataFilename) {
+			continue
+		}
+
+		testID, err := testIDFromKey(iterator.Item().Name())
+		if err != nil {
+			return nil, errors.Wrapf(err, "parsing test metadata key for build '%s'", buildID)
+		}
+		testIDs = append(testIDs, testID)
+	}
+
+	var wg sync.WaitGroup
+	catcher := grip.NewBasicCatcher()
+	tests := make([]Test, len(testIDs))
+	for i, id := range testIDs {
+		wg.Add(1)
+		go func(testID string, idx int) {
+			defer recovery.LogStackTraceAndContinue("finding test metadata for build from bucket")
+			defer wg.Done()
+
+			test, err := FindTestByID(ctx, buildID, testID)
+			if err != nil {
+				catcher.Add(err)
+				return
+			}
+			tests[idx] = *test
+		}(id, i)
+	}
+	wg.Wait()
+
+	if catcher.HasErrors() {
+		return nil, catcher.Resolve()
+	}
+	return tests, nil
+}
+
+// testIDTimestamp returns the timestamp encoded in the ID.
+// If the ID is a legacy ObjectID then the timestamp will have second precision,
 // otherwise it will have nanosecond precision.
-func (t *TestID) Timestamp() time.Time {
-	if t == nil {
-		return time.Time{}
+func testIDTimestamp(id string) time.Time {
+	if bson.IsObjectIdHex(id) {
+		return bson.ObjectIdHex(id).Time()
 	}
 
-	if bson.IsObjectIdHex(string(*t)) {
-		return bson.ObjectIdHex(string(*t)).Time()
-	}
-
-	bytes, err := hex.DecodeString(string(*t))
+	bytes, err := hex.DecodeString(id)
 	if err != nil {
 		return time.Time{}
 	}
@@ -75,179 +155,87 @@ func (t *TestID) Timestamp() time.Time {
 	return time.Unix(0, int64(nSecs))
 }
 
-// GetBSON implements the bson.Getter interface.
-// When a TestID is marshalled to BSON the driver will marshal the output
-// of this function instead of the struct.
-func (t TestID) GetBSON() (interface{}, error) {
-	if bson.IsObjectIdHex((string(t))) {
-		return bson.ObjectIdHex(string(t)), nil
+// parseTestIDs parses test IDs from the buildKeys that correspond to test metadata files
+// and sorts them by creation time.
+func parseTestIDs(buildKeys []string) ([]string, error) {
+	var testIDs []string
+	for _, key := range buildKeys {
+		if !strings.HasSuffix(key, metadataFilename) {
+			continue
+		}
+		if !strings.Contains(key, "/tests/") {
+			continue
+		}
+		testID, err := testIDFromKey(key)
+		if err != nil {
+			return nil, errors.Wrap(err, "getting test ID from metadata key")
+		}
+		testIDs = append(testIDs, testID)
 	}
 
-	return string(t), nil
+	sort.Slice(testIDs, func(i, j int) bool {
+		return testIDTimestamp(testIDs[i]).Before(testIDTimestamp(testIDs[j]))
+	})
+
+	return testIDs, nil
 }
 
-// SetBSON implements the bson.Setter interface.
-// When a TestID is unmarshalled from BSON the driver will call this function to
-// unmarshal into the TestID.
-func (t *TestID) SetBSON(raw bson.Raw) error {
-	var id interface{}
-	if err := raw.Unmarshal(&id); err != nil {
-		return &bson.TypeError{
-			Kind: raw.Kind,
-			Type: reflect.TypeOf(t),
+// testExecutionWindow returns the time range from the creation of this test to
+// the creation of the next test. If the given test ID is empty, the returned
+// time range is unbounded. If there is no subsequent test then the end time is
+// TimeRangeMax.
+//
+// Tests are expected to be run and, thus, logged sequentially. In cases where
+// they overlap, the test execution window can exclude log lines from the test
+// if the subsequent test begins before the previous test ended. To ensure that
+// we capture all the log lines of a test, we do not filter the test chunks by
+// by this time range. This does mean, though, that the build logs returned
+// with the logs the test may be filtered by a time range shorter than that of
+// the test itself—this behavior is okay since tests are expected to be run
+// serially.
+func testExecutionWindow(allTestIDs []string, testID string) (TimeRange, error) {
+	tr := AllTime
+	if testID == "" {
+		return tr, nil
+	}
+
+	var found bool
+	var testIndex int
+	for i, id := range allTestIDs {
+		if id == testID {
+			found = true
+			testIndex = i
 		}
 	}
-	switch v := id.(type) {
-	case bson.ObjectId:
-		*t = TestID(v.Hex())
-	case string:
-		*t = TestID(v)
-	case nil:
-		return bson.SetZero
-	default:
-		return &bson.TypeError{
-			Kind: raw.Kind,
-			Type: reflect.TypeOf(t),
-		}
+	if !found {
+		return tr, errors.Errorf("test '%s' was not found", testID)
 	}
 
-	return nil
+	tr.StartAt = testIDTimestamp(allTestIDs[testIndex]).Truncate(time.Millisecond)
+
+	if testIndex < len(allTestIDs)-1 {
+		tr.EndAt = testIDTimestamp(allTestIDs[testIndex+1]).Truncate(time.Millisecond)
+	}
+
+	return tr, nil
 }
 
-func (t *TestID) toTestIDAliasPtr() *testIDAlias {
-	if t == nil {
-		return nil
+func testIDFromKey(path string) (string, error) {
+	keyParts := strings.Split(path, "/")
+	if strings.Contains(path, "/tests/") && len(keyParts) >= 5 {
+		return keyParts[3], nil
 	}
-
-	alias := testIDAlias(*t)
-	return &alias
+	return "", errors.Errorf("programmatic error: unexpected test ID prefix in path '%s'", path)
 }
 
-// testIDAlias aliases the TestID so it can implement the bson.Getter interface with a pointer receiver.
-// This is necessary for the Log type which references a pointer to a TestID. If the pointer is nil
-// a call to the GetBSON method with a value receiver will panic.
-type testIDAlias TestID
-
-// GetBSON implements the bson.Getter interface.
-// When a testIDAlias is marshalled to BSON the driver will marshal the output
-// of this function instead of the struct.
-func (t *testIDAlias) GetBSON() (interface{}, error) {
-	if t == nil {
-		return nil, nil
-	}
-
-	return TestID(*t).GetBSON()
+func metadataKeyForTest(buildID string, testID string) string {
+	return fmt.Sprintf("%s%s", testPrefix(buildID, testID), metadataFilename)
 }
 
-// SetBSON implements the bson.Setter interface.
-// When a testIDAlias is unmarshalled from BSON the driver will call this function to
-// unmarshal into the TestID.
-func (t *testIDAlias) SetBSON(raw bson.Raw) error {
-	var testID TestID
-	err := testID.SetBSON(raw)
-	if err != nil {
-		return err
-	} else {
-		*t = testIDAlias(testID)
-	}
-
-	return nil
+func testPrefix(buildID, testID string) string {
+	return fmt.Sprintf("%s%s/", buildTestsPrefix(buildID), testID)
 }
 
-func (t *testIDAlias) toTestIDPtr() *TestID {
-	if t == nil {
-		return nil
-	}
-
-	id := TestID(*t)
-	return &id
-}
-
-// Insert inserts the test into the test collection.
-func (t *Test) Insert() error {
-	db, closeSession := db.DB()
-	defer closeSession()
-
-	return db.C(TestsCollection).Insert(t)
-}
-
-// IncrementSequence increments the test's sequence number by the given count.
-func (t *Test) IncrementSequence(count int) error {
-	db, closeSession := db.DB()
-	defer closeSession()
-
-	change := mgo.Change{Update: bson.M{"$inc": bson.M{"seq": count}}, ReturnNew: true}
-	_, err := db.C("tests").Find(bson.M{"_id": t.Id}).Apply(change, t)
-	return errors.Wrap(err, "incrementing test sequence number")
-}
-
-// FindTestByID returns the test with the specified ID.
-func FindTestByID(id string) (*Test, error) {
-	db, closeSession := db.DB()
-	defer closeSession()
-
-	test := &Test{}
-	err := db.C(TestsCollection).Find(bson.M{"_id": TestID(id)}).One(test)
-	if err == mgo.ErrNotFound {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return test, nil
-}
-
-// FindTestsForBuild returns all the tests that are part of the given build.
-func FindTestsForBuild(buildID string) ([]Test, error) {
-	db, closeSession := db.DB()
-	defer closeSession()
-
-	tests := []Test{}
-	err := db.C(TestsCollection).Find(bson.M{"build_id": buildID}).Sort("started").All(&tests)
-	if err != nil {
-		return nil, err
-	}
-	return tests, nil
-}
-
-// RemoveTestsForBuild removes all tests that are part of the given build.
-func RemoveTestsForBuild(buildID string) (int, error) {
-	db, closeSession := db.DB()
-	defer closeSession()
-
-	info, err := db.C(TestsCollection).RemoveAll(bson.M{"build_id": buildID})
-	if err != nil {
-		return 0, errors.Wrapf(err, "deleting tests for build '%s'", buildID)
-	}
-
-	return info.Removed, nil
-}
-
-func (t *Test) findNext() (*Test, error) {
-	db, closeSession := db.DB()
-	defer closeSession()
-
-	nextTest := &Test{}
-	if err := db.C("tests").Find(bson.M{"build_id": t.BuildId, "started": bson.M{"$gt": t.Started}}).Sort("started").Limit(1).One(nextTest); err != nil {
-		if err != mgo.ErrNotFound {
-			return nil, err
-		}
-		return nil, nil
-	}
-
-	return nextTest, nil
-}
-
-// GetExecutionWindow returns the extents of the test.
-func (t *Test) GetExecutionWindow() (time.Time, *time.Time, error) {
-	var maxTime *time.Time
-	nextTest, err := t.findNext()
-	if err != nil {
-		return time.Time{}, nil, errors.Wrap(err, "getting next test")
-	}
-	if nextTest != nil {
-		maxTime = &nextTest.Started
-	}
-
-	return t.Started, maxTime, nil
+func buildTestsPrefix(buildID string) string {
+	return fmt.Sprintf("%stests/", buildPrefix(buildID))
 }
