@@ -69,7 +69,7 @@ func (t *Test) UploadTestMetadata(ctx context.Context) error {
 }
 
 // FindTestByID returns the test metadata for the given build ID and test ID
-// from the offline blob storage bucket.
+// from the pail-backed offline storage.
 func FindTestByID(ctx context.Context, buildID string, testID string) (*Test, error) {
 	reader, err := env.Bucket().Get(ctx, metadataKeyForTest(buildID, testID))
 	if pail.IsKeyNotFoundError(err) {
@@ -93,7 +93,7 @@ func CheckTestMetadata(ctx context.Context, buildID string, testID string) (bool
 }
 
 // FindTestsForBuild returns all of the test metadata for the given build ID
-// from the offline blob storage bucket.
+// from the pail-backed offline storage.
 func FindTestsForBuild(ctx context.Context, buildID string) ([]Test, error) {
 	iterator, err := env.Bucket().List(ctx, buildTestsPrefix(buildID))
 	if err != nil {
