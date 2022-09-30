@@ -14,4 +14,3 @@ Example of running resmoke with logkeeper
 
     # Run this from the root directory where mongodb is cloned to:
     python buildscripts/resmoke.py --suites=core --log=buildlogger  --buildloggerUrl="http://localhost:8080"
-

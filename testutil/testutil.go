@@ -10,6 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// SetBucket sets the bucket in the environment to a local pail bucket
+// backed by a temporary directory.
+// If initDir is not the empty string the contents of initDir are copied into the local bucket.
+// If an error is encounter it will fail the test.
 func SetBucket(t *testing.T, initDir string) func() {
 	originalBucket := env.Bucket()
 
@@ -26,17 +30,11 @@ func SetBucket(t *testing.T, initDir string) func() {
 		})
 		require.NoError(t, err)
 	}
-	if err := env.SetBucket(&bucket); err != nil {
-		t.Error(err)
-	}
+	require.NoError(t, env.SetBucket(&bucket))
 
 	return func() {
-		if originalBucket == nil {
-			return
-		}
-
-		if err := env.SetBucket(originalBucket); err != nil {
-			t.Error(err)
+		if originalBucket != nil {
+			require.NoError(t, env.SetBucket(originalBucket))
 		}
 	}
 }

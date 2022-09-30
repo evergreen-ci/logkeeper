@@ -34,13 +34,12 @@ func NewBuildID(builder string, buildNum int) (string, error) {
 	jsonMap["builder"] = builder
 	jsonMap["buildNum"] = buildNum
 	hashstring, err := json.Marshal(jsonMap)
-
 	if err != nil {
-		return "", errors.Wrap(err, "generating json to hash for build key")
+		return "", errors.Wrap(err, "marshalling build ID data to JSON")
 	}
 
 	if _, err := hasher.Write(hashstring); err != nil {
-		return "", errors.Wrap(err, "hashing json for build key")
+		return "", errors.Wrap(err, "writing the hash for the build ID")
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
@@ -78,8 +77,8 @@ func (b *Build) UploadMetadata(ctx context.Context) error {
 	return errors.Wrapf(env.Bucket().Put(ctx, b.key(), bytes.NewReader(data)), "uploading metadata for build '%s'", b.ID)
 }
 
-// FindBuildByID returns the build metadata for the given ID from the offline
-// blob storage bucket.
+// FindBuildByID returns the build metadata for the given ID from the pail-backed
+// offline storage.
 func FindBuildByID(ctx context.Context, id string) (*Build, error) {
 	reader, err := env.Bucket().Get(ctx, metadataKeyForBuild(id))
 	if pail.IsKeyNotFoundError(err) {

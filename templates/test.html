@@ -75,7 +75,7 @@
 	  {{ $colorSet := ColorSet }}
 	  {{ $lastLine := MutableVar }}
 	  {{ $lastLine.Set nil }}
-	  {{range $index, $line := .LogLines}}{{$color := .Color}}<tr><td id="L{{$index}}" class="line-num" data-line-number="{{$index}}"></td><td class="time">{{ if $line.OlderThanThreshold $lastLine.Get}} {{DateFormat $line.Timestamp "2006-01-02 15:04:05 -0700"}}{{end}}</td><td class="log {{if $line.Global}}global{{else}} {{$colorSet.GetColor $color}}{{end}}"><pre id="line-{{$index}}">{{.Data}}</pre></td></tr>{{ $lastLine.Set . }}{{end}}
+	  {{range $index, $line := .LogLines}}{{$logger := .LoggerName}}<tr><td id="L{{$index}}" class="line-num" data-line-number="{{$index}}"></td><td class="time">{{ if $line.OneSecondNewer $lastLine.Get}} {{DateFormat $line.Timestamp "2006-01-02 15:04:05 -0700"}}{{end}}</td><td class="log {{if $line.Global}}global{{else}} {{$colorSet.GetColor $logger}}{{end}}"><pre id="line-{{$index}}">{{.Data}}</pre></td></tr>{{ $lastLine.Set . }}{{end}}
   </tbody>
     </table>
     <style>

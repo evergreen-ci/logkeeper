@@ -19,7 +19,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-var colorRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
+var loggerRegex *regexp.Regexp = regexp.MustCompile(`([ \w]{2}\d{1,5}\|)`)
 
 // LogLineItem represents a single line in a log.
 type LogLineItem struct {
@@ -36,7 +36,7 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 	}
 
 	// timeField is generated client-side as the output of python's time.time(), which returns
-	// seconds since epoch as a floating point number
+	// seconds since epoch as a floating point number.
 	timeField, ok := line[0].(float64)
 	if !ok {
 		grip.Critical(message.Fields{
@@ -45,7 +45,7 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 		})
 		timeField = float64(time.Now().Unix())
 	}
-	// extract fractional seconds from the total time and convert to nanoseconds
+	// Extract fractional seconds from the total time and convert to nanoseconds.
 	fractionalPart := timeField - math.Floor(timeField)
 	nSecPart := int64(fractionalPart * float64(int64(time.Second)/int64(time.Nanosecond)))
 
@@ -53,6 +53,35 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 	ll.Data = line[1].(string)
 
 	return nil
+}
+
+// LoggerName returns the logger name for this line so it can be assigned a unique color
+// when the log is displayed in the HTML view.
+func (item *LogLineItem) LoggerName() string {
+	found := loggerRegex.FindStringSubmatch(item.Data)
+	if len(found) > 0 {
+		return found[0]
+	} else {
+		return ""
+	}
+}
+
+// OneSecondNewer returns if this line's timestamp is greater than one second
+// newer than the previous line's timestamp.
+func (item *LogLineItem) OneSecondNewer(previousItem interface{}) bool {
+	if previousItem == nil {
+		return true
+	}
+
+	if previousLogLine, ok := previousItem.(*LogLineItem); ok {
+		diff := item.Timestamp.Sub(previousLogLine.Timestamp)
+		if diff > 1*time.Second {
+			return true
+		} else {
+			return false
+		}
+	}
+	return true
 }
 
 // DownloadLogLines returns log lines for a given build ID and test ID. If the
@@ -86,31 +115,6 @@ func DownloadLogLines(ctx context.Context, buildID string, testID string) (chan 
 	// since we always want to capture all the lines of either a single
 	// test or all tests.
 	return NewMergingIterator(NewBatchedLogIterator(testChunks, 4, AllTime), NewBatchedLogIterator(buildChunks, 4, tr)).Stream(ctx), nil
-}
-
-func (item *LogLineItem) Color() string {
-	found := colorRegex.FindStringSubmatch(item.Data)
-	if len(found) > 0 {
-		return found[0]
-	} else {
-		return ""
-	}
-}
-
-func (item *LogLineItem) OlderThanThreshold(previousItem interface{}) bool {
-	if previousItem == nil {
-		return true
-	}
-
-	if previousLogLine, ok := previousItem.(*LogLineItem); ok {
-		diff := item.Timestamp.Sub(previousLogLine.Timestamp)
-		if diff > 1*time.Second {
-			return true
-		} else {
-			return false
-		}
-	}
-	return true
 }
 
 // LogChunk is a grouping of lines.

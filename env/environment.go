@@ -18,7 +18,7 @@ func init() {
 	globalEnv = &environment{}
 }
 
-// SetBucket caches a pail Bucket to be available from the environment.
+// SetBucket caches a storage Bucket to be available from the environment.
 func SetBucket(b *storage.Bucket) error {
 	if b == nil {
 		return errors.New("cannot set a nil bucket")
@@ -31,7 +31,7 @@ func SetBucket(b *storage.Bucket) error {
 	return nil
 }
 
-// Bucket returns the cached pail Bucket from the environment.
+// Bucket returns the cached storage bucket from the environment.
 func Bucket() *storage.Bucket {
 	globalEnv.RLock()
 	defer globalEnv.RUnlock()
