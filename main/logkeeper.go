@@ -29,6 +29,7 @@ func main() {
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
+	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
