@@ -386,6 +386,11 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 	return build, tests, nil
 }
 
+type BuildMetadata struct {
+	BuildID string
+	TaskID  string
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // GET /build/{build_id}/all
@@ -405,6 +410,15 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	resp, fetchErr := lk.viewBucketLogs(r, buildID, "")
 	if fetchErr != nil {
 		lk.render.WriteJSON(w, fetchErr.code, *fetchErr)
+		return
+	}
+
+	if r.FormValue("metadata") == "true" {
+		buildMetadata := BuildMetadata{
+			BuildID: resp.build.ID,
+			TaskID:  resp.build.TaskID,
+		}
+		lk.render.WriteJSON(w, http.StatusOK, buildMetadata)
 		return
 	}
 
@@ -454,6 +468,15 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	resp, fetchErr := lk.viewBucketLogs(r, buildID, testID)
 	if fetchErr != nil {
 		lk.render.WriteJSON(w, fetchErr.code, *fetchErr)
+		return
+	}
+
+	if r.FormValue("metadata") == "true" {
+		buildMetadata := BuildMetadata{
+			BuildID: resp.build.ID,
+			TaskID:  resp.build.TaskID,
+		}
+		lk.render.WriteJSON(w, http.StatusOK, buildMetadata)
 		return
 	}
 
@@ -570,7 +593,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 // Lobster
 
 func lobsterRedirect(r *http.Request) bool {
-	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain"
+	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain" && r.FormValue("metadata") != "true"
 }
 
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
