@@ -386,11 +386,6 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 	return build, tests, nil
 }
 
-type BuildMetadata struct {
-	BuildID string
-	TaskID  string
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 //
 // GET /build/{build_id}/all
@@ -414,11 +409,7 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.FormValue("metadata") == "true" {
-		buildMetadata := BuildMetadata{
-			BuildID: resp.build.ID,
-			TaskID:  resp.build.TaskID,
-		}
-		lk.render.WriteJSON(w, http.StatusOK, buildMetadata)
+		lk.render.WriteJSON(w, http.StatusOK, resp.build)
 		return
 	}
 
@@ -472,11 +463,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.FormValue("metadata") == "true" {
-		buildMetadata := BuildMetadata{
-			BuildID: resp.build.ID,
-			TaskID:  resp.build.TaskID,
-		}
-		lk.render.WriteJSON(w, http.StatusOK, buildMetadata)
+		lk.render.WriteJSON(w, http.StatusOK, resp.build)
 		return
 	}
 
