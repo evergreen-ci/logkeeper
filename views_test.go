@@ -19,6 +19,42 @@ import (
 
 const testMaxReqSize = 10 * 1024 * 1024
 
+func TestAddCORSHeaders(t *testing.T) {
+	prev := corsOrigins
+	corsOrigins = []string{"views-*"}
+	defer func() {
+		corsOrigins = prev
+	}()
+
+	t.Run("RequesterInCORSOriginsList", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("", "/", nil)
+		r.Header.Add("Origin", "views-test")
+
+		addCORSHeaders(w, r)
+		assert.Equal(t, "views-test", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+	})
+	t.Run("RequesterNotInCORSOriginsList", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("", "/", nil)
+		r.Header.Add("Origin", "test")
+
+		addCORSHeaders(w, r)
+		assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Credentials"))
+	})
+	t.Run("NoRequester", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("", "/", nil)
+		r.Header.Add("Origin", "test")
+
+		addCORSHeaders(w, r)
+		assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Empty(t, w.Header().Get("Access-Control-Allow-Credentials"))
+	})
+}
+
 func TestCreateBuild(t *testing.T) {
 	defer testutil.SetBucket(t, "")()
 
@@ -609,6 +645,7 @@ func TestViewBuild(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			resp := doReq(t, lk.NewRouter(), http.MethodGet, nil, fmt.Sprintf("%s/build/%s", lk.opts.URL, test.buildID), nil)
 			require.Equal(t, test.expectedStatusCode, resp.Code)
+			checkCORSHeader(t, resp.Header())
 			test.test(t, resp)
 		})
 	}
@@ -711,6 +748,7 @@ func TestViewAllLogs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			resp := doReq(t, lk.NewRouter(), http.MethodGet, test.headers, fmt.Sprintf("%s/build/%s/all?%s", lk.opts.URL, test.buildID, test.params), nil)
 			require.Equal(t, test.expectedStatusCode, resp.Code)
+			checkCORSHeader(t, resp.Header())
 			test.test(t, resp)
 		})
 	}
@@ -834,6 +872,7 @@ func TestViewTestLogs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			resp := doReq(t, lk.NewRouter(), http.MethodGet, test.headers, fmt.Sprintf("%s/build/%s/test/%s?%s", lk.opts.URL, test.buildID, test.testID, test.params), nil)
 			require.Equal(t, test.expectedStatusCode, resp.Code)
+			checkCORSHeader(t, resp.Header())
 			test.test(t, resp)
 		})
 	}
@@ -851,8 +890,13 @@ func doReq(t *testing.T, handler http.Handler, method string, headers map[string
 	for key, val := range headers {
 		req.Header.Add(key, val)
 	}
+	req.Header.Add("Origin", "views-test")
 
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	return w
+}
+
+func checkCORSHeader(t *testing.T, header http.Header) {
+	assert.Equal(t, "*", header.Get("Access-Control-Allow-Origin"))
 }

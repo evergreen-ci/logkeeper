@@ -30,11 +30,12 @@ func init() {
 	origins := os.Getenv(corsOriginsEnvVariable)
 	if origins == "" {
 		corsOrigins = []string{}
+		return
 	}
 	corsOrigins = strings.Split(origins, ",")
 }
 
-func addCorsHeaders(w http.ResponseWriter, r *http.Request) {
+func addCORSHeaders(w http.ResponseWriter, r *http.Request) {
 	requester := r.Header.Get("Origin")
 	// Check if requester is in CORS origins list.
 	if utility.StringMatchesAnyRegex(requester, corsOrigins) {
@@ -344,7 +345,7 @@ func (lk *logkeeper) appendTestLog(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}
 
 func (lk *logkeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
-	addCorsHeaders(w, r)
+	addCORSHeaders(w, r)
 
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
@@ -411,7 +412,7 @@ func (lk *logkeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 // GET /build/{build_id}/all
 
 func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
-	addCorsHeaders(w, r)
+	addCORSHeaders(w, r)
 
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
@@ -457,7 +458,7 @@ func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 // GET /build/{build_id}/test/{test_id}
 
 func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
-	addCorsHeaders(w, r)
+	addCORSHeaders(w, r)
 
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
@@ -589,7 +590,7 @@ func lobsterRedirect(r *http.Request) bool {
 }
 
 func (lk *logkeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
-	addCorsHeaders(w, r)
+	addCORSHeaders(w, r)
 
 	err := lk.render.StreamHTML(w, http.StatusOK, nil, "base", "lobster/build/index.html")
 	if err != nil {
