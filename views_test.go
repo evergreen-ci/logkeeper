@@ -372,7 +372,7 @@ func TestAppendGlobalLog(t *testing.T) {
 				lines, err := model.DownloadLogLines(context.TODO(), buildID, "")
 				require.NoError(t, err)
 				var lineCount int
-				for _ = range lines {
+				for range lines {
 					lineCount++
 				}
 				assert.Zero(t, lineCount)
@@ -535,7 +535,7 @@ func TestAppendTestLog(t *testing.T) {
 				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
 				require.NoError(t, err)
 				var lineCount int
-				for _ = range lines {
+				for range lines {
 					lineCount++
 				}
 				assert.Zero(t, lineCount)
@@ -853,6 +853,7 @@ func TestViewTestLogs(t *testing.T) {
 				build, err := model.FindBuildByID(context.TODO(), buildID)
 				require.NoError(t, err)
 				test, err := model.FindTestByID(context.TODO(), buildID, testID)
+				require.NoError(t, err)
 				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
 				require.NoError(t, err)
 
