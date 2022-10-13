@@ -19,10 +19,9 @@ import (
 	"github.com/mongodb/grip/recovery"
 )
 
-const maxLogBytes = 4 * 1024 * 1024 // 4 MB
-
 const (
 	corsOriginsEnvVariable = "LK_CORS_ORIGINS"
+	maxLogBytes            = 4 * 1024 * 1024 // 4 MB
 )
 
 var corsOrigins []string
@@ -37,27 +36,20 @@ func init() {
 
 func addCorsHeaders(w http.ResponseWriter, r *http.Request) {
 	requester := r.Header.Get("Origin")
-	// check if requester is in cors origins list
+	// Check if requester is in CORS origins list.
 	if utility.StringMatchesAnyRegex(requester, corsOrigins) {
 		w.Header().Add("Access-Control-Allow-Origin", requester)
 		w.Header().Add("Access-Control-Allow-Credentials", "true")
 	} else {
-		// Maintain backwards compatibility with the old CORS header
+		// Maintain backwards compatibility with the old CORS header.
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 	}
 }
 
-type Options struct {
-	//Base URL to append to relative paths
-	URL string
-
-	// Maximum Request Size
-	MaxRequestSize int
-}
-
-type logKeeper struct {
-	render *render.Render
-	opts   Options
+type apiError struct {
+	Err     string `json:"err"`
+	MaxSize int    `json:"max_size,omitempty"`
+	code    int
 }
 
 type createdResponse struct {
@@ -65,7 +57,29 @@ type createdResponse struct {
 	URI string `json:"uri"`
 }
 
-func New(opts Options) *logKeeper {
+type logFetchResponse struct {
+	logLines chan *model.LogLineItem
+	build    *model.Build
+	test     *model.Test
+}
+
+// logkeeper serves the Logkeeper REST API.
+type logkeeper struct {
+	render *render.Render
+	opts   NewLogkeeperOptions
+}
+
+// NewLogkeeperOptions represents the set of options for creating a new
+// Logkeeper REST service.
+type NewLogkeeperOptions struct {
+	// URL is the base URL to append to relative paths.
+	URL string
+	// MaxRequestSize is the maximum allowable request size.
+	MaxRequestSize int
+}
+
+// NewLogkeeper returns a new Logkeeper REST service with the given options.
+func NewLogkeeper(opts NewLogkeeperOptions) *logkeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
 		Funcs: template.FuncMap{
@@ -81,22 +95,27 @@ func New(opts Options) *logKeeper {
 		},
 	})
 
-	return &logKeeper{render, opts}
+	return &logkeeper{render, opts}
 }
 
-type apiError struct {
-	Err     string `json:"err"`
-	MaxSize int    `json:"max_size,omitempty"`
-	code    int
+// checkContentLength returns an API error if the content length specified by
+// the client is larger than the maximum request size. Clients are allowed to
+// *not* specify a request size, in which case the HTTP library sets the
+// content legnth to -1.
+func (lk *logkeeper) checkContentLength(r *http.Request) *apiError {
+	if int(r.ContentLength) > lk.opts.MaxRequestSize {
+		return &apiError{
+			Err: fmt.Sprintf("content length %d over maximum",
+				r.ContentLength),
+			MaxSize: lk.opts.MaxRequestSize,
+			code:    http.StatusRequestEntityTooLarge,
+		}
+	}
+
+	return nil
 }
 
-type logFetchResponse struct {
-	logLines chan *model.LogLineItem
-	build    *model.Build
-	test     *model.Test
-}
-
-func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
+func (lk *logkeeper) logErrorf(r *http.Request, format string, v ...interface{}) {
 	err := fmt.Sprintf(format, v...)
 	grip.Error(message.Fields{
 		"request": getCtxRequestId(r),
@@ -104,7 +123,7 @@ func (lk *logKeeper) logErrorf(r *http.Request, format string, v ...interface{})
 	})
 }
 
-func (lk *logKeeper) logWarningf(r *http.Request, format string, v ...interface{}) {
+func (lk *logkeeper) logWarningf(r *http.Request, format string, v ...interface{}) {
 	err := fmt.Sprintf(format, v...)
 	grip.Warning(message.Fields{
 		"request": getCtxRequestId(r),
@@ -116,9 +135,7 @@ func (lk *logKeeper) logWarningf(r *http.Request, format string, v ...interface{
 //
 // POST /build
 
-func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	if err := lk.checkContentLength(r); err != nil {
 		lk.logErrorf(r, "content length limit exceeded for create build: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
@@ -143,19 +160,29 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	build := model.Build{
-		ID:       id,
-		Builder:  payload.Builder,
-		BuildNum: payload.BuildNum,
-		TaskID:   payload.TaskID,
-	}
-	if err = build.UploadMetadata(r.Context()); err != nil {
-		lk.logErrorf(r, "uploading build metadata: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
+	status := http.StatusOK
+	exists, err := model.CheckBuildMetadata(r.Context(), id)
+	if err != nil {
+		lk.logErrorf(r, "checking metadata in build '%s': %v", id, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
 		return
 	}
+	if !exists {
+		build := model.Build{
+			ID:       id,
+			Builder:  payload.Builder,
+			BuildNum: payload.BuildNum,
+			TaskID:   payload.TaskID,
+		}
+		if err = build.UploadMetadata(r.Context()); err != nil {
+			lk.logErrorf(r, "uploading build metadata: %v", err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
+			return
+		}
+		status = http.StatusCreated
+	}
 
-	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{
+	lk.render.WriteJSON(w, status, createdResponse{
 		ID:  id,
 		URI: fmt.Sprintf("%v/build/%v", lk.opts.URL, id),
 	})
@@ -165,9 +192,7 @@ func (lk *logKeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 //
 // POST /build/{build_id}/test
 
-func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	buildID := mux.Vars(r)["build_id"]
 
 	if err := lk.checkContentLength(r); err != nil {
@@ -195,7 +220,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !exists {
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
 
@@ -223,9 +248,7 @@ func (lk *logKeeper) createTest(w http.ResponseWriter, r *http.Request) {
 //
 // POST /build/{build_id}
 
-func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (lk *logkeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	buildID := mux.Vars(r)["build_id"]
 
 	if err := lk.checkContentLength(r); err != nil {
@@ -241,7 +264,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !exists {
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "build not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "build not found"})
 		return
 	}
 
@@ -264,7 +287,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 
 	lk.render.WriteJSON(w, http.StatusCreated, createdResponse{
 		ID:  "",
-		URI: fmt.Sprintf("%s/build/%s/", lk.opts.URL, buildID),
+		URI: fmt.Sprintf("%s/build/%s", lk.opts.URL, buildID),
 	})
 }
 
@@ -272,9 +295,7 @@ func (lk *logKeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 //
 // POST /build/{build_id}/test/{test_id}
 
-func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (lk *logkeeper) appendTestLog(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
 	testID := vars["test_id"]
@@ -292,7 +313,7 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !exists {
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "test not found"})
+		lk.render.WriteJSON(w, http.StatusNotFound, apiError{Err: "test not found"})
 		return
 	}
 
@@ -322,9 +343,8 @@ func (lk *logKeeper) appendLog(w http.ResponseWriter, r *http.Request) {
 //
 // GET /build/{build_id}
 
-func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
+func (lk *logkeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	addCorsHeaders(w, r)
-	defer r.Body.Close()
 
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
@@ -346,7 +366,7 @@ func (lk *logKeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	}{build, tests}, "base", "build.html")
 }
 
-func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
+func (lk *logkeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
 	var (
 		wg       sync.WaitGroup
 		build    *model.Build
@@ -390,9 +410,8 @@ func (lk *logKeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Bu
 //
 // GET /build/{build_id}/all
 
-func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
+func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	addCorsHeaders(w, r)
-	defer r.Body.Close()
 
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
@@ -437,10 +456,8 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 //
 // GET /build/{build_id}/test/{test_id}
 
-func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
+func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	addCorsHeaders(w, r)
-
-	defer r.Body.Close()
 
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
@@ -486,7 +503,7 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
+func (lk *logkeeper) viewBucketLogs(r *http.Request, buildID string, testID string) (*logFetchResponse, *apiError) {
 	var (
 		wg          sync.WaitGroup
 		build       *model.Build
@@ -551,9 +568,7 @@ func (lk *logKeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 //
 // GET /status
 
-func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
+func (lk *logkeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 	resp := struct {
 		Build          string `json:"build_id"`
 		MaxRequestSize int    `json:"maxRequestSize"`
@@ -573,7 +588,7 @@ func lobsterRedirect(r *http.Request) bool {
 	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain"
 }
 
-func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
+func (lk *logkeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 	addCorsHeaders(w, r)
 
 	err := lk.render.StreamHTML(w, http.StatusOK, nil, "base", "lobster/build/index.html")
@@ -586,7 +601,7 @@ func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 //
 // Router
 
-func (lk *logKeeper) NewRouter() *mux.Router {
+func (lk *logkeeper) NewRouter() *mux.Router {
 	r := mux.NewRouter().StrictSlash(false)
 
 	// Write methods.
@@ -596,8 +611,8 @@ func (lk *logKeeper) NewRouter() *mux.Router {
 	r.Path("/build/{build_id}/test").Methods("POST").HandlerFunc(lk.createTest)
 	r.Path("/build/{build_id}/").Methods("POST").HandlerFunc(lk.appendGlobalLog)
 	r.Path("/build/{build_id}").Methods("POST").HandlerFunc(lk.appendGlobalLog)
-	r.Path("/build/{build_id}/test/{test_id}/").Methods("POST").HandlerFunc(lk.appendLog)
-	r.Path("/build/{build_id}/test/{test_id}").Methods("POST").HandlerFunc(lk.appendLog)
+	r.Path("/build/{build_id}/test/{test_id}/").Methods("POST").HandlerFunc(lk.appendTestLog)
+	r.Path("/build/{build_id}/test/{test_id}").Methods("POST").HandlerFunc(lk.appendTestLog)
 
 	// Read methods.
 	r.StrictSlash(true).Path("/build/{build_id}").Methods("GET").HandlerFunc(lk.viewBuild)

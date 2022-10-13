@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -50,23 +49,6 @@ func readJSON(body io.Reader, maxSize int, out interface{}) *apiError {
 		return &apiError{
 			Err:  err.Error(),
 			code: http.StatusBadRequest,
-		}
-	}
-
-	return nil
-}
-
-// checkContentLenght returns an apiError if the content length
-// specified by the client is larger than the current maximum request
-// size. Clients are allowed to *not* specify a request size, which
-// the http library provides to us as -1.
-func (lk *logKeeper) checkContentLength(r *http.Request) *apiError {
-	if int(r.ContentLength) > lk.opts.MaxRequestSize {
-		return &apiError{
-			Err: fmt.Sprintf("content length %d over maximum",
-				r.ContentLength),
-			MaxSize: lk.opts.MaxRequestSize,
-			code:    http.StatusRequestEntityTooLarge,
 		}
 	}
 
