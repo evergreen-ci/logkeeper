@@ -23,6 +23,38 @@ type Build struct {
 	TaskID   string `json:"task_id"`
 }
 
+// UploadMetadata uploads metadata for a new build to the pail-backed
+// offline storage.
+func (b *Build) UploadMetadata(ctx context.Context) error {
+	data, err := b.toJSON()
+	if err != nil {
+		return err
+	}
+
+	return errors.Wrapf(env.Bucket().Put(ctx, b.key(), bytes.NewReader(data)), "uploading metadata for build '%s'", b.ID)
+}
+
+func (b *Build) key() string {
+	return metadataKeyForBuild(b.ID)
+}
+
+func (b *Build) toJSON() ([]byte, error) {
+	data, err := json.Marshal(b)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshalling build metadata")
+	}
+
+	return data, nil
+}
+
+func metadataKeyForBuild(id string) string {
+	return fmt.Sprintf("%s%s", buildPrefix(id), metadataFilename)
+}
+
+func buildPrefix(buildID string) string {
+	return fmt.Sprintf("builds/%s/", buildID)
+}
+
 // NewBuildID generates a new build ID based on the hash of the given builder
 // and build number.
 func NewBuildID(builder string, buildNum int) (string, error) {
@@ -43,38 +75,6 @@ func NewBuildID(builder string, buildNum int) (string, error) {
 	}
 
 	return hex.EncodeToString(hasher.Sum(nil)), nil
-}
-
-func (b *Build) key() string {
-	return metadataKeyForBuild(b.ID)
-}
-
-func metadataKeyForBuild(id string) string {
-	return fmt.Sprintf("%s%s", buildPrefix(id), metadataFilename)
-}
-
-func (b *Build) toJSON() ([]byte, error) {
-	data, err := json.Marshal(b)
-	if err != nil {
-		return nil, errors.Wrap(err, "marshalling build metadata")
-	}
-
-	return data, nil
-}
-
-func buildPrefix(buildID string) string {
-	return fmt.Sprintf("builds/%s/", buildID)
-}
-
-// UploadMetadata uploads metadata for a new build to the pail-backed
-// offline storage.
-func (b *Build) UploadMetadata(ctx context.Context) error {
-	data, err := b.toJSON()
-	if err != nil {
-		return err
-	}
-
-	return errors.Wrapf(env.Bucket().Put(ctx, b.key(), bytes.NewReader(data)), "uploading metadata for build '%s'", b.ID)
 }
 
 // FindBuildByID returns the build metadata for the given ID from the pail-backed

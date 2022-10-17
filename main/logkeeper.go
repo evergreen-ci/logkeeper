@@ -44,7 +44,7 @@ func main() {
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
 
-	lk := logkeeper.New(logkeeper.Options{
+	lk := logkeeper.NewLogkeeper(logkeeper.LogkeeperOptions{
 		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 		MaxRequestSize: *maxRequestSize,
 	})

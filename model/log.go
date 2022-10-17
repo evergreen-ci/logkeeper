@@ -35,8 +35,9 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 		return errors.Wrap(err, "unmarshaling line into array")
 	}
 
-	// timeField is generated client-side as the output of python's time.time(), which returns
-	// seconds since epoch as a floating point number.
+	// timeField is generated client-side as the output of Python's
+	// time.time(), which returns seconds since epoch as a floating point
+	// number.
 	timeField, ok := line[0].(float64)
 	if !ok {
 		grip.Critical(message.Fields{
@@ -45,7 +46,8 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 		})
 		timeField = float64(time.Now().Unix())
 	}
-	// Extract fractional seconds from the total time and convert to nanoseconds.
+	// Extract fractional seconds from the total time and convert to
+	// nanoseconds.
 	fractionalPart := timeField - math.Floor(timeField)
 	nSecPart := int64(fractionalPart * float64(int64(time.Second)/int64(time.Nanosecond)))
 
@@ -55,8 +57,8 @@ func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// LoggerName returns the logger name for this line so it can be assigned a unique color
-// when the log is displayed in the HTML view.
+// LoggerName returns the logger name for this line so it can be assigned a
+// unique color when the log is displayed in the HTML view.
 func (item *LogLineItem) LoggerName() string {
 	found := loggerRegex.FindStringSubmatch(item.Data)
 	if len(found) > 0 {
