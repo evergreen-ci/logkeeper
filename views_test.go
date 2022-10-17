@@ -47,7 +47,6 @@ func TestAddCORSHeaders(t *testing.T) {
 	t.Run("NoRequester", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest("", "/", nil)
-		r.Header.Add("Origin", "test")
 
 		addCORSHeaders(w, r)
 		assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
