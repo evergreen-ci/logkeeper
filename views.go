@@ -67,20 +67,20 @@ type logFetchResponse struct {
 // logkeeper serves the Logkeeper REST API.
 type logkeeper struct {
 	render *render.Render
-	opts   NewLogkeeperOptions
+	opts   LogkeeperOptions
 }
 
-// NewLogkeeperOptions represents the set of options for creating a new
-// Logkeeper REST service.
-type NewLogkeeperOptions struct {
+// LogkeeperOptions represents the set of options for creating a new Logkeeper
+// REST service.
+type LogkeeperOptions struct {
 	// URL is the base URL to append to relative paths.
 	URL string
 	// MaxRequestSize is the maximum allowable request size.
 	MaxRequestSize int
 }
 
-// NewLogkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(opts NewLogkeeperOptions) *logkeeper {
+// Logkeeper returns a new Logkeeper REST service with the given options.
+func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
 		Funcs: template.FuncMap{

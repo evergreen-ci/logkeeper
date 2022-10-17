@@ -73,7 +73,7 @@ func TestCreateBuild(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: 10,
 			}),
@@ -92,7 +92,7 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -107,7 +107,7 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "NewBuild",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -136,7 +136,7 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "ExistingBuild",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -200,7 +200,7 @@ func TestCreateTest(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: 10,
 			}),
@@ -221,7 +221,7 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -237,7 +237,7 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -258,7 +258,7 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "NewTest",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -311,7 +311,7 @@ func TestAppendGlobalLog(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: 10,
 			}),
@@ -327,7 +327,7 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -343,7 +343,7 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -359,7 +359,7 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "EmptyLines",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -380,7 +380,7 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "MultipleChunks",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -453,7 +453,7 @@ func TestAppendTestLog(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: 10,
 			}),
@@ -470,7 +470,7 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -487,7 +487,7 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -504,7 +504,7 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "TestDNE",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -521,7 +521,7 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "EmptyLines",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -543,7 +543,7 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "MultipleChunks",
-			lk: NewLogkeeper(NewLogkeeperOptions{
+			lk: NewLogkeeper(LogkeeperOptions{
 				URL:            "https://logkeeper.com",
 				MaxRequestSize: testMaxReqSize,
 			}),
@@ -602,7 +602,7 @@ func TestViewBuild(t *testing.T) {
 	defer testutil.SetBucket(t, "testdata/simple")()
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
-	lk := NewLogkeeper(NewLogkeeperOptions{
+	lk := NewLogkeeper(LogkeeperOptions{
 		URL:            "https://logkeeper.com",
 		MaxRequestSize: testMaxReqSize,
 	})
@@ -655,7 +655,7 @@ func TestViewAllLogs(t *testing.T) {
 	defer testutil.SetBucket(t, "testdata/simple")()
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
-	lk := NewLogkeeper(NewLogkeeperOptions{
+	lk := NewLogkeeper(LogkeeperOptions{
 		URL:            "https://logkeeper.com",
 		MaxRequestSize: testMaxReqSize,
 	})
@@ -759,7 +759,7 @@ func TestViewTestLogs(t *testing.T) {
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	testID := "17046404de18d0000000000000000000"
-	lk := NewLogkeeper(NewLogkeeperOptions{
+	lk := NewLogkeeper(LogkeeperOptions{
 		URL:            "https://logkeeper.com",
 		MaxRequestSize: testMaxReqSize,
 	})
