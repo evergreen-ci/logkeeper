@@ -39,13 +39,13 @@ func TestUploadTestMetadata(t *testing.T) {
 
 	defer testutil.SetBucket(t, "")()
 	test := Test{
-		ID:      "62dba0159041307f697e6ccc",
-		Name:    "test0",
-		BuildID: "5a75f537726934e4b62833ab6d5dca41",
-		TaskID:  "t0",
+		ID:        "62dba0159041307f697e6ccc",
+		Name:      "test0",
+		BuildID:   "5a75f537726934e4b62833ab6d5dca41",
+		TaskID:    "t0",
 		Execution: "execution0",
-		Phase:   "phase0",
-		Command: "command0",
+		Phase:     "phase0",
+		Command:   "command0",
 	}
 	expectedData, err := test.toJSON()
 	require.NoError(t, err)
@@ -60,7 +60,7 @@ func TestUploadTestMetadata(t *testing.T) {
 
 func TestTestKey(t *testing.T) {
 	test := Test{
-		ID:       "test0",
+		ID:        "test0",
 		Name:      "name",
 		BuildID:   "build0",
 		TaskID:    "t0",
@@ -142,13 +142,13 @@ func TestFindTestByID(t *testing.T) {
 	defer testutil.SetBucket(t, "../testdata/simple")()
 	t.Run("Exists", func(t *testing.T) {
 		expected := &Test{
-			ID:      "17046404de18d0000000000000000000",
-			BuildID: "5a75f537726934e4b62833ab6d5dca41",
-			Name:    "geo_max:CheckReplOplogs",
-			TaskID:  "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
+			ID:        "17046404de18d0000000000000000000",
+			BuildID:   "5a75f537726934e4b62833ab6d5dca41",
+			Name:      "geo_max:CheckReplOplogs",
+			TaskID:    "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
 			Execution: "execution0",
-			Phase:   "phase0",
-			Command: "command0",
+			Phase:     "phase0",
+			Command:   "command0",
 		}
 		actual, err := FindTestByID(ctx, "5a75f537726934e4b62833ab6d5dca41", "17046404de18d0000000000000000000")
 		require.NoError(t, err)
@@ -171,22 +171,22 @@ func TestFindTestsForBuild(t *testing.T) {
 
 	expected := []Test{
 		{
-			ID:      "0de0b6b3bf4ac6400000000000000000",
-			BuildID: "5a75f537726934e4b62833ab6d5dca41",
-			Name:    "geo_max:CheckReplOplogs",
-			TaskID:  "Task",
+			ID:        "0de0b6b3bf4ac6400000000000000000",
+			BuildID:   "5a75f537726934e4b62833ab6d5dca41",
+			Name:      "geo_max:CheckReplOplogs",
+			TaskID:    "Task",
 			Execution: "execution0",
-			Command: "command0",
-			Phase:   "phase0",
+			Command:   "command0",
+			Phase:     "phase0",
 		},
 		{
-			ID:      "0de0b6b3cb3688400000000000000000",
-			BuildID: "5a75f537726934e4b62833ab6d5dca41",
-			Name:    "geo_max:CheckReplOplogs2",
-			TaskID:  "Task",
+			ID:        "0de0b6b3cb3688400000000000000000",
+			BuildID:   "5a75f537726934e4b62833ab6d5dca41",
+			Name:      "geo_max:CheckReplOplogs2",
+			TaskID:    "Task",
 			Execution: "execution1",
-			Command: "command1",
-			Phase:   "phase1",
+			Command:   "command1",
+			Phase:     "phase1",
 		},
 	}
 	testResponse, err := FindTestsForBuild(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
