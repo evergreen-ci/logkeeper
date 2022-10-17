@@ -408,6 +408,11 @@ func (lk *logKeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.FormValue("metadata") == "true" {
+		lk.render.WriteJSON(w, http.StatusOK, resp.build)
+		return
+	}
+
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
 		for line := range resp.logLines {
 			_, err := w.Write([]byte(line.Data + "\n"))
@@ -454,6 +459,11 @@ func (lk *logKeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	resp, fetchErr := lk.viewBucketLogs(r, buildID, testID)
 	if fetchErr != nil {
 		lk.render.WriteJSON(w, fetchErr.code, *fetchErr)
+		return
+	}
+
+	if r.FormValue("metadata") == "true" {
+		lk.render.WriteJSON(w, http.StatusOK, resp.build)
 		return
 	}
 
@@ -570,7 +580,7 @@ func (lk *logKeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
 // Lobster
 
 func lobsterRedirect(r *http.Request) bool {
-	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain"
+	return len(r.FormValue("html")) == 0 && len(r.FormValue("raw")) == 0 && r.Header.Get("Accept") != "text/plain" && r.FormValue("metadata") != "true"
 }
 
 func (lk *logKeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
