@@ -43,6 +43,7 @@ func TestUploadTestMetadata(t *testing.T) {
 		Name:    "test0",
 		BuildID: "5a75f537726934e4b62833ab6d5dca41",
 		TaskID:  "t0",
+		Execution: "execution0",
 		Phase:   "phase0",
 		Command: "command0",
 	}
@@ -59,28 +60,30 @@ func TestUploadTestMetadata(t *testing.T) {
 
 func TestTestKey(t *testing.T) {
 	test := Test{
-		ID:      "test0",
-		Name:    "name",
-		BuildID: "build0",
-		TaskID:  "t0",
-		Phase:   "phase0",
-		Command: "command0",
+		ID:       "test0",
+		Name:      "name",
+		BuildID:   "build0",
+		TaskID:    "t0",
+		Execution: "execution0",
+		Phase:     "phase0",
+		Command:   "command0",
 	}
 	assert.Equal(t, "builds/build0/tests/test0/metadata.json", test.key())
 }
 
 func TestTestToJSON(t *testing.T) {
 	test := Test{
-		ID:      "test0",
-		Name:    "name",
-		BuildID: "build0",
-		TaskID:  "t0",
-		Phase:   "phase0",
-		Command: "command0",
+		ID:        "test0",
+		Name:      "name",
+		BuildID:   "build0",
+		TaskID:    "t0",
+		Execution: "execution0",
+		Phase:     "phase0",
+		Command:   "command0",
 	}
 	data, err := test.toJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","phase":"phase0","command":"command0"}`, string(data))
+	assert.JSONEq(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","execution":"execution0","phase":"phase0","command":"command0"}`, string(data))
 }
 
 func TestCheckTestMetadata(t *testing.T) {
@@ -143,6 +146,7 @@ func TestFindTestByID(t *testing.T) {
 			BuildID: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs",
 			TaskID:  "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
+			Execution: "execution0",
 			Phase:   "phase0",
 			Command: "command0",
 		}
@@ -171,6 +175,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			BuildID: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs",
 			TaskID:  "Task",
+			Execution: "execution0",
 			Command: "command0",
 			Phase:   "phase0",
 		},
@@ -179,6 +184,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			BuildID: "5a75f537726934e4b62833ab6d5dca41",
 			Name:    "geo_max:CheckReplOplogs2",
 			TaskID:  "Task",
+			Execution: "execution1",
 			Command: "command1",
 			Phase:   "phase1",
 		},

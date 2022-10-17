@@ -62,6 +62,7 @@ func TestBuildKey(t *testing.T) {
 		Builder:  "builder0",
 		BuildNum: 1,
 		TaskID:   "t0",
+		Execution: "execution0",
 	}
 	assert.Equal(t, "builds/b0/metadata.json", build.key())
 }
@@ -72,10 +73,11 @@ func TestBuildToJSON(t *testing.T) {
 		Builder:  "builder0",
 		BuildNum: 1,
 		TaskID:   "t0",
+		Execution: "execution0",
 	}
 	data, err := build.toJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"id":"b0","builder":"builder0","buildnum":1,"task_id":"t0"}`, string(data))
+	assert.JSONEq(t, `{"id":"b0","builder":"builder0","buildnum":1,"task_id":"t0","execution":"execution0"}`, string(data))
 }
 
 func TestCheckBuildMetadata(t *testing.T) {

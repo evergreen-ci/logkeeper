@@ -87,6 +87,7 @@ func createTest(buildID string) (string, error) {
 		"command":       "c0",
 		"phase":         "p0",
 		"task_id":       "t0",
+		"execution":     "e0",
 	})
 	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build/%s/test", port, buildID), "application/json", bytes.NewBuffer(body))
 	if err != nil {
