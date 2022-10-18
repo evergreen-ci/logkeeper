@@ -21,7 +21,7 @@ type Build struct {
 	Builder   string `json:"builder"`
 	BuildNum  int    `json:"buildnum"`
 	TaskID    string `json:"task_id"`
-	Execution string `json:"execution"`
+	Execution int    `json:"task_execution"`
 }
 
 // NewBuildID generates a new build ID based on the hash of the given builder

@@ -5,6 +5,6 @@
     "name": "geo_max:CheckReplOplogs",
     "command": "",
     "task_id": "Task",
-    "execution": "execution",
+    "task_execution": 1,
     "phase": "phase"
 }
