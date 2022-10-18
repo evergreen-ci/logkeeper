@@ -21,25 +21,29 @@ var port = os.Getenv("PORT")
 
 var (
 	sampleBuild = struct {
-		Builder  string `json:"builder"`
-		BuildNum int    `json:"buildnum"`
-		TaskID   string `json:"task_id"`
+		Builder       string `json:"builder"`
+		BuildNum      int    `json:"buildnum"`
+		TaskID        string `json:"task_id"`
+		TaskExecution int    `json:"task_execution"`
 	}{
-		Builder:  "b0",
-		BuildNum: rand.New(rand.NewSource(time.Now().UnixNano())).Int(),
-		TaskID:   "t0",
+		Builder:       "b0",
+		BuildNum:      rand.New(rand.NewSource(time.Now().UnixNano())).Int(),
+		TaskID:        "t0",
+		TaskExecution: 1,
 	}
 
 	sampleTest = struct {
-		TestFilename string `json:"test_filename"`
-		Command      string `json:"command"`
-		Phase        string `json:"phase"`
-		TaskID       string `json:"task_id"`
+		TestFilename  string `json:"test_filename"`
+		Command       string `json:"command"`
+		Phase         string `json:"phase"`
+		TaskID        string `json:"task_id"`
+		TaskExecution int    `json:"task_execution"`
 	}{
-		TestFilename: "f0",
-		Command:      "c0",
-		Phase:        "p0",
-		TaskID:       "t0",
+		TestFilename:  "f0",
+		Command:       "c0",
+		Phase:         "p0",
+		TaskID:        "t0",
+		TaskExecution: 1,
 	}
 
 	globalLogs = [][]interface{}{
@@ -87,7 +91,7 @@ func createTest(buildID string) (string, error) {
 		"command":        "c0",
 		"phase":          "p0",
 		"task_id":        "t0",
-		"task_execution": "0",
+		"task_execution": 1,
 	})
 	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build/%s/test", port, buildID), "application/json", bytes.NewBuffer(body))
 	if err != nil {
