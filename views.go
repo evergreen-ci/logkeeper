@@ -162,24 +162,19 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	build := model.Build{
-		ID:            id,
-		Builder:       payload.Builder,
-		BuildNum:      payload.BuildNum,
-		TaskID:        payload.TaskID,
-		TaskExecution: payload.TaskExecution,
-	}
-	if err = build.UploadMetadata(r.Context()); err != nil {
-		lk.logErrorf(r, "uploading build metadata: %v", err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
+	status := http.StatusOK
+	exists, err := model.CheckBuildMetadata(r.Context(), id)
+	if err != nil {
+		lk.logErrorf(r, "checking metadata in build '%s': %v", id, err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
 		return
 	}
 	if !exists {
 		build := model.Build{
-			ID:       id,
-			Builder:  payload.Builder,
-			BuildNum: payload.BuildNum,
-			TaskID:   payload.TaskID,
+			ID:            id,
+			Builder:       payload.Builder,
+			BuildNum:      payload.BuildNum,
+			TaskID:        payload.TaskID,
 			TaskExecution: payload.TaskExecution,
 		}
 		if err = build.UploadMetadata(r.Context()); err != nil {
