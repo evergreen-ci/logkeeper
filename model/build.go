@@ -17,11 +17,11 @@ const metadataFilename = "metadata.json"
 
 // Build contains metadata about a build.
 type Build struct {
-	ID        string `json:"id"`
-	Builder   string `json:"builder"`
-	BuildNum  int    `json:"buildnum"`
-	TaskID    string `json:"task_id"`
-	Execution int    `json:"task_execution"`
+	ID            string `json:"id"`
+	Builder       string `json:"builder"`
+	BuildNum      int    `json:"buildnum"`
+	TaskID        string `json:"task_id"`
+	TaskExecution int    `json:"task_execution"`
 }
 
 // NewBuildID generates a new build ID based on the hash of the given builder
