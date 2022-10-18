@@ -43,7 +43,7 @@ func TestUploadTestMetadata(t *testing.T) {
 		Name:          "test0",
 		BuildID:       "5a75f537726934e4b62833ab6d5dca41",
 		TaskID:        "t0",
-		TaskExecution: "0",
+		TaskExecution: 1,
 		Phase:         "phase0",
 		Command:       "command0",
 	}
@@ -64,7 +64,7 @@ func TestTestKey(t *testing.T) {
 		Name:          "name",
 		BuildID:       "build0",
 		TaskID:        "t0",
-		TaskExecution: "0",
+		TaskExecution: 1,
 		Phase:         "phase0",
 		Command:       "command0",
 	}
@@ -77,13 +77,13 @@ func TestTestToJSON(t *testing.T) {
 		Name:          "name",
 		BuildID:       "build0",
 		TaskID:        "t0",
-		TaskExecution: "0",
+		TaskExecution: 1,
 		Phase:         "phase0",
 		Command:       "command0",
 	}
 	data, err := test.toJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","task_execution":"0","phase":"phase0","command":"command0"}`, string(data))
+	assert.JSONEq(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","task_execution":1,"phase":"phase0","command":"command0"}`, string(data))
 }
 
 func TestCheckTestMetadata(t *testing.T) {
@@ -146,7 +146,7 @@ func TestFindTestByID(t *testing.T) {
 			BuildID:       "5a75f537726934e4b62833ab6d5dca41",
 			Name:          "geo_max:CheckReplOplogs",
 			TaskID:        "mongodb_mongo_master_enterprise_rhel_80_64_bit_multiversion_all_feature_flags_retryable_writes_downgrade_last_continuous_2_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
-			TaskExecution: "0",
+			TaskExecution: 1,
 			Phase:         "phase0",
 			Command:       "command0",
 		}
@@ -175,7 +175,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			BuildID:       "5a75f537726934e4b62833ab6d5dca41",
 			Name:          "geo_max:CheckReplOplogs",
 			TaskID:        "Task",
-			TaskExecution: "0",
+			TaskExecution: 1,
 			Command:       "command0",
 			Phase:         "phase0",
 		},
@@ -184,7 +184,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			BuildID:       "5a75f537726934e4b62833ab6d5dca41",
 			Name:          "geo_max:CheckReplOplogs2",
 			TaskID:        "Task",
-			TaskExecution: "1",
+			TaskExecution: 2,
 			Command:       "command1",
 			Phase:         "phase1",
 		},

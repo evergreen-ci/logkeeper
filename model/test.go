@@ -26,7 +26,7 @@ type Test struct {
 	Name          string `json:"name"`
 	BuildID       string `json:"build_id"`
 	TaskID        string `json:"task_id"`
-	TaskExecution string `json:"task_execution"`
+	TaskExecution int    `json:"task_execution"`
 	Phase         string `json:"phase"`
 	Command       string `json:"command"`
 }
