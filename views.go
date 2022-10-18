@@ -144,9 +144,10 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := struct {
-		Builder  string `json:"builder"`
-		BuildNum int    `json:"buildnum"`
-		TaskID   string `json:"task_id"`
+		Builder       string `json:"builder"`
+		BuildNum      int    `json:"buildnum"`
+		TaskID        string `json:"task_id"`
+		TaskExecution int    `json:"task_execution"`
 	}{}
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &payload); err != nil {
 		lk.logErrorf(r, "bad request to create build: %s", err.Err)
@@ -161,11 +162,16 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status := http.StatusOK
-	exists, err := model.CheckBuildMetadata(r.Context(), id)
-	if err != nil {
-		lk.logErrorf(r, "checking metadata in build '%s': %v", id, err)
-		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "finding build"})
+	build := model.Build{
+		ID:            id,
+		Builder:       payload.Builder,
+		BuildNum:      payload.BuildNum,
+		TaskID:        payload.TaskID,
+		TaskExecution: payload.TaskExecution,
+	}
+	if err = build.UploadMetadata(r.Context()); err != nil {
+		lk.logErrorf(r, "uploading build metadata: %v", err)
+		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading build metadata"})
 		return
 	}
 	if !exists {
@@ -174,6 +180,7 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 			Builder:  payload.Builder,
 			BuildNum: payload.BuildNum,
 			TaskID:   payload.TaskID,
+			TaskExecution: payload.TaskExecution,
 		}
 		if err = build.UploadMetadata(r.Context()); err != nil {
 			lk.logErrorf(r, "uploading build metadata: %v", err)
@@ -203,10 +210,11 @@ func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := struct {
-		TestFilename string `json:"test_filename"`
-		Command      string `json:"command"`
-		Phase        string `json:"phase"`
-		TaskID       string `json:"task_id"`
+		TestFilename  string `json:"test_filename"`
+		Command       string `json:"command"`
+		Phase         string `json:"phase"`
+		TaskID        string `json:"task_id"`
+		TaskExecution int    `json:"task_execution"`
 	}{}
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &payload); err != nil {
 		lk.logErrorf(r, "bad request to create test for build '%s': %s", buildID, err.Err)
@@ -226,12 +234,13 @@ func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	test := model.Test{
-		ID:      model.NewTestID(time.Now()),
-		Name:    payload.TestFilename,
-		BuildID: buildID,
-		TaskID:  payload.TaskID,
-		Phase:   payload.Phase,
-		Command: payload.Command,
+		ID:            model.NewTestID(time.Now()),
+		Name:          payload.TestFilename,
+		BuildID:       buildID,
+		TaskID:        payload.TaskID,
+		TaskExecution: payload.TaskExecution,
+		Phase:         payload.Phase,
+		Command:       payload.Command,
 	}
 	if err = test.UploadTestMetadata(r.Context()); err != nil {
 		lk.logErrorf(r, "uploading test metadata for build '%s': %v", buildID, err)
@@ -445,13 +454,14 @@ func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		err := lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *model.LogLineItem
-			BuildID  string
-			Builder  string
-			TestID   string
-			TestName string
-			TaskID   string
-		}{resp.logLines, resp.build.ID, resp.build.Builder, "", "All logs", resp.build.TaskID}, "base", "test.html")
+			LogLines      chan *model.LogLineItem
+			BuildID       string
+			Builder       string
+			TestID        string
+			TestName      string
+			TaskID        string
+			TaskExecution int
+		}{resp.logLines, resp.build.ID, resp.build.Builder, "", "All logs", resp.build.TaskID, resp.build.TaskExecution}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "rendering template: %v", err)
 		}
