@@ -83,7 +83,7 @@ func TestTestToJSON(t *testing.T) {
 	}
 	data, err := test.toJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","task_execution":1,"phase":"phase0","command":"command0"}`, string(data))
+	assert.JSONEq(t, `{"id":"test0","name":"name","build_id":"build0","task_id":"t0","execution":1,"phase":"phase0","command":"command0"}`, string(data))
 }
 
 func TestCheckTestMetadata(t *testing.T) {

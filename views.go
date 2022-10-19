@@ -147,7 +147,7 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		Builder       string `json:"builder"`
 		BuildNum      int    `json:"buildnum"`
 		TaskID        string `json:"task_id"`
-		TaskExecution int    `json:"task_execution"`
+		TaskExecution int    `json:"execution"`
 	}{}
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &payload); err != nil {
 		lk.logErrorf(r, "bad request to create build: %s", err.Err)
@@ -209,7 +209,7 @@ func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Command       string `json:"command"`
 		Phase         string `json:"phase"`
 		TaskID        string `json:"task_id"`
-		TaskExecution int    `json:"task_execution"`
+		TaskExecution int    `json:"execution"`
 	}{}
 	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &payload); err != nil {
 		lk.logErrorf(r, "bad request to create test for build '%s': %s", buildID, err.Err)

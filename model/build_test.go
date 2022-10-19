@@ -77,7 +77,7 @@ func TestBuildToJSON(t *testing.T) {
 	}
 	data, err := build.toJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"id":"b0","builder":"builder0","buildnum":1,"task_id":"t0","task_execution":1}`, string(data))
+	assert.JSONEq(t, `{"id":"b0","builder":"builder0","buildnum":1,"task_id":"t0","execution":1}`, string(data))
 }
 
 func TestCheckBuildMetadata(t *testing.T) {
