@@ -273,10 +273,11 @@ func TestCreateTest(t *testing.T) {
 			}),
 			buildID: buildID,
 			input: &payload{
-				TestFilename: "test",
-				Command:      "command",
-				Phase:        "phase",
-				TaskID:       "id",
+				TestFilename:  "test",
+				Command:       "command",
+				Phase:         "phase",
+				TaskID:        "id",
+				TaskExecution: 10,
 			},
 			expectedStatusCode: http.StatusCreated,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -291,6 +292,7 @@ func TestCreateTest(t *testing.T) {
 				assert.Equal(t, "test", test.Name)
 				assert.Equal(t, buildID, test.BuildID)
 				assert.Equal(t, "id", test.TaskID)
+				assert.Equal(t, 10, test.TaskExecution)
 				assert.Equal(t, "phase", test.Phase)
 				assert.Equal(t, "command", test.Command)
 			},
@@ -314,7 +316,6 @@ func TestAppendGlobalLog(t *testing.T) {
 		name               string
 		lk                 *logkeeper
 		buildID            string
-		taskExecution      int
 		chunks             []interface{}
 		expectedStatusCode int
 		test               func(*testing.T, *httptest.ResponseRecorder, []interface{})
