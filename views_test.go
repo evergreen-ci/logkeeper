@@ -58,9 +58,10 @@ func TestCreateBuild(t *testing.T) {
 	defer testutil.SetBucket(t, "")()
 
 	type payload struct {
-		Builder  string `json:"builder"`
-		BuildNum int    `json:"buildnum"`
-		TaskID   string `json:"task_id"`
+		Builder       string `json:"builder"`
+		BuildNum      int    `json:"buildnum"`
+		TaskID        string `json:"task_id"`
+		TaskExecution int    `json:"execution"`
 	}
 	for _, test := range []struct {
 		name               string
@@ -77,9 +78,10 @@ func TestCreateBuild(t *testing.T) {
 				MaxRequestSize: 10,
 			}),
 			input: &payload{
-				Builder:  "builder",
-				BuildNum: 10,
-				TaskID:   "id",
+				Builder:       "builder",
+				BuildNum:      10,
+				TaskID:        "id",
+				TaskExecution: 1,
 			},
 			expectedStatusCode: http.StatusRequestEntityTooLarge,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -111,9 +113,10 @@ func TestCreateBuild(t *testing.T) {
 				MaxRequestSize: testMaxReqSize,
 			}),
 			input: &payload{
-				Builder:  "builder",
-				BuildNum: 10,
-				TaskID:   "id",
+				Builder:       "builder",
+				BuildNum:      10,
+				TaskID:        "id",
+				TaskExecution: 1,
 			},
 			expectedStatusCode: http.StatusCreated,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -131,6 +134,7 @@ func TestCreateBuild(t *testing.T) {
 				assert.Equal(t, "builder", build.Builder)
 				assert.Equal(t, 10, build.BuildNum)
 				assert.Equal(t, "id", build.TaskID)
+				assert.Equal(t, 1, build.TaskExecution)
 			},
 		},
 		{
@@ -140,19 +144,21 @@ func TestCreateBuild(t *testing.T) {
 				MaxRequestSize: testMaxReqSize,
 			}),
 			input: &payload{
-				Builder:  "existing",
-				BuildNum: 150,
-				TaskID:   "id",
+				Builder:       "existing",
+				BuildNum:      150,
+				TaskID:        "id",
+				TaskExecution: 1,
 			},
 			expectedStatusCode: http.StatusOK,
 			setup: func(t *testing.T) {
 				id, err := model.NewBuildID("existing", 150)
 				require.NoError(t, err)
 				build := model.Build{
-					ID:       id,
-					Builder:  "existing",
-					BuildNum: 150,
-					TaskID:   "id",
+					ID:            id,
+					Builder:       "existing",
+					BuildNum:      150,
+					TaskID:        "id",
+					TaskExecution: 1,
 				}
 				require.NoError(t, build.UploadMetadata(context.TODO()))
 			},
@@ -184,15 +190,17 @@ func TestCreateTest(t *testing.T) {
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	type payload struct {
-		TestFilename string `json:"test_filename"`
-		Command      string `json:"command"`
-		Phase        string `json:"phase"`
-		TaskID       string `json:"task_id"`
+		TestFilename  string `json:"test_filename"`
+		Command       string `json:"command"`
+		Phase         string `json:"phase"`
+		TaskID        string `json:"task_id"`
+		TaskExecution int    `json:"execution"`
 	}
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
 		buildID            string
+		taskExecution      int
 		input              interface{}
 		expectedStatusCode int
 		test               func(*testing.T, *httptest.ResponseRecorder)
@@ -205,10 +213,11 @@ func TestCreateTest(t *testing.T) {
 			}),
 			buildID: buildID,
 			input: &payload{
-				TestFilename: "test",
-				Command:      "command",
-				Phase:        "phase",
-				TaskID:       "task",
+				TestFilename:  "test",
+				Command:       "command",
+				Phase:         "phase",
+				TaskID:        "task",
+				TaskExecution: 10,
 			},
 			expectedStatusCode: http.StatusRequestEntityTooLarge,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -242,10 +251,11 @@ func TestCreateTest(t *testing.T) {
 			}),
 			buildID: "DNE",
 			input: &payload{
-				TestFilename: "test",
-				Command:      "command",
-				Phase:        "phase",
-				TaskID:       "task",
+				TestFilename:  "test",
+				Command:       "command",
+				Phase:         "phase",
+				TaskID:        "task",
+				TaskExecution: 10,
 			},
 			expectedStatusCode: http.StatusNotFound,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -263,10 +273,11 @@ func TestCreateTest(t *testing.T) {
 			}),
 			buildID: buildID,
 			input: &payload{
-				TestFilename: "test",
-				Command:      "command",
-				Phase:        "phase",
-				TaskID:       "id",
+				TestFilename:  "test",
+				Command:       "command",
+				Phase:         "phase",
+				TaskID:        "id",
+				TaskExecution: 10,
 			},
 			expectedStatusCode: http.StatusCreated,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -281,6 +292,7 @@ func TestCreateTest(t *testing.T) {
 				assert.Equal(t, "test", test.Name)
 				assert.Equal(t, buildID, test.BuildID)
 				assert.Equal(t, "id", test.TaskID)
+				assert.Equal(t, 10, test.TaskExecution)
 				assert.Equal(t, "phase", test.Phase)
 				assert.Equal(t, "command", test.Command)
 			},

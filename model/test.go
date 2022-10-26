@@ -22,12 +22,13 @@ import (
 
 // Test describes metadata of a test stored in pail-backed offline storage.
 type Test struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	BuildID string `json:"build_id"`
-	TaskID  string `json:"task_id"`
-	Phase   string `json:"phase"`
-	Command string `json:"command"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	BuildID       string `json:"build_id"`
+	TaskID        string `json:"task_id"`
+	TaskExecution int    `json:"execution"`
+	Phase         string `json:"phase"`
+	Command       string `json:"command"`
 }
 
 // NewTestID returns a new TestID with it's timestamp set to startTime.
