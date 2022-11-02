@@ -21,7 +21,7 @@ import (
 
 const (
 	corsOriginsEnvVariable = "LK_CORS_ORIGINS"
-	maxLogBytes            = 4 * 1024 * 1024 // 4 MB
+	maxLogBytes            = 4 * bytesPerMB // 4 MB
 )
 
 var corsOrigins []string
@@ -438,13 +438,9 @@ func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
-		for line := range resp.logLines {
-			_, err := w.Write([]byte(line.Data + "\n"))
-			if err != nil {
-				lk.logErrorf(r, "writing raw log lines from build '%s': %v", buildID, err)
-				lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "rendering log lines"})
-				return
-			}
+		if err := writeRawLines(w, resp); err != nil {
+			lk.logErrorf(r, "writing raw log lines from build '%s': %v", buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "rendering log lines"})
 		}
 		return
 	} else {
@@ -490,18 +486,9 @@ func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(r.FormValue("raw")) > 0 || r.Header.Get("Accept") == "text/plain" {
-		emptyLog := true
-		for line := range resp.logLines {
-			emptyLog = false
-			_, err := w.Write([]byte(line.Data + "\n"))
-			if err != nil {
-				lk.logErrorf(r, "writing raw log lines from test '%s' for build '%s': %v", testID, buildID, err)
-				lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "rendering log lines"})
-				return
-			}
-		}
-		if emptyLog {
-			lk.render.WriteJSON(w, http.StatusOK, nil)
+		if err := writeRawLines(w, resp); err != nil {
+			lk.logErrorf(r, "writing raw log lines from test '%s' for build '%s': %v", testID, buildID, err)
+			lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "rendering log lines"})
 		}
 	} else {
 		err := lk.render.StreamHTML(w, http.StatusOK, struct {
@@ -578,6 +565,64 @@ func (lk *logkeeper) viewBucketLogs(r *http.Request, buildID string, testID stri
 		build:    build,
 		test:     test,
 	}, nil
+}
+
+func writeRawLines(w http.ResponseWriter, resp *logFetchResponse) error {
+	var (
+		numLines    int
+		totalSize   int
+		maxLineSize int
+		minLineSize = maxLogBytes + len("\n")
+	)
+
+	var hasLines bool
+	for line := range resp.logLines {
+		hasLines = true
+
+		lineData := []byte(line.Data + "\n")
+		_, err := w.Write(lineData)
+		if err != nil {
+			return err
+		}
+
+		lineSize := len(lineData)
+		if lineSize > maxLineSize {
+			maxLineSize = lineSize
+		}
+		if lineSize < minLineSize {
+			minLineSize = lineSize
+		}
+		numLines++
+		totalSize += lineSize
+	}
+
+	avgLineSize := float64(totalSize) / float64(numLines)
+	if !hasLines {
+		// Set average line size to 0 since it will be NaN when there
+		// are no lines.
+		avgLineSize = 0
+		// Set the min line size to 0 since the initial value is the
+		// max line size allowed.
+		minLineSize = 0
+	}
+	msg := message.Fields{
+		"message":             "requested log size stats",
+		"build_id":            resp.build.ID,
+		"task_id":             resp.build.TaskID,
+		"task_execution":      resp.build.TaskExecution,
+		"total_size_mb":       float64(totalSize) / bytesPerMB,
+		"num_lines":           numLines,
+		"max_line_size_bytes": maxLineSize,
+		"min_line_size_bytes": minLineSize,
+		"avg_line_size_bytes": avgLineSize,
+	}
+	if resp.test != nil {
+		msg["test_id"] = resp.test.ID
+		msg["test_name"] = resp.test.Name
+	}
+	grip.Info(msg)
+
+	return nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////
