@@ -785,6 +785,7 @@ func TestViewAllLogs(t *testing.T) {
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(build, "", "  ")
+				require.NoError(t, err)
 				assert.Equal(t, expectedOut, resp.Body.Bytes())
 			},
 		},
@@ -924,6 +925,7 @@ func TestViewTestLogs(t *testing.T) {
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(test, "", "  ")
+				require.NoError(t, err)
 				assert.Equal(t, expectedOut, resp.Body.Bytes())
 			},
 		},
