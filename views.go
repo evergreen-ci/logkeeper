@@ -365,6 +365,15 @@ func (lk *logkeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.FormValue("metadata") == "true" {
+		payload := struct {
+			model.Build
+			Tests []model.Test `json:"tests"`
+		}{*build, tests}
+		lk.render.WriteJSON(w, http.StatusOK, payload)
+		return
+	}
+
 	lk.render.WriteHTML(w, http.StatusOK, struct {
 		Build *model.Build
 		Tests []model.Test
@@ -481,7 +490,7 @@ func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.FormValue("metadata") == "true" {
-		lk.render.WriteJSON(w, http.StatusOK, resp.build)
+		lk.render.WriteJSON(w, http.StatusOK, resp.test)
 		return
 	}
 
