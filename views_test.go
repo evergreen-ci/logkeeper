@@ -620,6 +620,7 @@ func TestViewBuild(t *testing.T) {
 	for _, test := range []struct {
 		name               string
 		buildID            string
+		params             string
 		expectedStatusCode int
 		test               func(*testing.T, *httptest.ResponseRecorder)
 	}{
@@ -652,9 +653,28 @@ func TestViewBuild(t *testing.T) {
 				assert.Equal(t, expectedOut.Bytes(), resp.Body.Bytes())
 			},
 		},
+		{
+			name:               "Metadata",
+			buildID:            buildID,
+			params:             "metadata=true",
+			expectedStatusCode: http.StatusOK,
+			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				build, err := model.FindBuildByID(context.TODO(), buildID)
+				require.NoError(t, err)
+				tests, err := model.FindTestsForBuild(context.TODO(), buildID)
+				require.NoError(t, err)
+
+				expectedOut, err := json.MarshalIndent(struct {
+					model.Build
+					Tests []model.Test `json:"tests"`
+				}{*build, tests}, "", "  ")
+				require.NoError(t, err)
+				assert.Equal(t, expectedOut, resp.Body.Bytes())
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			resp := doReq(t, lk.NewRouter(), http.MethodGet, nil, fmt.Sprintf("%s/build/%s", lk.opts.URL, test.buildID), nil)
+			resp := doReq(t, lk.NewRouter(), http.MethodGet, nil, fmt.Sprintf("%s/build/%s?%s", lk.opts.URL, test.buildID, test.params), nil)
 			require.Equal(t, test.expectedStatusCode, resp.Code)
 			checkCORSHeader(t, resp.Header())
 			test.test(t, resp)
@@ -753,6 +773,19 @@ func TestViewAllLogs(t *testing.T) {
 					TaskID   string
 				}{lines, build.ID, build.Builder, "", "All logs", build.TaskID}, "base", "test.html"))
 				assert.Equal(t, expectedOut.Bytes(), resp.Body.Bytes())
+			},
+		},
+		{
+			name:               "Metadata",
+			buildID:            buildID,
+			params:             "metadata=true",
+			expectedStatusCode: http.StatusOK,
+			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				build, err := model.FindBuildByID(context.TODO(), buildID)
+				require.NoError(t, err)
+
+				expectedOut, err := json.MarshalIndent(build, "", "  ")
+				assert.Equal(t, expectedOut, resp.Body.Bytes())
 			},
 		},
 	} {
@@ -878,6 +911,20 @@ func TestViewTestLogs(t *testing.T) {
 					TaskID   string
 				}{lines, build.ID, build.Builder, test.ID, test.Name, test.TaskID}, "base", "test.html"))
 				assert.Equal(t, expectedOut.Bytes(), resp.Body.Bytes())
+			},
+		},
+		{
+			name:               "Metadata",
+			buildID:            buildID,
+			testID:             testID,
+			params:             "metadata=true",
+			expectedStatusCode: http.StatusOK,
+			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
+				test, err := model.FindTestByID(context.TODO(), buildID, testID)
+				require.NoError(t, err)
+
+				expectedOut, err := json.MarshalIndent(test, "", "  ")
+				assert.Equal(t, expectedOut, resp.Body.Bytes())
 			},
 		},
 	} {
