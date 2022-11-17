@@ -82,13 +82,18 @@ func TestBuildToJSON(t *testing.T) {
 
 func TestCheckBuildMetadata(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
+	defer cancel()
 
 	defer testutil.SetBucket(t, "../testdata/simple")()
 
-	t.Run("ServerError", func(t *testing.T) {
+	t.Run("MetadataExists", func(t *testing.T) {
 		exists, err := CheckBuildMetadata(ctx, "5a75f537726934e4b62833ab6d5dca41")
-		require.Error(t, err)
+		require.NoError(t, err)
+		assert.True(t, exists)
+	})
+	t.Run("NonexistentBuild", func(t *testing.T) {
+		exists, err := CheckBuildMetadata(ctx, "DOA")
+		require.NoError(t, err)
 		assert.False(t, exists)
 	})
 }
