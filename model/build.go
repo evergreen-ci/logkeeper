@@ -114,15 +114,12 @@ func checkMetadata(ctx context.Context, buildID string, testID string) (bool, er
 		key = metadataKeyForTest(buildID, testID)
 	}
 
-	_, err := env.Bucket().Get(ctx, key)
+	exists, err := env.Bucket().Exists(ctx, key)
 	if err != nil {
-		if pail.IsKeyNotFoundError(err) {
-			return false, nil
-		}
-		return false, errors.Wrap(err, "getting metadata file")
+		return false, errors.Wrap(err, "checking if metadata file exists")
 	}
 
-	return true, nil
+	return exists, nil
 }
 
 // getBuildKeys returns the all the keys contained within the build prefix.
