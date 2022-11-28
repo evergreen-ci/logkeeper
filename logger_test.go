@@ -30,8 +30,12 @@ func TestResponseLoggerLoop(t *testing.T) {
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.Equal(t, "test_route", msg["route"])
 		assert.Equal(t, 1, msg["count"])
-	})
 
+		// Check that we properly set std dev.
+		serviceTimeStats, ok := msg["service_time_ms"].(message.Fields)
+		require.True(t, ok)
+		assert.Zero(t, serviceTimeStats["std_dev"])
+	})
 	t.Run("MultipleResponses", func(t *testing.T) {
 		sender := send.NewMockSender("")
 		require.NoError(t, grip.SetSender(sender))
@@ -48,8 +52,12 @@ func TestResponseLoggerLoop(t *testing.T) {
 		msg := sender.Messages[0].Raw().(message.Fields)
 		assert.Equal(t, "test_route", msg["route"])
 		assert.Equal(t, 3, msg["count"])
-	})
 
+		// Check that we properly set std dev.
+		serviceTimeStats, ok := msg["service_time_ms"].(message.Fields)
+		require.True(t, ok)
+		assert.NotZero(t, serviceTimeStats["std_dev"])
+	})
 	t.Run("MultipleRoutes", func(t *testing.T) {
 		sender := send.NewMockSender("")
 		require.NoError(t, grip.SetSender(sender))

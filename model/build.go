@@ -114,19 +114,12 @@ func checkMetadata(ctx context.Context, buildID string, testID string) (bool, er
 		key = metadataKeyForTest(buildID, testID)
 	}
 
-	iter, err := env.Bucket().List(ctx, key)
+	exists, err := env.Bucket().Exists(ctx, key)
 	if err != nil {
-		return false, errors.Wrap(err, "listing metadata files")
+		return false, errors.Wrap(err, "checking if metadata file exists")
 	}
 
-	for iter.Next(ctx) {
-		// We set the prefix to the entire metadata filename, so
-		// finding a single file in the bucket with the given prefix
-		// suffices.
-		return true, nil
-	}
-
-	return false, errors.Wrap(iter.Err(), "iterating metadata files")
+	return exists, nil
 }
 
 // getBuildKeys returns the all the keys contained within the build prefix.

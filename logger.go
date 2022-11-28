@@ -261,12 +261,21 @@ func sliceStats(sample, histogramBins []float64) message.Fields {
 		return message.Fields{}
 	}
 
+	// Only calculate the standard deviation if the sample size is greater
+	// than 1, otherwise set it to 0. This avoids setting the field to NaN,
+	// which cannot be marshalled into JSON, and ensures that all of the
+	// stats logs are written correctly to Splunk.
+	var stdDev float64
+	if len(sample) > 1 {
+		stdDev = stat.StdDev(sample, nil)
+	}
+
 	return message.Fields{
 		"sum":       floats.Sum(sample),
 		"min":       min,
 		"max":       max,
 		"mean":      stat.Mean(sample, nil),
-		"std_dev":   stat.StdDev(sample, nil),
+		"std_dev":   stdDev,
 		"histogram": stat.Histogram(nil, histogramBins, sample, nil),
 	}
 }
