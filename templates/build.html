@@ -4,19 +4,18 @@
     <div>
         <h2>
           {{.Build.Builder}} - {{.Build.BuildNum}}   
-          {{$evergreenURL := .EvergreenURL}}    
           {{if .Build.TaskID}}
-            (<a href="{{$evergreenURL}}/task/{{.Build.TaskID}}?redirect_spruce_users=true"> {{.Build.TaskID}}</a>)
+            (<a href="{{.EvergreenURL}}/task/{{.Build.TaskID}}?redirect_spruce_users=true"> {{.Build.TaskID}}</a>)
           {{end}}
         </h2>
       <h3>
-        {{$parsleyURL := .ParsleyURL}}
-        <a href="{{$parsleyURL}}/resmoke/{{.Build.ID}}/all">Complete logs for all</a>
+        <a href="{{.ParsleyURL}}/resmoke/{{.Build.ID}}/all">Complete logs for all</a>
       </h3>
 
     </div>
     <ul>
       {{$build := .Build}}
+      {{$parsleyURL := .ParsleyURL}}
       {{range .Tests}}
       <li>
           <a href="{{$parsleyURL}}/resmoke/{{$build.ID}}/test/{{.ID}}/">{{.Name}}</a>
