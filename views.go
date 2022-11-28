@@ -21,6 +21,8 @@ import (
 
 const (
 	corsOriginsEnvVariable = "LK_CORS_ORIGINS"
+	evergreenEnvVariable   = "LK_EVERGREEN_ORIGIN"
+	parsleyEnvVariable     = "LK_PARSLEY_ORIGIN"
 	maxLogBytes            = 4 * 1024 * 1024 // 4 MB
 )
 
@@ -366,9 +368,11 @@ func (lk *logkeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	lk.render.WriteHTML(w, http.StatusOK, struct {
-		Build *model.Build
-		Tests []model.Test
-	}{build, tests}, "base", "build.html")
+		Build        *model.Build
+		Tests        []model.Test
+		EvergreenURL string
+		ParsleyURL   string
+	}{build, tests, os.Getenv(evergreenEnvVariable), os.Getenv(parsleyEnvVariable)}, "base", "build.html")
 }
 
 func (lk *logkeeper) viewBucketBuild(r *http.Request, buildID string) (*model.Build, []model.Test, *apiError) {
