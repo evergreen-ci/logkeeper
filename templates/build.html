@@ -3,18 +3,24 @@
   <body>
     <div>
         <h2>
-          {{.Build.Builder}} - {{.Build.BuildNum}}       
+          {{.Build.Builder}} - {{.Build.BuildNum}}   
+          {{$evergreenURL := .EvergreenURL}}    
           {{if .Build.TaskID}}
-            (<a href="https://evergreen.mongodb.com/task/{{.Build.TaskID}}"> {{.Build.TaskID}}</a>)
+            (<a href="{{$evergreenURL}}/task/{{.Build.TaskID}}?redirect_spruce_users=true"> {{.Build.TaskID}}</a>)
           {{end}}
         </h2>
-      <h3><a href="https://evergreen.mongodb.com/lobster/build/{{.Build.ID}}/all">Complete logs for all</a></h3>
+      <h3>
+        {{$parsleyURL := .ParsleyURL}}
+        <a href="{{$parsleyURL}}/resmoke/{{.Build.ID}}/all">Complete logs for all</a>
+      </h3>
 
     </div>
     <ul>
       {{$build := .Build}}
       {{range .Tests}}
-        <li><a href="https://evergreen.mongodb.com/lobster/build/{{$build.ID}}/test/{{.ID}}/">{{.Name}}</a></li>
+      <li>
+          <a href="{{$parsleyURL}}/resmoke/{{$build.ID}}/test/{{.ID}}/">{{.Name}}</a>
+      </li>
       {{end}}
     </ul>
   </body>
