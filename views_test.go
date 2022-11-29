@@ -647,9 +647,11 @@ func TestViewBuild(t *testing.T) {
 
 				expectedOut := &bytes.Buffer{}
 				require.NoError(t, lk.render.HTML(expectedOut, struct {
-					Build *model.Build
-					Tests []model.Test
-				}{build, tests}, "base", "build.html"))
+					Build        *model.Build
+					Tests        []model.Test
+					EvergreenURL string
+					ParsleyURL   string
+				}{build, tests, "", ""}, "base", "build.html"))
 				assert.Equal(t, expectedOut.Bytes(), resp.Body.Bytes())
 			},
 		},
