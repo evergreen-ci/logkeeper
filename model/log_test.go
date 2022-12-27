@@ -1,7 +1,6 @@
 package model
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,7 +11,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/testutil"
-	"github.com/evergreen-ci/utility"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,41 +21,6 @@ func TestUnmarshalJSON(t *testing.T) {
 	assert.NoError(t, json.Unmarshal([]byte(logLineJSON), &line))
 	assert.True(t, line.Timestamp.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)))
 	assert.Equal(t, "message", line.Data)
-}
-
-func TestReadLogJSON(t *testing.T) {
-	t.Run("EmptyLines", func(t *testing.T) {
-		lines, err := UnmarshalLogJSON(strings.NewReader(""))
-		assert.Error(t, err)
-		require.Len(t, lines, 0)
-	})
-
-	t.Run("WellFormedLines", func(t *testing.T) {
-		logLineJSON := "[[1257894000, \"message0\"],[1257894001, \"message1\"]]"
-		lines, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
-		assert.NoError(t, err)
-		require.Len(t, lines, 2)
-		assert.Equal(t, "message0", lines[0].Data)
-		assert.Equal(t, "message1", lines[1].Data)
-	})
-
-	t.Run("MalformedJSON", func(t *testing.T) {
-		logLineJSON := "[[1257894000, \"message0\"]}"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
-		assert.Error(t, err)
-	})
-
-	t.Run("UnexpectedTimestampType", func(t *testing.T) {
-		logLineJSON := "[[\"not a date\", \"message0\"]]"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
-		assert.Error(t, err)
-	})
-
-	t.Run("UnexpectedDataType", func(t *testing.T) {
-		logLineJSON := "[[1257894000, true]]"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
-		assert.Error(t, err)
-	})
 }
 
 func TestLogChunkInfoKey(t *testing.T) {
@@ -459,30 +422,3 @@ func verifyDataStorage(t *testing.T, prefix string, expectedStorage expectedChun
 	require.NoError(t, err)
 	assert.Equal(t, expectedStorage.body, string(actualChunkBody))
 }
-
-func benchmarkReadLogJSON(lineCount, lineSize int, b *testing.B) {
-	sampleJSON := makeJSONSample(lineCount, lineSize)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		UnmarshalLogJSON(bytes.NewReader(sampleJSON))
-	}
-}
-
-func makeJSONSample(lineCount, lineSize int) []byte {
-	var sample [][]interface{}
-	startTime := time.Date(2009, time.November, 10, 23, 0, 0, 1, time.UTC)
-	for i := 0; i < lineCount; i++ {
-		sample = append(sample, []interface{}{
-			utility.ToPythonTime(startTime.Add(time.Duration(i) * time.Second)),
-			utility.MakeRandomString(lineSize),
-		})
-	}
-
-	jsonSample, _ := json.Marshal(sample)
-
-	return jsonSample
-}
-
-func BenchmarkReadLogJSONShort(b *testing.B)          { benchmarkReadLogJSON(100, 100, b) }
-func BenchmarkReadLogJSONFewLongLines(b *testing.B)   { benchmarkReadLogJSON(100, 100000, b) }
-func BenchmarkReadLogJSONManyShortLines(b *testing.B) { benchmarkReadLogJSON(100000, 100, b) }

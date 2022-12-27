@@ -17,7 +17,6 @@ import (
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -276,14 +275,14 @@ func (lk *logkeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines, err := model.UnmarshalLogJSON(&LimitedReader{R: r.Body, N: lk.opts.MaxRequestSize})
-	if err != nil {
-		lk.logErrorf(r, "bad request to append log lines to build '%s': %s", buildID, err)
-		if errors.Cause(err) == ErrReadSizeLimitExceeded {
-			lk.render.WriteJSON(w, http.StatusRequestEntityTooLarge, err)
-		} else {
-			lk.render.WriteJSON(w, http.StatusBadRequest, err)
-		}
+	var lines []model.LogLineItem
+	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
+		lk.logErrorf(r, "bad request to append log lines to build '%s': %s", buildID, err.Err)
+		lk.render.WriteJSON(w, err.code, err)
+		return
+	}
+	if len(lines) == 0 {
+		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
 
@@ -325,14 +324,10 @@ func (lk *logkeeper) appendTestLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lines, err := model.UnmarshalLogJSON(&LimitedReader{R: r.Body, N: lk.opts.MaxRequestSize})
-	if err != nil {
-		lk.logErrorf(r, "bad request to append log to test '%s' for build '%s': %s", testID, buildID, err)
-		if errors.Cause(err) == ErrReadSizeLimitExceeded {
-			lk.render.WriteJSON(w, http.StatusRequestEntityTooLarge, err)
-		} else {
-			lk.render.WriteJSON(w, http.StatusBadRequest, err)
-		}
+	var lines []model.LogLineItem
+	if err := readJSON(r.Body, lk.opts.MaxRequestSize, &lines); err != nil {
+		lk.logErrorf(r, "bad request to append log to test '%s' for build '%s': %s", testID, buildID, err.Err)
+		lk.render.WriteJSON(w, err.code, err)
 		return
 	}
 	if len(lines) == 0 {
