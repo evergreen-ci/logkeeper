@@ -17,18 +17,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestUnmarshalJSON(t *testing.T) {
-	logLineJSON := "[1257894000, \"message\"]"
-	line := LogLineItem{}
-	assert.NoError(t, json.Unmarshal([]byte(logLineJSON), &line))
-	assert.True(t, line.Timestamp.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)))
-	assert.Equal(t, "message", line.Data)
-}
-
-func TestReadLogJSON(t *testing.T) {
-	t.Run("EmptyLines", func(t *testing.T) {
+func TestUnmarshalLogJSON(t *testing.T) {
+	t.Run("NoInput", func(t *testing.T) {
 		lines, err := UnmarshalLogJSON(strings.NewReader(""))
 		assert.Error(t, err)
+		require.Len(t, lines, 0)
+	})
+
+	t.Run("EmptyLines", func(t *testing.T) {
+		lines, err := UnmarshalLogJSON(strings.NewReader("[]"))
+		assert.NoError(t, err)
 		require.Len(t, lines, 0)
 	})
 
@@ -38,7 +36,9 @@ func TestReadLogJSON(t *testing.T) {
 		assert.NoError(t, err)
 		require.Len(t, lines, 2)
 		assert.Equal(t, "message0", lines[0].Data)
+		assert.True(t, lines[0].Timestamp.Equal(time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)))
 		assert.Equal(t, "message1", lines[1].Data)
+		assert.True(t, lines[1].Timestamp.Equal(time.Date(2009, time.November, 10, 23, 0, 1, 0, time.UTC)))
 	})
 
 	t.Run("MalformedJSON", func(t *testing.T) {
@@ -464,7 +464,10 @@ func benchmarkReadLogJSON(lineCount, lineSize int, b *testing.B) {
 	sampleJSON := makeJSONSample(lineCount, lineSize)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		UnmarshalLogJSON(bytes.NewReader(sampleJSON))
+		_, err := UnmarshalLogJSON(bytes.NewReader(sampleJSON))
+		if err != nil {
+			b.Fatalf("unmarshal encountered error %s", err)
+		}
 	}
 }
 
@@ -483,6 +486,10 @@ func makeJSONSample(lineCount, lineSize int) []byte {
 	return jsonSample
 }
 
-func BenchmarkReadLogJSONShort(b *testing.B)          { benchmarkReadLogJSON(100, 100, b) }
-func BenchmarkReadLogJSONFewLongLines(b *testing.B)   { benchmarkReadLogJSON(100, 100000, b) }
-func BenchmarkReadLogJSONManyShortLines(b *testing.B) { benchmarkReadLogJSON(100000, 100, b) }
+func BenchmarkReadLogJSONShort(b *testing.B)                  { benchmarkReadLogJSON(100, 100, b) }
+func BenchmarkReadLogJSONFewLongLines(b *testing.B)           { benchmarkReadLogJSON(100, 100000, b) }
+func BenchmarkReadLogJSONManyShortLines(b *testing.B)         { benchmarkReadLogJSON(100000, 100, b) }
+func BenchmarkReadLogJSONMaxLogSizeAverageLines(b *testing.B) { benchmarkReadLogJSON(32*1024, 1024, b) }
+func BenchmarkReadLogJSONMaxLogSizeMaxLineSize(b *testing.B) {
+	benchmarkReadLogJSON(8, 4*1024*1024, b)
+}

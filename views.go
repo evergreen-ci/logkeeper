@@ -279,11 +279,17 @@ func (lk *logkeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	lines, err := model.UnmarshalLogJSON(&LimitedReader{R: r.Body, N: lk.opts.MaxRequestSize})
 	if err != nil {
 		lk.logErrorf(r, "bad request to append log lines to build '%s': %s", buildID, err)
+		apiErr := apiError{Err: err.Error()}
 		if errors.Cause(err) == ErrReadSizeLimitExceeded {
-			lk.render.WriteJSON(w, http.StatusRequestEntityTooLarge, err)
+			apiErr.code = http.StatusRequestEntityTooLarge
 		} else {
-			lk.render.WriteJSON(w, http.StatusBadRequest, err)
+			apiErr.code = http.StatusBadRequest
 		}
+		lk.render.WriteJSON(w, apiErr.code, apiErr)
+		return
+	}
+	if len(lines) == 0 {
+		lk.render.WriteJSON(w, http.StatusOK, "")
 		return
 	}
 
@@ -328,11 +334,13 @@ func (lk *logkeeper) appendTestLog(w http.ResponseWriter, r *http.Request) {
 	lines, err := model.UnmarshalLogJSON(&LimitedReader{R: r.Body, N: lk.opts.MaxRequestSize})
 	if err != nil {
 		lk.logErrorf(r, "bad request to append log to test '%s' for build '%s': %s", testID, buildID, err)
+		apiErr := apiError{Err: err.Error()}
 		if errors.Cause(err) == ErrReadSizeLimitExceeded {
-			lk.render.WriteJSON(w, http.StatusRequestEntityTooLarge, err)
+			apiErr.code = http.StatusRequestEntityTooLarge
 		} else {
-			lk.render.WriteJSON(w, http.StatusBadRequest, err)
+			apiErr.code = http.StatusBadRequest
 		}
+		lk.render.WriteJSON(w, apiErr.code, apiErr)
 		return
 	}
 	if len(lines) == 0 {
