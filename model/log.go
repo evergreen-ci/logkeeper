@@ -75,7 +75,12 @@ func UnmarshalLogJSON(r io.Reader) ([]LogLineItem, error) {
 		return lines, errors.New("reading closing bracket")
 	}
 	if delim, ok := lastToken.(json.Delim); !ok || delim != ']' {
-		return lines, errors.Errorf("unexpected last token of type '%T', '%v'", lastToken, lastToken)
+		return lines, errors.Errorf("unexpected last token '%v' of type '%T'", lastToken, lastToken)
+	}
+
+	nextToken, err := dec.Token()
+	if err != io.EOF {
+		return lines, errors.Errorf("expected end of file, got '%v', type '%T'", nextToken, nextToken)
 	}
 
 	return lines, nil

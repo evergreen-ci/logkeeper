@@ -58,6 +58,12 @@ func TestUnmarshalLogJSON(t *testing.T) {
 		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
 		assert.Error(t, err)
 	})
+
+	t.Run("UnexpectedExtraArray", func(t *testing.T) {
+		logLineJSON := "[[1257894000, \"message0\"]], [\"unexpected\"]"
+		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
+		assert.Error(t, err)
+	})
 }
 
 func TestLogChunkInfoKey(t *testing.T) {
