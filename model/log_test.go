@@ -472,7 +472,7 @@ func benchmarkReadLogJSON(lineCount, lineSize int, b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, err := UnmarshalLogJSON(bytes.NewReader(sampleJSON))
 		if err != nil {
-			b.Fatalf("unmarshal encountered error %s", err)
+			b.Fatalf("unmarshal encountered error: '%s'", err)
 		}
 	}
 }
