@@ -80,6 +80,9 @@ func UnmarshalLogJSON(r io.Reader) ([]LogLineItem, error) {
 
 	nextToken, err := dec.Token()
 	if err != io.EOF {
+		if err != nil {
+			return lines, errors.Wrap(err, "getting EOF")
+		}
 		return lines, errors.Errorf("expected end of file, got '%v', type '%T'", nextToken, nextToken)
 	}
 
