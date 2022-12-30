@@ -14,7 +14,7 @@ var ErrReadSizeLimitExceeded = errors.New("read size limit exceeded")
 // A LimitedReader reads from R but limits the amount of
 // data returned to just N bytes. Each call to Read
 // updates N to reflect the new amount remaining.
-// Note: this is identical to io.LimitedReader, but throws ErrReadSizeLimitExceeded
+// Note: this is identical to io.LimitedReader, but returns ErrReadSizeLimitExceeded
 // so it can be distinguished from a normal EOF.
 type LimitedReader struct {
 	R io.Reader // underlying reader

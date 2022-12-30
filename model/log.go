@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"regexp"
 	"sort"
@@ -14,8 +15,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/utility"
-	"github.com/mongodb/grip"
-	"github.com/mongodb/grip/message"
 	"github.com/pkg/errors"
 )
 
@@ -28,33 +27,66 @@ type LogLineItem struct {
 	Global    bool
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface.
-func (ll *LogLineItem) UnmarshalJSON(data []byte) error {
-	var line []interface{}
-	if err := json.Unmarshal(data, &line); err != nil {
-		return errors.Wrap(err, "unmarshaling line into array")
+// UnmarshalLogJSON unmarshals log lines from JSON into a slice of LogLineItem.
+// Unmarshalling directly is more efficient than implementing the Unmarshaller interface.
+func UnmarshalLogJSON(r io.Reader) ([]LogLineItem, error) {
+	var lines []LogLineItem
+
+	dec := json.NewDecoder(r)
+	firstToken, err := dec.Token()
+	if err != nil {
+		return lines, errors.New("reading opening bracket")
+	}
+	if delim, ok := firstToken.(json.Delim); !ok || delim != '[' {
+		return lines, errors.Errorf("unexpected first token '%v' of type '%T'", firstToken, firstToken)
 	}
 
-	// timeField is generated client-side as the output of Python's
-	// time.time(), which returns seconds since epoch as a floating point
-	// number.
-	timeField, ok := line[0].(float64)
-	if !ok {
-		grip.Critical(message.Fields{
-			"message": "unable to convert time field",
-			"value":   line[0],
+	for dec.More() {
+		var line []interface{}
+		if err := dec.Decode(&line); err != nil {
+			return nil, errors.Wrap(err, "decoding line")
+		}
+		if len(line) != 2 {
+			return lines, errors.Errorf("line had unexpected number of elements %d", len(line))
+		}
+
+		timestamp, ok := line[0].(float64)
+		if !ok {
+			return lines, errors.Errorf("unexpected timestamp token '%v' of type '%v'", line[0], line[0])
+		}
+		data, ok := line[1].(string)
+		if !ok {
+			return lines, errors.Errorf("unexpected data token '%v' of type '%v'", line[1], line[1])
+		}
+
+		// Extract fractional seconds from the total time and convert to
+		// nanoseconds.
+		fractionalPart := timestamp - math.Floor(timestamp)
+		nSecPart := int64(fractionalPart * float64(int64(time.Second)/int64(time.Nanosecond)))
+
+		lines = append(lines, LogLineItem{
+			Timestamp: time.Unix(int64(timestamp), nSecPart),
+			Data:      data,
 		})
-		timeField = float64(time.Now().Unix())
 	}
-	// Extract fractional seconds from the total time and convert to
-	// nanoseconds.
-	fractionalPart := timeField - math.Floor(timeField)
-	nSecPart := int64(fractionalPart * float64(int64(time.Second)/int64(time.Nanosecond)))
 
-	ll.Timestamp = time.Unix(int64(timeField), nSecPart)
-	ll.Data = line[1].(string)
+	lastToken, err := dec.Token()
+	if err != nil {
+		return lines, errors.New("reading closing bracket")
+	}
+	if delim, ok := lastToken.(json.Delim); !ok || delim != ']' {
+		return lines, errors.Errorf("unexpected last token '%v' of type '%T'", lastToken, lastToken)
+	}
 
-	return nil
+	nextToken, err := dec.Token()
+	if err != io.EOF {
+		if err != nil {
+			return lines, errors.Wrap(err, "getting EOF")
+		}
+		return lines, errors.Errorf("expected end of file, got '%v', type '%T'", nextToken, nextToken)
+	}
+
+	return lines, nil
 }
 
 // LoggerName returns the logger name for this line so it can be assigned a
@@ -131,7 +163,7 @@ func groupLines(lines []LogLineItem, maxSize int) ([]LogChunk, error) {
 	logChars := 0
 	for _, line := range lines {
 		if len(line.Data) > maxSize {
-			return nil, errors.New("Log line exceeded 4MB")
+			return nil, errors.Errorf("Log line exceeded %d bytes", maxSize)
 		}
 
 		if len(line.Data)+logChars > maxSize {
@@ -162,7 +194,7 @@ func InsertLogLines(ctx context.Context, buildID string, testID string, lines []
 
 	chunks, err := groupLines(lines, maxSize)
 	if err != nil {
-		return errors.Errorf("grouping lines for build '%s' test '%s'", buildID, testID)
+		return errors.Wrapf(err, "grouping lines for build '%s' test '%s'", buildID, testID)
 	}
 
 	for _, chunk := range chunks {
