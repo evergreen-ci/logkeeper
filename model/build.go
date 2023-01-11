@@ -21,7 +21,7 @@ type Build struct {
 	Builder       string `json:"builder"`
 	BuildNum      int    `json:"buildnum"`
 	TaskID        string `json:"task_id"`
-	TaskExecution *int   `json:"execution"`
+	TaskExecution int    `json:"execution"`
 }
 
 // UploadMetadata uploads metadata for a new build to the pail-backed

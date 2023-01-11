@@ -7,7 +7,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/logkeeper/testutil"
-	"github.com/evergreen-ci/utility"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +62,7 @@ func TestBuildKey(t *testing.T) {
 		Builder:       "builder0",
 		BuildNum:      1,
 		TaskID:        "t0",
-		TaskExecution: utility.ToIntPtr(1),
+		TaskExecution: 1,
 	}
 	assert.Equal(t, "builds/b0/metadata.json", build.key())
 }
@@ -74,7 +73,7 @@ func TestBuildToJSON(t *testing.T) {
 		Builder:       "builder0",
 		BuildNum:      1,
 		TaskID:        "t0",
-		TaskExecution: utility.ToIntPtr(1),
+		TaskExecution: 1,
 	}
 	data, err := build.toJSON()
 	require.NoError(t, err)

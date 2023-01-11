@@ -178,7 +178,7 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 			Builder:       payload.Builder,
 			BuildNum:      payload.BuildNum,
 			TaskID:        payload.TaskID,
-			TaskExecution: utility.ToIntPtr(payload.TaskExecution),
+			TaskExecution: payload.TaskExecution,
 		}
 		if err = build.UploadMetadata(r.Context()); err != nil {
 			lk.logErrorf(r, "uploading build metadata: %v", err)
@@ -524,7 +524,7 @@ func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 			TestID        string
 			TestName      string
 			TaskID        string
-			TaskExecution *int
+			TaskExecution int
 		}{resp.logLines, resp.build.ID, resp.build.Builder, resp.test.ID, resp.test.Name, resp.test.TaskID, resp.build.TaskExecution}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "rendering template: %v", err)

@@ -13,7 +13,6 @@ import (
 
 	"github.com/evergreen-ci/logkeeper/model"
 	"github.com/evergreen-ci/logkeeper/testutil"
-	"github.com/evergreen-ci/utility"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -135,7 +134,7 @@ func TestCreateBuild(t *testing.T) {
 				assert.Equal(t, "builder", build.Builder)
 				assert.Equal(t, 10, build.BuildNum)
 				assert.Equal(t, "id", build.TaskID)
-				assert.EqualValues(t, 1, build.TaskExecution)
+				assert.Equal(t, 1, build.TaskExecution)
 			},
 		},
 		{
@@ -159,7 +158,7 @@ func TestCreateBuild(t *testing.T) {
 					Builder:       "existing",
 					BuildNum:      150,
 					TaskID:        "id",
-					TaskExecution: utility.ToIntPtr(1),
+					TaskExecution: 1,
 				}
 				require.NoError(t, build.UploadMetadata(context.TODO()))
 			},
