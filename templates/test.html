@@ -57,7 +57,7 @@
       <h3>
         {{.TestName}} on <a href ="/build/{{.BuildID}}">{{.Builder}}</a>
         {{ if .TaskID }}
-          <a href ="https://evergreen.mongodb.com/task/{{.TaskID}}"> {{.TaskID}} </a>
+          <a href ="https://evergreen.mongodb.com/task/{{.TaskID}}/{{.TaskExecution}}?redirect_spruce_users=true"> {{.TaskID}} </a>
         {{ end }}
       </h3>
     </div>
