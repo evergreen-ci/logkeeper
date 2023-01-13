@@ -471,13 +471,14 @@ func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	} else {
 		err := lk.render.StreamHTML(w, http.StatusOK, struct {
-			LogLines chan *model.LogLineItem
-			BuildID  string
-			Builder  string
-			TestID   string
-			TestName string
-			TaskID   string
-		}{resp.logLines, resp.build.ID, resp.build.Builder, "", "All logs", resp.build.TaskID}, "base", "test.html")
+			LogLines      chan *model.LogLineItem
+			BuildID       string
+			Builder       string
+			TestID        string
+			TestName      string
+			TaskID        string
+			TaskExecution int
+		}{resp.logLines, resp.build.ID, resp.build.Builder, "", "All logs", resp.build.TaskID, resp.build.TaskExecution}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "rendering template: %v", err)
 		}
@@ -525,7 +526,7 @@ func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 			TestName      string
 			TaskID        string
 			TaskExecution int
-		}{resp.logLines, resp.build.ID, resp.build.Builder, resp.test.ID, resp.test.Name, resp.test.TaskID, resp.build.TaskExecution}, "base", "test.html")
+		}{resp.logLines, resp.build.ID, resp.build.Builder, resp.test.ID, resp.test.Name, resp.test.TaskID, resp.test.TaskExecution}, "base", "test.html")
 		if err != nil {
 			lk.logErrorf(r, "rendering template: %v", err)
 		}

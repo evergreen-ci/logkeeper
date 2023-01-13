@@ -767,14 +767,16 @@ func TestViewAllLogs(t *testing.T) {
 
 				expectedOut := &bytes.Buffer{}
 				require.NoError(t, lk.render.HTML(expectedOut, struct {
-					LogLines chan *model.LogLineItem
-					BuildID  string
-					Builder  string
-					TestID   string
-					TestName string
-					TaskID   string
-				}{lines, build.ID, build.Builder, "", "All logs", build.TaskID}, "base", "test.html"))
-				assert.Equal(t, expectedOut.Bytes(), resp.Body.Bytes())
+					LogLines      chan *model.LogLineItem
+					BuildID       string
+					Builder       string
+					TestID        string
+					TestName      string
+					TaskID        string
+					TaskExecution int
+				}{lines, build.ID, build.Builder, "", "All logs", build.TaskID, build.TaskExecution}, "base", "test.html"))
+				respBytes := resp.Body.Bytes()
+				assert.Equal(t, expectedOut.Bytes(), respBytes)
 			},
 		},
 		{
@@ -906,13 +908,14 @@ func TestViewTestLogs(t *testing.T) {
 
 				expectedOut := &bytes.Buffer{}
 				require.NoError(t, lk.render.HTML(expectedOut, struct {
-					LogLines chan *model.LogLineItem
-					BuildID  string
-					Builder  string
-					TestID   string
-					TestName string
-					TaskID   string
-				}{lines, build.ID, build.Builder, test.ID, test.Name, test.TaskID}, "base", "test.html"))
+					LogLines      chan *model.LogLineItem
+					BuildID       string
+					Builder       string
+					TestID        string
+					TestName      string
+					TaskID        string
+					TaskExecution int
+				}{lines, build.ID, build.Builder, test.ID, test.Name, test.TaskID, test.TaskExecution}, "base", "test.html"))
 				assert.Equal(t, expectedOut.Bytes(), resp.Body.Bytes())
 			},
 		},

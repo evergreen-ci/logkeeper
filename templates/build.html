@@ -5,7 +5,7 @@
         <h2>
           {{.Build.Builder}} - {{.Build.BuildNum}}   
           {{if .Build.TaskID}}
-            (<a href="{{.EvergreenURL}}/task/{{.Build.TaskID}}?redirect_spruce_users=true"> {{.Build.TaskID}}</a>)
+            (<a href="{{.EvergreenURL}}/task/{{.Build.TaskID}}/{{.Build.TaskExecution}}?redirect_spruce_users=true">{{.Build.TaskID}}</a>)
           {{end}}
         </h2>
       <h3>
