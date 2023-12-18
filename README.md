@@ -6,7 +6,7 @@ To set up and run (be sure to have a mongod instance running on localhost on the
     
     # Use this (or similar command) to seed some sample data into a local bucket and use that as storage
     mkdir -p _bucketdata && cp -r testdata/simple/* _bucketdata
-    go run main/logkeeper.go --localPath _bucketdata
+    go run main/logkeeper.go --localPath _bucketdata --traceSampleRatio 1.0
 ```
 
 Example of running resmoke with logkeeper

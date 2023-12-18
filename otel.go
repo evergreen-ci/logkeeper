@@ -2,39 +2,51 @@ package logkeeper
 
 import (
 	"context"
+	"github.com/evergreen-ci/logkeeper/exporter"
 	"github.com/evergreen-ci/utility"
 	"github.com/mongodb/grip"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/semconv/v1.21.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"net/http"
 	"time"
 )
 
 const (
-	exportInterval = 15 * time.Second
-	exportTimeout  = exportInterval * 2
-	packageName    = "github.com/evergreen-ci/logkeeper"
+	packageName = "github.com/evergreen-ci/logkeeper"
 )
 
 func (lk *logkeeper) initOtel(ctx context.Context) error {
 	if lk.opts.TraceCollectorEndpoint == "" {
-		traceExporter, err := stdouttrace.New()
-		if err != nil {
-			return err
-		}
-		lk.tracer = sdktrace.NewTracerProvider(
+		// uncomment for pretty print traces to console
+		//traceExporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+		//if err != nil {
+		//	return err
+		//}
+		logExporter := exporter.New()
+		tp := sdktrace.NewTracerProvider(
 			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(lk.opts.TraceSampleRatio)),
-			sdktrace.WithBatcher(traceExporter, sdktrace.WithBatchTimeout(time.Second)),
-		).Tracer(packageName)
+			//sdktrace.WithBatcher(traceExporter, sdktrace.WithBatchTimeout(time.Second)),
+			sdktrace.WithBatcher(logExporter, sdktrace.WithBatchTimeout(time.Second)),
+		)
+		otel.SetTracerProvider(tp)
+		lk.tracer = tp.Tracer(packageName)
+		lk.closers = append(lk.closers, closerOp{
+			name: "tracer provider shutdown",
+			closerFn: func(ctx context.Context) error {
+				catcher := grip.NewBasicCatcher()
+				catcher.Wrap(tp.Shutdown(ctx), "trace provider shutdown")
+				catcher.Wrap(logExporter.Shutdown(ctx), "trace exporter shutdown")
+				//catcher.Wrap(traceExporter.Shutdown(ctx), "trace exporter shutdown")
+
+				return catcher.Resolve()
+			},
+		})
 		return nil
 	}
 
@@ -88,10 +100,4 @@ func serviceResource(ctx context.Context) (*resource.Resource, error) {
 	return resource.New(ctx,
 		resource.WithAttributes(semconv.ServiceName("logkeeper")),
 	)
-}
-
-func handleFunc(pattern string, handlerFunc func(http.ResponseWriter, *http.Request)) {
-	// Configure the "http.route" for the HTTP instrumentation.
-	handler := otelhttp.WithRouteTag(pattern, http.HandlerFunc(handlerFunc))
-	mux.Handle(pattern, handler)
 }

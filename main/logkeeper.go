@@ -31,7 +31,7 @@ func main() {
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
 	traceCollectorEndpoint := flag.String("traceCollectorEndpoint", "", "OTEL Collector URL")
-	traceSampleRatio := flag.Float64("traceSampleRatio", 0.0, "Percentage of traces to export")
+	traceSampleRatio := flag.Float64("traceSampleRatio", 0.01, "Percentage of traces to export")
 	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
