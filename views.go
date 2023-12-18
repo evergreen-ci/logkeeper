@@ -1,7 +1,10 @@
 package logkeeper
 
 import (
+	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"google.golang.org/grpc"
 	"html/template"
 	"net/http"
 	"os"
@@ -18,6 +21,8 @@ import (
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	otelTrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -69,8 +74,16 @@ type logFetchResponse struct {
 
 // logkeeper serves the Logkeeper REST API.
 type logkeeper struct {
-	render *render.Render
-	opts   LogkeeperOptions
+	render       *render.Render
+	opts         LogkeeperOptions
+	tracer       otelTrace.Tracer
+	otelGrpcConn *grpc.ClientConn
+	closers      []closerOp
+}
+
+type closerOp struct {
+	name     string
+	closerFn func(ctx context.Context) error
 }
 
 // LogkeeperOptions represents the set of options for creating a new Logkeeper
@@ -79,14 +92,16 @@ type LogkeeperOptions struct {
 	// URL is the base URL to append to relative paths.
 	URL string
 	// MaxRequestSize is the maximum allowable request size.
-	MaxRequestSize int
+	MaxRequestSize         int
+	TraceCollectorEndpoint string
+	TraceSampleRatio       float64
 }
 
 // Logkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
+func NewLogkeeper(ctx context.Context, opts LogkeeperOptions) *logkeeper {
 	render := render.New(render.Options{
 		Directory: "templates",
-		Funcs: template.FuncMap{
+		HtmlFuncs: template.FuncMap{
 			"MutableVar": func() interface{} {
 				return &MutableVar{""}
 			},
@@ -99,7 +114,12 @@ func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
 		},
 	})
 
-	return &logkeeper{render, opts}
+	lk := &logkeeper{render: render, opts: opts}
+	if err := lk.initOtel(ctx); err != nil {
+		grip.Error(errors.Wrap(err, "initializing otel"))
+		lk.tracer = otel.GetTracerProvider().Tracer("noop_tracer")
+	}
+	return lk
 }
 
 // checkContentLength returns an API error if the content length specified by
@@ -691,6 +711,7 @@ func (lk *logkeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logkeeper) NewRouter() *mux.Router {
 	r := mux.NewRouter().StrictSlash(false)
+	r.Use(otelmux.Middleware("logkeeper"))
 
 	// Write methods.
 	r.Path("/build/").Methods("POST").HandlerFunc(lk.createBuild)

@@ -73,10 +73,13 @@ func TestCreateBuild(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			input: &payload{
 				Builder:       "builder",
 				BuildNum:      10,
@@ -93,10 +96,13 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			input:              "not JSON",
 			expectedStatusCode: http.StatusBadRequest,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -108,10 +114,13 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "NewBuild",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			input: &payload{
 				Builder:       "builder",
 				BuildNum:      10,
@@ -139,10 +148,13 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "ExistingBuild",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			input: &payload{
 				Builder:       "existing",
 				BuildNum:      150,
@@ -207,10 +219,13 @@ func TestCreateTest(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			buildID: buildID,
 			input: &payload{
 				TestFilename:  "test",
@@ -229,10 +244,13 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			input:              "not JSON",
 			expectedStatusCode: http.StatusBadRequest,
@@ -245,10 +263,13 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: "DNE",
 			input: &payload{
 				TestFilename:  "test",
@@ -267,10 +288,13 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "NewTest",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: buildID,
 			input: &payload{
 				TestFilename:  "test",
@@ -322,10 +346,13 @@ func TestAppendGlobalLog(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			buildID:            buildID,
 			chunks:             []interface{}{payload{{now.Unix(), "Global log line."}}},
 			expectedStatusCode: http.StatusRequestEntityTooLarge,
@@ -338,10 +365,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			chunks:             []interface{}{"invalid"},
 			expectedStatusCode: http.StatusBadRequest,
@@ -354,10 +384,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            "DNE",
 			chunks:             []interface{}{payload{{now.Unix(), "Global log line."}}},
 			expectedStatusCode: http.StatusNotFound,
@@ -370,10 +403,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "EmptyLines",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			chunks:             []interface{}{payload{}},
 			expectedStatusCode: http.StatusOK,
@@ -391,10 +427,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "MultipleChunks",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: buildID,
 			chunks: []interface{}{
 				payload{
@@ -464,10 +503,13 @@ func TestAppendTestLog(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			buildID:            buildID,
 			testID:             testID,
 			chunks:             []interface{}{payload{{now.Unix(), "Test log line."}}},
@@ -481,10 +523,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			testID:             testID,
 			chunks:             []interface{}{"invalid"},
@@ -498,10 +543,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            "DNE",
 			testID:             testID,
 			chunks:             []interface{}{payload{{now.Unix(), "Test log line."}}},
@@ -515,10 +563,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "TestDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			testID:             "DNE",
 			chunks:             []interface{}{payload{{now.Unix(), "Test log line."}}},
@@ -532,10 +583,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "EmptyLines",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			testID:             testID,
 			chunks:             []interface{}{payload{}},
@@ -554,10 +608,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "MultipleChunks",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				context.TODO(),
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: buildID,
 			testID:  testID,
 			chunks: []interface{}{
@@ -613,10 +670,13 @@ func TestViewBuild(t *testing.T) {
 	defer testutil.SetBucket(t, "testdata/simple")()
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
-	lk := NewLogkeeper(LogkeeperOptions{
-		URL:            "https://logkeeper.com",
-		MaxRequestSize: testMaxReqSize,
-	})
+	lk := NewLogkeeper(
+		context.TODO(),
+		LogkeeperOptions{
+			URL:            "https://logkeeper.com",
+			MaxRequestSize: testMaxReqSize,
+		},
+	)
 	for _, test := range []struct {
 		name               string
 		buildID            string
@@ -688,10 +748,13 @@ func TestViewAllLogs(t *testing.T) {
 	defer testutil.SetBucket(t, "testdata/simple")()
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
-	lk := NewLogkeeper(LogkeeperOptions{
-		URL:            "https://logkeeper.com",
-		MaxRequestSize: testMaxReqSize,
-	})
+	lk := NewLogkeeper(
+		context.TODO(),
+		LogkeeperOptions{
+			URL:            "https://logkeeper.com",
+			MaxRequestSize: testMaxReqSize,
+		},
+	)
 	for _, test := range []struct {
 		name               string
 		headers            map[string]string
@@ -808,10 +871,13 @@ func TestViewTestLogs(t *testing.T) {
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	testID := "17046404de18d0000000000000000000"
-	lk := NewLogkeeper(LogkeeperOptions{
-		URL:            "https://logkeeper.com",
-		MaxRequestSize: testMaxReqSize,
-	})
+	lk := NewLogkeeper(
+		context.TODO(),
+		LogkeeperOptions{
+			URL:            "https://logkeeper.com",
+			MaxRequestSize: testMaxReqSize,
+		},
+	)
 	for _, test := range []struct {
 		name               string
 		headers            map[string]string

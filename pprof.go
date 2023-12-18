@@ -19,24 +19,26 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 // GetHandlerPprof returns a handler for pprof endpoints.
 func GetHandlerPprof(ctx context.Context) http.Handler {
 	router := mux.NewRouter()
 	router.Use(NewLogger(ctx).Middleware)
+	router.Use(otelmux.Middleware("logkeeper"))
 
 	root := router.PathPrefix("/debug/pprof").Subrouter()
-	root.HandleFunc("/", http.HandlerFunc(index))
-	root.HandleFunc("/heap", http.HandlerFunc(index))
-	root.HandleFunc("/block", http.HandlerFunc(index))
-	root.HandleFunc("/goroutine", http.HandlerFunc(index))
-	root.HandleFunc("/mutex", http.HandlerFunc(index))
-	root.HandleFunc("/threadcreate", http.HandlerFunc(index))
-	root.HandleFunc("/cmdline", http.HandlerFunc(cmdline))
-	root.HandleFunc("/profile", http.HandlerFunc(profile))
-	root.HandleFunc("/symbol", http.HandlerFunc(symbol))
-	root.HandleFunc("/trace", http.HandlerFunc(trace))
+	root.HandleFunc("/", index)
+	root.HandleFunc("/heap", index)
+	root.HandleFunc("/block", index)
+	root.HandleFunc("/goroutine", index)
+	root.HandleFunc("/mutex", index)
+	root.HandleFunc("/threadcreate", index)
+	root.HandleFunc("/cmdline", cmdline)
+	root.HandleFunc("/profile", profile)
+	root.HandleFunc("/symbol", symbol)
+	root.HandleFunc("/trace", trace)
 
 	n := negroni.New()
 	n.UseHandler(router)

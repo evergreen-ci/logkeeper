@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/mongodb/grip/send"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,6 +30,8 @@ func main() {
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
+	traceCollectorEndpoint := flag.String("traceCollectorEndpoint", "", "OTEL Collector URL")
+	traceSampleRatio := flag.Float64("traceSampleRatio", 0.0, "Percentage of traces to export")
 	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
@@ -37,20 +40,30 @@ func main() {
 
 	sender, err := logkeeper.GetSender(ctx, *logPath)
 	grip.EmergencyFatal(err)
-	defer sender.Close()
+	defer func(sender send.Sender) {
+		err := sender.Close()
+		if err != nil {
+			grip.Noticef("failed to close sender")
+		}
+	}(sender)
 	grip.EmergencyFatal(grip.SetSender(sender))
 
 	bucket, err := makeBucket(localPath)
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
 
-	lk := logkeeper.NewLogkeeper(logkeeper.LogkeeperOptions{
-		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
-		MaxRequestSize: *maxRequestSize,
-	})
+	lk := logkeeper.NewLogkeeper(
+		ctx,
+		logkeeper.LogkeeperOptions{
+			URL:                    fmt.Sprintf("http://localhost:%v", *httpPort),
+			MaxRequestSize:         *maxRequestSize,
+			TraceCollectorEndpoint: *traceCollectorEndpoint,
+			TraceSampleRatio:       *traceSampleRatio,
+		},
+	)
 	go logkeeper.BackgroundLogging(ctx)
 
-	catcher := grip.NewCatcher()
+	catcher := grip.NewExtendedCatcher()
 	router := lk.NewRouter()
 	router.Use(logkeeper.NewLogger(ctx).Middleware)
 	n := negroni.New()
@@ -91,7 +104,7 @@ func listenServeAndHandleErrs(s *http.Server) error {
 		return errors.New("no server defined")
 	}
 	err := s.ListenAndServe()
-	if err == http.ErrServerClosed {
+	if errors.Is(err, http.ErrServerClosed) {
 		grip.Noticef("server '%s' closed, no longer serving HTTP requests", s.Addr)
 		return nil
 	}
