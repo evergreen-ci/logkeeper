@@ -3,8 +3,6 @@ package logkeeper
 import (
 	"context"
 	"fmt"
-	"go.opentelemetry.io/otel"
-	"google.golang.org/grpc"
 	"html/template"
 	"net/http"
 	"os"
@@ -22,7 +20,9 @@ import (
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/otel"
 	otelTrace "go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -94,7 +94,6 @@ type LogkeeperOptions struct {
 	// MaxRequestSize is the maximum allowable request size.
 	MaxRequestSize         int
 	TraceCollectorEndpoint string
-	TraceSampleRatio       float64
 }
 
 // Logkeeper returns a new Logkeeper REST service with the given options.

@@ -31,7 +31,6 @@ func main() {
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
 	traceCollectorEndpoint := flag.String("traceCollectorEndpoint", "", "OTEL Collector URL")
-	traceSampleRatio := flag.Float64("traceSampleRatio", 0.01, "Percentage of traces to export")
 	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
@@ -41,10 +40,7 @@ func main() {
 	sender, err := logkeeper.GetSender(ctx, *logPath)
 	grip.EmergencyFatal(err)
 	defer func(sender send.Sender) {
-		err := sender.Close()
-		if err != nil {
-			grip.Noticef("failed to close sender")
-		}
+		grip.Error(message.WrapError(sender.Close(), "failed to close sender"))
 	}(sender)
 	grip.EmergencyFatal(grip.SetSender(sender))
 
@@ -58,12 +54,12 @@ func main() {
 			URL:                    fmt.Sprintf("http://localhost:%v", *httpPort),
 			MaxRequestSize:         *maxRequestSize,
 			TraceCollectorEndpoint: *traceCollectorEndpoint,
-			TraceSampleRatio:       *traceSampleRatio,
 		},
 	)
+	defer lk.Close(ctx)
 	go logkeeper.BackgroundLogging(ctx)
 
-	catcher := grip.NewExtendedCatcher()
+	catcher := grip.NewBasicCatcher()
 	router := lk.NewRouter()
 	router.Use(logkeeper.NewLogger(ctx).Middleware)
 	n := negroni.New()

@@ -2,9 +2,9 @@ package logkeeper
 
 import (
 	"context"
-	"github.com/evergreen-ci/logkeeper/exporter"
 	"github.com/evergreen-ci/utility"
 	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/message"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.21.0"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"time"
 )
 
 const (
@@ -23,30 +22,8 @@ const (
 
 func (lk *logkeeper) initOtel(ctx context.Context) error {
 	if lk.opts.TraceCollectorEndpoint == "" {
-		// uncomment for pretty print traces to console
-		//traceExporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
-		//if err != nil {
-		//	return err
-		//}
-		logExporter := exporter.New()
-		tp := sdktrace.NewTracerProvider(
-			sdktrace.WithSampler(sdktrace.TraceIDRatioBased(lk.opts.TraceSampleRatio)),
-			//sdktrace.WithBatcher(traceExporter, sdktrace.WithBatchTimeout(time.Second)),
-			sdktrace.WithBatcher(logExporter, sdktrace.WithBatchTimeout(time.Second)),
-		)
-		otel.SetTracerProvider(tp)
-		lk.tracer = tp.Tracer(packageName)
-		lk.closers = append(lk.closers, closerOp{
-			name: "tracer provider shutdown",
-			closerFn: func(ctx context.Context) error {
-				catcher := grip.NewBasicCatcher()
-				catcher.Wrap(tp.Shutdown(ctx), "trace provider shutdown")
-				catcher.Wrap(logExporter.Shutdown(ctx), "trace exporter shutdown")
-				//catcher.Wrap(traceExporter.Shutdown(ctx), "trace exporter shutdown")
-
-				return catcher.Resolve()
-			},
-		})
+		// defaults to NoopTracerProvider
+		lk.tracer = otel.GetTracerProvider().Tracer(packageName)
 		return nil
 	}
 
@@ -69,7 +46,6 @@ func (lk *logkeeper) initOtel(ctx context.Context) error {
 		return errors.Wrap(err, "initializing otel exporter")
 	}
 	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(lk.opts.TraceSampleRatio)),
 		sdktrace.WithBatcher(traceExporter),
 		sdktrace.WithResource(r),
 	)
@@ -94,6 +70,27 @@ func (lk *logkeeper) initOtel(ctx context.Context) error {
 	})
 
 	return nil
+}
+
+func (lk *logkeeper) Close(ctx context.Context) {
+	catcher := grip.NewBasicCatcher()
+	for idx, closer := range lk.closers {
+		if closer.closerFn == nil {
+			continue
+		}
+
+		grip.Info(message.Fields{
+			"message": "calling closer",
+			"index":   idx,
+			"closer":  closer.name,
+		})
+
+		catcher.Add(closer.closerFn(ctx))
+	}
+
+	grip.Error(message.WrapError(catcher.Resolve(), message.Fields{
+		"message": "calling agent closers",
+	}))
 }
 
 func serviceResource(ctx context.Context) (*resource.Resource, error) {
