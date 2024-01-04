@@ -32,20 +32,6 @@ var (
 		TaskExecution: 1,
 	}
 
-	sampleTest = struct {
-		TestFilename  string `json:"test_filename"`
-		Command       string `json:"command"`
-		Phase         string `json:"phase"`
-		TaskID        string `json:"task_id"`
-		TaskExecution int    `json:"execution"`
-	}{
-		TestFilename:  "f0",
-		Command:       "c0",
-		Phase:         "p0",
-		TaskID:        "t0",
-		TaskExecution: 1,
-	}
-
 	globalLogs = [][]interface{}{
 		{time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC).Unix(), "hour 0 (global)"},
 		{time.Date(2009, time.November, 10, 2, 0, 0, 0, time.UTC).Unix(), "hour 2 (global)"},
@@ -87,11 +73,11 @@ func createBuild() (string, error) {
 
 func createTest(buildID string) (string, error) {
 	body, _ := json.Marshal(map[string]interface{}{
-		"test_filename":  "f0",
-		"command":        "c0",
-		"phase":          "p0",
-		"task_id":        "t0",
-		"execution": 1,
+		"test_filename": "f0",
+		"command":       "c0",
+		"phase":         "p0",
+		"task_id":       "t0",
+		"execution":     1,
 	})
 	resp, err := http.Post(fmt.Sprintf("http://localhost:%s/build/%s/test", port, buildID), "application/json", bytes.NewBuffer(body))
 	if err != nil {

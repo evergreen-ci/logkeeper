@@ -27,16 +27,16 @@ func GetHandlerPprof(ctx context.Context) http.Handler {
 	router.Use(NewLogger(ctx).Middleware)
 
 	root := router.PathPrefix("/debug/pprof").Subrouter()
-	root.HandleFunc("/", http.HandlerFunc(index))
-	root.HandleFunc("/heap", http.HandlerFunc(index))
-	root.HandleFunc("/block", http.HandlerFunc(index))
-	root.HandleFunc("/goroutine", http.HandlerFunc(index))
-	root.HandleFunc("/mutex", http.HandlerFunc(index))
-	root.HandleFunc("/threadcreate", http.HandlerFunc(index))
-	root.HandleFunc("/cmdline", http.HandlerFunc(cmdline))
-	root.HandleFunc("/profile", http.HandlerFunc(profile))
-	root.HandleFunc("/symbol", http.HandlerFunc(symbol))
-	root.HandleFunc("/trace", http.HandlerFunc(trace))
+	root.HandleFunc("/", index)
+	root.HandleFunc("/heap", index)
+	root.HandleFunc("/block", index)
+	root.HandleFunc("/goroutine", index)
+	root.HandleFunc("/mutex", index)
+	root.HandleFunc("/threadcreate", index)
+	root.HandleFunc("/cmdline", cmdline)
+	root.HandleFunc("/profile", profile)
+	root.HandleFunc("/symbol", symbol)
+	root.HandleFunc("/trace", trace)
 
 	n := negroni.New()
 	n.UseHandler(router)
@@ -57,14 +57,11 @@ func cmdline(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, strings.Join(os.Args, "\x00"))
 }
 
-func sleep(w http.ResponseWriter, d time.Duration) {
-	var clientGone <-chan bool
-	if cn, ok := w.(http.CloseNotifier); ok {
-		clientGone = cn.CloseNotify()
-	}
+func sleep(r *http.Request, d time.Duration) {
+	ctx := r.Context()
 	select {
 	case <-time.After(d):
-	case <-clientGone:
+	case <-ctx.Done():
 	}
 }
 
@@ -88,7 +85,7 @@ func profile(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not enable CPU profiling: %s\n", err)
 		return
 	}
-	sleep(w, time.Duration(sec)*time.Second)
+	sleep(r, time.Duration(sec)*time.Second)
 	pprof.StopCPUProfile()
 }
 
@@ -112,7 +109,7 @@ func trace(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not enable tracing: %s\n", err)
 		return
 	}
-	sleep(w, time.Duration(sec*float64(time.Second)))
+	sleep(r, time.Duration(sec*float64(time.Second)))
 	runtimeTrace.Stop()
 }
 

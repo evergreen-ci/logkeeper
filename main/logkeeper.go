@@ -50,7 +50,7 @@ func main() {
 	})
 	go logkeeper.BackgroundLogging(ctx)
 
-	catcher := grip.NewCatcher()
+	catcher := grip.NewBasicCatcher()
 	router := lk.NewRouter()
 	router.Use(logkeeper.NewLogger(ctx).Middleware)
 	n := negroni.New()
@@ -91,7 +91,7 @@ func listenServeAndHandleErrs(s *http.Server) error {
 		return errors.New("no server defined")
 	}
 	err := s.ListenAndServe()
-	if err == http.ErrServerClosed {
+	if errors.Is(err, http.ErrServerClosed) {
 		grip.Noticef("server '%s' closed, no longer serving HTTP requests", s.Addr)
 		return nil
 	}
