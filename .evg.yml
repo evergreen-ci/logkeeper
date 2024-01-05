@@ -124,12 +124,12 @@ post:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
-  - name: ubuntu1804
-    display_name: Ubuntu 18.04
+  - name: ubuntu2004
+    display_name: Ubuntu 20.04
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
-      - ubuntu1804-small
+      - ubuntu2004-small
     tasks:
       - ".dist"
       - ".test"
