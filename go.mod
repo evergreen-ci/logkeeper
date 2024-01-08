@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/mongodb/amboy v0.0.0-20231107210353-e120ae1e62fe
-	github.com/mongodb/grip v0.0.0-20231010153552-fd9e260891f5
+	github.com/mongodb/grip v0.0.0-20240105215940-ba26701636e9
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/negroni v1.0.0
@@ -22,11 +22,11 @@ require (
 	github.com/PuerkitoBio/rehttp v1.3.0 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/andygrunwald/go-jira v1.16.0 // indirect
-	github.com/aws/aws-sdk-go v1.49.14 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.24.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.9 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ses v1.19.5 // indirect
+	github.com/aws/aws-sdk-go v1.49.16 // indirect
+	github.com/aws/aws-sdk-go-v2 v1.24.1 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.2.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.5.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ses v1.19.6 // indirect
 	github.com/aws/smithy-go v1.19.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect
@@ -73,7 +73,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.21.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.21.0 // indirect
 	go.opentelemetry.io/otel/trace v1.21.0 // indirect
-	golang.org/x/crypto v0.17.0 // indirect
+	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.15.0 // indirect
 	golang.org/x/sync v0.6.0 // indirect
