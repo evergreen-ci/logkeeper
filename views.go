@@ -84,9 +84,9 @@ type LogkeeperOptions struct {
 
 // Logkeeper returns a new Logkeeper REST service with the given options.
 func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
-	render := render.New(render.Options{
+	r := render.New(render.Options{
 		Directory: "templates",
-		Funcs: template.FuncMap{
+		HtmlFuncs: template.FuncMap{
 			"MutableVar": func() interface{} {
 				return &MutableVar{""}
 			},
@@ -99,7 +99,7 @@ func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
 		},
 	})
 
-	return &logkeeper{render, opts}
+	return &logkeeper{r, opts}
 }
 
 // checkContentLength returns an API error if the content length specified by
@@ -656,7 +656,7 @@ func writeRawLines(w http.ResponseWriter, resp *logFetchResponse) error {
 //
 // GET /status
 
-func (lk *logkeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
+func (lk *logkeeper) checkAppHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := struct {
 		Build          string `json:"build_id"`
 		MaxRequestSize int    `json:"maxRequestSize"`

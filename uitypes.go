@@ -11,8 +11,8 @@ var Colors = []string{"#333", "seagreen", "steelblue",
 	"slategray",
 }
 
-//ColorSet is a structure to track unique logger names and assign a color
-//number to each one.
+// ColorSet is a structure to track unique logger names and assign a color
+// number to each one.
 type ColorSet struct {
 	vals     map[string]int
 	incCount int
@@ -27,8 +27,8 @@ func NewColorSet() *ColorSet {
 	return &ColorSet{map[string]int{}, 0}
 }
 
-//GetColor returns a unique color name for the given key, creating a new one
-//in its internal map if it does not already exist.
+// GetColor returns a unique color name for the given key, creating a new one
+// in its internal map if it does not already exist.
 func (self *ColorSet) GetColor(inputKey interface{}) (string, error) {
 	if strKey, ok := inputKey.(string); ok {
 		if count, ok2 := self.vals[strKey]; ok2 {
@@ -43,8 +43,8 @@ func (self *ColorSet) GetColor(inputKey interface{}) (string, error) {
 	}
 }
 
-//GetAllColors returns a list of all the ColorDef entries stored internally,
-//where each ColorDef is composed of a name and actual HTML color value.
+// GetAllColors returns a list of all the ColorDef entries stored internally,
+// where each ColorDef is composed of a name and actual HTML color value.
 func (self *ColorSet) GetAllColors() []ColorDef {
 	returnVals := make([]ColorDef, 0, len(self.vals))
 	index := 0
