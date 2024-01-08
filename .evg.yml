@@ -15,6 +15,8 @@ variables:
       - func: run-make
         vars: { target: "${task_name}" }
 
+exec_timeout_secs: 21600 # tasks will time out after 6 hours
+
 functions:
   run-make:
     command: shell.exec
@@ -124,12 +126,12 @@ post:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
-  - name: ubuntu2004
-    display_name: Ubuntu 20.04
+  - name: ubuntu2204
+    display_name: Ubuntu 22.04
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
-      - ubuntu2004-small
+      - ubuntu1804-small
     tasks:
       - ".dist"
       - ".test"
@@ -140,7 +142,7 @@ buildvariants:
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
-      - ubuntu1804-small
+      - ubuntu2204-small
     tasks:
       - ".race"
 
@@ -149,7 +151,7 @@ buildvariants:
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
-      - macos-1014
+      - macos-1100
     tasks:
       - ".dist"
       - ".test"
