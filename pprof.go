@@ -59,14 +59,11 @@ func cmdline(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, strings.Join(os.Args, "\x00"))
 }
 
-func sleep(w http.ResponseWriter, d time.Duration) {
-	var clientGone <-chan bool
-	if cn, ok := w.(http.CloseNotifier); ok {
-		clientGone = cn.CloseNotify()
-	}
+func sleep(r *http.Request, d time.Duration) {
+	ctx := r.Context()
 	select {
 	case <-time.After(d):
-	case <-clientGone:
+	case <-ctx.Done():
 	}
 }
 
@@ -90,7 +87,7 @@ func profile(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not enable CPU profiling: %s\n", err)
 		return
 	}
-	sleep(w, time.Duration(sec)*time.Second)
+	sleep(r, time.Duration(sec)*time.Second)
 	pprof.StopCPUProfile()
 }
 
@@ -114,7 +111,7 @@ func trace(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not enable tracing: %s\n", err)
 		return
 	}
-	sleep(w, time.Duration(sec*float64(time.Second)))
+	sleep(r, time.Duration(sec*float64(time.Second)))
 	runtimeTrace.Stop()
 }
 

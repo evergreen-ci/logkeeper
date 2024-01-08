@@ -1,7 +1,6 @@
 package logkeeper
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -19,10 +18,6 @@ import (
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
-	"go.opentelemetry.io/otel"
-	otelTrace "go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
 )
 
 const (
@@ -74,16 +69,8 @@ type logFetchResponse struct {
 
 // logkeeper serves the Logkeeper REST API.
 type logkeeper struct {
-	render       *render.Render
-	opts         LogkeeperOptions
-	tracer       otelTrace.Tracer
-	otelGrpcConn *grpc.ClientConn
-	closers      []closerOp
-}
-
-type closerOp struct {
-	name     string
-	closerFn func(ctx context.Context) error
+	render *render.Render
+	opts   LogkeeperOptions
 }
 
 // LogkeeperOptions represents the set of options for creating a new Logkeeper
@@ -92,13 +79,12 @@ type LogkeeperOptions struct {
 	// URL is the base URL to append to relative paths.
 	URL string
 	// MaxRequestSize is the maximum allowable request size.
-	MaxRequestSize         int
-	TraceCollectorEndpoint string
+	MaxRequestSize int
 }
 
 // Logkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(ctx context.Context, opts LogkeeperOptions) *logkeeper {
-	render := render.New(render.Options{
+func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
+	r := render.New(render.Options{
 		Directory: "templates",
 		HtmlFuncs: template.FuncMap{
 			"MutableVar": func() interface{} {
@@ -113,12 +99,7 @@ func NewLogkeeper(ctx context.Context, opts LogkeeperOptions) *logkeeper {
 		},
 	})
 
-	lk := &logkeeper{render: render, opts: opts}
-	if err := lk.initOtel(ctx); err != nil {
-		grip.Error(errors.Wrap(err, "initializing otel"))
-		lk.tracer = otel.GetTracerProvider().Tracer("noop_tracer")
-	}
-	return lk
+	return &logkeeper{r, opts}
 }
 
 // checkContentLength returns an API error if the content length specified by
@@ -675,7 +656,7 @@ func writeRawLines(w http.ResponseWriter, resp *logFetchResponse) error {
 //
 // GET /status
 
-func (lk *logkeeper) checkAppHealth(w http.ResponseWriter, r *http.Request) {
+func (lk *logkeeper) checkAppHealth(w http.ResponseWriter, _ *http.Request) {
 	resp := struct {
 		Build          string `json:"build_id"`
 		MaxRequestSize int    `json:"maxRequestSize"`
@@ -710,7 +691,6 @@ func (lk *logkeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logkeeper) NewRouter() *mux.Router {
 	r := mux.NewRouter().StrictSlash(false)
-	r.Use(otelmux.Middleware("logkeeper"))
 
 	// Write methods.
 	r.Path("/build/").Methods("POST").HandlerFunc(lk.createBuild)

@@ -127,7 +127,7 @@ buildvariants:
   - name: ubuntu1804
     display_name: Ubuntu 18.04
     expansions:
-      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
+      build_env: "GOROOT=/opt/golang/go1.21 PATH=/opt/golang/go1.21/bin:$PATH"
     run_on:
       - ubuntu1804-small
     tasks:
@@ -138,7 +138,7 @@ buildvariants:
   - name: race-detector
     display_name: Race Detector
     expansions:
-      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
+      build_env: "GOROOT=/opt/golang/go1.21 PATH=/opt/golang/go1.21/bin:$PATH"
     run_on:
       - ubuntu1804-small
     tasks:
@@ -147,7 +147,7 @@ buildvariants:
   - name: macos
     display_name: macOS
     expansions:
-      build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
+      build_env: "GOROOT=/opt/golang/go1.21 PATH=/opt/golang/go1.21/bin:$PATH"
     run_on:
       - macos-1014
     tasks:

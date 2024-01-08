@@ -32,20 +32,6 @@ var (
 		TaskExecution: 1,
 	}
 
-	sampleTest = struct {
-		TestFilename  string `json:"test_filename"`
-		Command       string `json:"command"`
-		Phase         string `json:"phase"`
-		TaskID        string `json:"task_id"`
-		TaskExecution int    `json:"execution"`
-	}{
-		TestFilename:  "f0",
-		Command:       "c0",
-		Phase:         "p0",
-		TaskID:        "t0",
-		TaskExecution: 1,
-	}
-
 	globalLogs = [][]interface{}{
 		{time.Date(2009, time.November, 10, 0, 0, 0, 0, time.UTC).Unix(), "hour 0 (global)"},
 		{time.Date(2009, time.November, 10, 2, 0, 0, 0, time.UTC).Unix(), "hour 2 (global)"},
