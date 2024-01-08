@@ -126,9 +126,8 @@ post:
         - "gopath/src/github.com/evergreen-ci/logkeeper/build/output.*"
 
 buildvariants:
-  - name: ubuntu2204
-    tags: ["code_health"]
-    display_name: Ubuntu 22.04
+  - name: ubuntu1804
+    display_name: Ubuntu 18.04
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
@@ -139,22 +138,20 @@ buildvariants:
       - ".report"
 
   - name: race-detector
-    tags: ["code_health"]
     display_name: Race Detector
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
-      - ubuntu2204-small
+      - ubuntu1804-small
     tasks:
       - ".race"
 
   - name: macos
-    tags: ["code_health"]
     display_name: macOS
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
     run_on:
-      - macos-1100
+      - macos-1014
     tasks:
       - ".dist"
       - ".test"
