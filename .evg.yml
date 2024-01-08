@@ -127,6 +127,7 @@ post:
 
 buildvariants:
   - name: ubuntu2204
+    tags: ["code_health"]
     display_name: Ubuntu 22.04
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
@@ -138,6 +139,7 @@ buildvariants:
       - ".report"
 
   - name: race-detector
+    tags: ["code_health"]
     display_name: Race Detector
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
@@ -147,6 +149,7 @@ buildvariants:
       - ".race"
 
   - name: macos
+    tags: ["code_health"]
     display_name: macOS
     expansions:
       build_env: "GOROOT=/opt/golang/go1.16 PATH=/opt/golang/go1.16/bin:$PATH"
