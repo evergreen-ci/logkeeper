@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/mongodb/grip/send"
 	"net/http"
 	"os"
 	"os/signal"
@@ -39,9 +38,7 @@ func main() {
 
 	sender, err := logkeeper.GetSender(ctx, *logPath)
 	grip.EmergencyFatal(err)
-	defer func(sender send.Sender) {
-		grip.Error(message.WrapError(sender.Close(), "failed to close sender"))
-	}(sender)
+	defer sender.Close()
 	grip.EmergencyFatal(grip.SetSender(sender))
 
 	bucket, err := makeBucket(localPath)

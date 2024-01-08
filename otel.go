@@ -89,7 +89,7 @@ func (lk *logkeeper) Close(ctx context.Context) {
 	}
 
 	grip.Error(message.WrapError(catcher.Resolve(), message.Fields{
-		"message": "calling agent closers",
+		"message": "calling logkeeper closers",
 	}))
 }
 

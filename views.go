@@ -92,7 +92,8 @@ type LogkeeperOptions struct {
 	// URL is the base URL to append to relative paths.
 	URL string
 	// MaxRequestSize is the maximum allowable request size.
-	MaxRequestSize         int
+	MaxRequestSize int
+	// TraceCollectorEndpoint is the Otel Collector endpoint
 	TraceCollectorEndpoint string
 }
 
