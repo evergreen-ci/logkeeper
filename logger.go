@@ -177,11 +177,7 @@ func (l *Logger) addToResponseBuffer(rw http.ResponseWriter, r *http.Request) er
 		return errors.Wrap(err, "getting methods")
 	}
 
-	writer, ok := rw.(negroni.ResponseWriter)
-	if !ok {
-		return errors.Errorf("response writer has unexpected type '%T'", rw)
-	}
-
+	writer := negroni.NewResponseWriter(rw)
 	select {
 	case l.newResponses <- routeResponse{
 		route:        fmt.Sprintf("[%s] %s", strings.Join(methods, ", "), path),
