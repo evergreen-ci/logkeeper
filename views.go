@@ -1,7 +1,11 @@
 package logkeeper
 
 import (
+	"context"
 	"fmt"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/otel"
+	"google.golang.org/grpc"
 	"html/template"
 	"net/http"
 	"os"
@@ -18,6 +22,7 @@ import (
 	"github.com/mongodb/grip/message"
 	"github.com/mongodb/grip/recovery"
 	"github.com/pkg/errors"
+	otelTrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -67,10 +72,18 @@ type logFetchResponse struct {
 	test     *model.Test
 }
 
+type closerOp struct {
+	name     string
+	closerFn func(ctx context.Context) error
+}
+
 // logkeeper serves the Logkeeper REST API.
 type logkeeper struct {
-	render *render.Render
-	opts   LogkeeperOptions
+	render       *render.Render
+	opts         LogkeeperOptions
+	tracer       otelTrace.Tracer
+	otelGrpcConn *grpc.ClientConn
+	closers      []closerOp
 }
 
 // LogkeeperOptions represents the set of options for creating a new Logkeeper
@@ -80,10 +93,12 @@ type LogkeeperOptions struct {
 	URL string
 	// MaxRequestSize is the maximum allowable request size.
 	MaxRequestSize int
+	// TraceCollectorEndpoint is the Otel Collector endpoint
+	TraceCollectorEndpoint string
 }
 
 // Logkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
+func NewLogkeeper(ctx context.Context, opts LogkeeperOptions) *logkeeper {
 	r := render.New(render.Options{
 		Directory: "templates",
 		HtmlFuncs: template.FuncMap{
@@ -99,7 +114,12 @@ func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
 		},
 	})
 
-	return &logkeeper{r, opts}
+	lk := &logkeeper{render: r, opts: opts}
+	if err := lk.initOtel(ctx); err != nil {
+		grip.Error(errors.Wrap(err, "initializing otel"))
+		lk.tracer = otel.GetTracerProvider().Tracer("noop_tracer")
+	}
+	return lk
 }
 
 // checkContentLength returns an API error if the content length specified by
@@ -691,6 +711,7 @@ func (lk *logkeeper) viewInLobster(w http.ResponseWriter, r *http.Request) {
 
 func (lk *logkeeper) NewRouter() *mux.Router {
 	r := mux.NewRouter().StrictSlash(false)
+	r.Use(otelmux.Middleware("logkeeper"))
 
 	// Write methods.
 	r.Path("/build/").Methods("POST").HandlerFunc(lk.createBuild)

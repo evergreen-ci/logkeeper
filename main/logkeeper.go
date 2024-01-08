@@ -29,6 +29,7 @@ func main() {
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
+	traceCollectorEndpoint := flag.String("traceCollectorEndpoint", "", "OTEL Collector URL")
 	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
@@ -44,10 +45,15 @@ func main() {
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
 
-	lk := logkeeper.NewLogkeeper(logkeeper.LogkeeperOptions{
-		URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
-		MaxRequestSize: *maxRequestSize,
-	})
+	lk := logkeeper.NewLogkeeper(
+		ctx,
+		logkeeper.LogkeeperOptions{
+			URL:                    fmt.Sprintf("http://localhost:%v", *httpPort),
+			MaxRequestSize:         *maxRequestSize,
+			TraceCollectorEndpoint: *traceCollectorEndpoint,
+		},
+	)
+	defer lk.Close(ctx)
 	go logkeeper.BackgroundLogging(ctx)
 
 	catcher := grip.NewBasicCatcher()

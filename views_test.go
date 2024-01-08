@@ -63,6 +63,8 @@ func TestCreateBuild(t *testing.T) {
 		TaskID        string `json:"task_id"`
 		TaskExecution int    `json:"execution"`
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -73,10 +75,13 @@ func TestCreateBuild(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			input: &payload{
 				Builder:       "builder",
 				BuildNum:      10,
@@ -93,10 +98,13 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			input:              "not JSON",
 			expectedStatusCode: http.StatusBadRequest,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
@@ -108,10 +116,13 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "NewBuild",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			input: &payload{
 				Builder:       "builder",
 				BuildNum:      10,
@@ -128,7 +139,7 @@ func TestCreateBuild(t *testing.T) {
 				require.Equal(t, expectedID, out.ID)
 				assert.Equal(t, fmt.Sprintf("https://logkeeper.com/build/%s", expectedID), out.URI)
 
-				build, err := model.FindBuildByID(context.TODO(), expectedID)
+				build, err := model.FindBuildByID(ctx, expectedID)
 				require.NoError(t, err)
 				assert.Equal(t, expectedID, build.ID)
 				assert.Equal(t, "builder", build.Builder)
@@ -139,10 +150,13 @@ func TestCreateBuild(t *testing.T) {
 		},
 		{
 			name: "ExistingBuild",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			input: &payload{
 				Builder:       "existing",
 				BuildNum:      150,
@@ -160,7 +174,7 @@ func TestCreateBuild(t *testing.T) {
 					TaskID:        "id",
 					TaskExecution: 1,
 				}
-				require.NoError(t, build.UploadMetadata(context.TODO()))
+				require.NoError(t, build.UploadMetadata(ctx))
 			},
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
 				expectedID, err := model.NewBuildID("existing", 150)
@@ -196,6 +210,8 @@ func TestCreateTest(t *testing.T) {
 		TaskID        string `json:"task_id"`
 		TaskExecution int    `json:"execution"`
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -207,10 +223,13 @@ func TestCreateTest(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			buildID: buildID,
 			input: &payload{
 				TestFilename:  "test",
@@ -229,10 +248,13 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			input:              "not JSON",
 			expectedStatusCode: http.StatusBadRequest,
@@ -245,10 +267,13 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: "DNE",
 			input: &payload{
 				TestFilename:  "test",
@@ -267,10 +292,13 @@ func TestCreateTest(t *testing.T) {
 		},
 		{
 			name: "NewTest",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: buildID,
 			input: &payload{
 				TestFilename:  "test",
@@ -286,7 +314,7 @@ func TestCreateTest(t *testing.T) {
 				require.NotEmpty(t, out.ID)
 				assert.Equal(t, fmt.Sprintf("https://logkeeper.com/build/%s/test/%s", buildID, out.ID), out.URI)
 
-				test, err := model.FindTestByID(context.TODO(), buildID, out.ID)
+				test, err := model.FindTestByID(ctx, buildID, out.ID)
 				require.NoError(t, err)
 				assert.Equal(t, out.ID, test.ID)
 				assert.Equal(t, "test", test.Name)
@@ -312,6 +340,8 @@ func TestAppendGlobalLog(t *testing.T) {
 	now := time.Now().UTC()
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	type payload [][]interface{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -322,10 +352,13 @@ func TestAppendGlobalLog(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			buildID:            buildID,
 			chunks:             []interface{}{payload{{now.Unix(), "Global log line."}}},
 			expectedStatusCode: http.StatusRequestEntityTooLarge,
@@ -338,10 +371,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			chunks:             []interface{}{"invalid"},
 			expectedStatusCode: http.StatusBadRequest,
@@ -354,10 +390,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            "DNE",
 			chunks:             []interface{}{payload{{now.Unix(), "Global log line."}}},
 			expectedStatusCode: http.StatusNotFound,
@@ -370,17 +409,20 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "EmptyLines",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			chunks:             []interface{}{payload{}},
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder, _ []interface{}) {
 				assert.Equal(t, []byte("\"\""), resp.Body.Bytes())
 
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, "")
+				lines, err := model.DownloadLogLines(ctx, buildID, "")
 				require.NoError(t, err)
 				var lineCount int
 				for range lines {
@@ -391,10 +433,13 @@ func TestAppendGlobalLog(t *testing.T) {
 		},
 		{
 			name: "MultipleChunks",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: buildID,
 			chunks: []interface{}{
 				payload{
@@ -426,7 +471,7 @@ func TestAppendGlobalLog(t *testing.T) {
 						})
 					}
 				}
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, "")
+				lines, err := model.DownloadLogLines(ctx, buildID, "")
 				require.NoError(t, err)
 				var storedLines []model.LogLineItem
 				for line := range lines {
@@ -453,6 +498,8 @@ func TestAppendTestLog(t *testing.T) {
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	testID := "de0b6b3a764000000000000"
 	type payload [][]interface{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -464,10 +511,13 @@ func TestAppendTestLog(t *testing.T) {
 	}{
 		{
 			name: "ExceedsMaxRequestSize",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: 10,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: 10,
+				},
+			),
 			buildID:            buildID,
 			testID:             testID,
 			chunks:             []interface{}{payload{{now.Unix(), "Test log line."}}},
@@ -481,10 +531,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "InvalidPayload",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			testID:             testID,
 			chunks:             []interface{}{"invalid"},
@@ -498,10 +551,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "BuildDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            "DNE",
 			testID:             testID,
 			chunks:             []interface{}{payload{{now.Unix(), "Test log line."}}},
@@ -515,10 +571,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "TestDNE",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			testID:             "DNE",
 			chunks:             []interface{}{payload{{now.Unix(), "Test log line."}}},
@@ -532,10 +591,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "EmptyLines",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID:            buildID,
 			testID:             testID,
 			chunks:             []interface{}{payload{}},
@@ -543,7 +605,7 @@ func TestAppendTestLog(t *testing.T) {
 			test: func(t *testing.T, resp *httptest.ResponseRecorder, _ []interface{}) {
 				assert.Equal(t, []byte("\"\""), resp.Body.Bytes())
 
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, buildID, testID)
 				require.NoError(t, err)
 				var lineCount int
 				for range lines {
@@ -554,10 +616,13 @@ func TestAppendTestLog(t *testing.T) {
 		},
 		{
 			name: "MultipleChunks",
-			lk: NewLogkeeper(LogkeeperOptions{
-				URL:            "https://logkeeper.com",
-				MaxRequestSize: testMaxReqSize,
-			}),
+			lk: NewLogkeeper(
+				ctx,
+				LogkeeperOptions{
+					URL:            "https://logkeeper.com",
+					MaxRequestSize: testMaxReqSize,
+				},
+			),
 			buildID: buildID,
 			testID:  testID,
 			chunks: []interface{}{
@@ -589,7 +654,7 @@ func TestAppendTestLog(t *testing.T) {
 						})
 					}
 				}
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, buildID, testID)
 				require.NoError(t, err)
 				var storedLines []model.LogLineItem
 				for line := range lines {
@@ -613,10 +678,15 @@ func TestViewBuild(t *testing.T) {
 	defer testutil.SetBucket(t, "testdata/simple")()
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
-	lk := NewLogkeeper(LogkeeperOptions{
-		URL:            "https://logkeeper.com",
-		MaxRequestSize: testMaxReqSize,
-	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lk := NewLogkeeper(
+		ctx,
+		LogkeeperOptions{
+			URL:            "https://logkeeper.com",
+			MaxRequestSize: testMaxReqSize,
+		},
+	)
 	for _, test := range []struct {
 		name               string
 		buildID            string
@@ -640,9 +710,9 @@ func TestViewBuild(t *testing.T) {
 			buildID:            buildID,
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(context.TODO(), buildID)
+				build, err := model.FindBuildByID(ctx, buildID)
 				require.NoError(t, err)
-				tests, err := model.FindTestsForBuild(context.TODO(), buildID)
+				tests, err := model.FindTestsForBuild(ctx, buildID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -661,9 +731,9 @@ func TestViewBuild(t *testing.T) {
 			params:             "metadata=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(context.TODO(), buildID)
+				build, err := model.FindBuildByID(ctx, buildID)
 				require.NoError(t, err)
-				tests, err := model.FindTestsForBuild(context.TODO(), buildID)
+				tests, err := model.FindTestsForBuild(ctx, buildID)
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(struct {
@@ -688,10 +758,15 @@ func TestViewAllLogs(t *testing.T) {
 	defer testutil.SetBucket(t, "testdata/simple")()
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
-	lk := NewLogkeeper(LogkeeperOptions{
-		URL:            "https://logkeeper.com",
-		MaxRequestSize: testMaxReqSize,
-	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lk := NewLogkeeper(
+		ctx,
+		LogkeeperOptions{
+			URL:            "https://logkeeper.com",
+			MaxRequestSize: testMaxReqSize,
+		},
+	)
 	for _, test := range []struct {
 		name               string
 		headers            map[string]string
@@ -726,7 +801,7 @@ func TestViewAllLogs(t *testing.T) {
 			params:             "raw=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, "")
+				lines, err := model.DownloadLogLines(ctx, buildID, "")
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -743,7 +818,7 @@ func TestViewAllLogs(t *testing.T) {
 			headers:            map[string]string{"Accept": "text/plain"},
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, "")
+				lines, err := model.DownloadLogLines(ctx, buildID, "")
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -760,9 +835,9 @@ func TestViewAllLogs(t *testing.T) {
 			params:             "html=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(context.TODO(), buildID)
+				build, err := model.FindBuildByID(ctx, buildID)
 				require.NoError(t, err)
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, "")
+				lines, err := model.DownloadLogLines(ctx, buildID, "")
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -785,7 +860,7 @@ func TestViewAllLogs(t *testing.T) {
 			params:             "metadata=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(context.TODO(), buildID)
+				build, err := model.FindBuildByID(ctx, buildID)
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(build, "", "  ")
@@ -808,10 +883,15 @@ func TestViewTestLogs(t *testing.T) {
 
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	testID := "17046404de18d0000000000000000000"
-	lk := NewLogkeeper(LogkeeperOptions{
-		URL:            "https://logkeeper.com",
-		MaxRequestSize: testMaxReqSize,
-	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	lk := NewLogkeeper(
+		ctx,
+		LogkeeperOptions{
+			URL:            "https://logkeeper.com",
+			MaxRequestSize: testMaxReqSize,
+		},
+	)
 	for _, test := range []struct {
 		name               string
 		headers            map[string]string
@@ -863,7 +943,7 @@ func TestViewTestLogs(t *testing.T) {
 			params:             "raw=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -881,7 +961,7 @@ func TestViewTestLogs(t *testing.T) {
 			headers:            map[string]string{"Accept": "text/plain"},
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -899,11 +979,11 @@ func TestViewTestLogs(t *testing.T) {
 			params:             "html=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(context.TODO(), buildID)
+				build, err := model.FindBuildByID(ctx, buildID)
 				require.NoError(t, err)
-				test, err := model.FindTestByID(context.TODO(), buildID, testID)
+				test, err := model.FindTestByID(ctx, buildID, testID)
 				require.NoError(t, err)
-				lines, err := model.DownloadLogLines(context.TODO(), buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -926,7 +1006,7 @@ func TestViewTestLogs(t *testing.T) {
 			params:             "metadata=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				test, err := model.FindTestByID(context.TODO(), buildID, testID)
+				test, err := model.FindTestByID(ctx, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(test, "", "  ")

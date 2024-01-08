@@ -19,12 +19,14 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
 // GetHandlerPprof returns a handler for pprof endpoints.
 func GetHandlerPprof(ctx context.Context) http.Handler {
 	router := mux.NewRouter()
 	router.Use(NewLogger(ctx).Middleware)
+	router.Use(otelmux.Middleware("logkeeper"))
 
 	root := router.PathPrefix("/debug/pprof").Subrouter()
 	root.HandleFunc("/", index)
