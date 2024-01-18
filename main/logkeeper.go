@@ -49,7 +49,6 @@ func main() {
 	defer logkeeper.Close(ctx)
 
 	lk := logkeeper.NewLogkeeper(
-		ctx,
 		logkeeper.LogkeeperOptions{
 			URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
 			MaxRequestSize: *maxRequestSize,

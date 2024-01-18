@@ -97,7 +97,7 @@ type LogkeeperOptions struct {
 }
 
 // NewLogkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(ctx context.Context, opts LogkeeperOptions, tracer otelTrace.Tracer) *logkeeper {
+func NewLogkeeper(opts LogkeeperOptions, tracer otelTrace.Tracer) *logkeeper {
 	r := render.New(render.Options{
 		Directory: "templates",
 		HtmlFuncs: template.FuncMap{
