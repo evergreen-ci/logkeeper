@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -65,6 +66,8 @@ func TestCreateBuild(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -131,7 +134,7 @@ func TestCreateBuild(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusCreated,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				expectedID, err := model.NewBuildID("builder", 10)
+				expectedID, err := model.NewBuildID(ctx, "builder", 10)
 				require.NoError(t, err)
 
 				var out createdResponse
@@ -139,7 +142,7 @@ func TestCreateBuild(t *testing.T) {
 				require.Equal(t, expectedID, out.ID)
 				assert.Equal(t, fmt.Sprintf("https://logkeeper.com/build/%s", expectedID), out.URI)
 
-				build, err := model.FindBuildByID(ctx, expectedID)
+				build, err := model.FindBuildByID(ctx, tracer, expectedID)
 				require.NoError(t, err)
 				assert.Equal(t, expectedID, build.ID)
 				assert.Equal(t, "builder", build.Builder)
@@ -165,7 +168,7 @@ func TestCreateBuild(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusOK,
 			setup: func(t *testing.T) {
-				id, err := model.NewBuildID("existing", 150)
+				id, err := model.NewBuildID(ctx, "existing", 150)
 				require.NoError(t, err)
 				build := model.Build{
 					ID:            id,
@@ -174,10 +177,10 @@ func TestCreateBuild(t *testing.T) {
 					TaskID:        "id",
 					TaskExecution: 1,
 				}
-				require.NoError(t, build.UploadMetadata(ctx))
+				require.NoError(t, build.UploadMetadata(ctx, tracer))
 			},
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				expectedID, err := model.NewBuildID("existing", 150)
+				expectedID, err := model.NewBuildID(ctx, "existing", 150)
 				require.NoError(t, err)
 
 				var out createdResponse
@@ -212,6 +215,8 @@ func TestCreateTest(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -314,7 +319,7 @@ func TestCreateTest(t *testing.T) {
 				require.NotEmpty(t, out.ID)
 				assert.Equal(t, fmt.Sprintf("https://logkeeper.com/build/%s/test/%s", buildID, out.ID), out.URI)
 
-				test, err := model.FindTestByID(ctx, buildID, out.ID)
+				test, err := model.FindTestByID(ctx, tracer, buildID, out.ID)
 				require.NoError(t, err)
 				assert.Equal(t, out.ID, test.ID)
 				assert.Equal(t, "test", test.Name)
@@ -342,6 +347,8 @@ func TestAppendGlobalLog(t *testing.T) {
 	type payload [][]interface{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -421,8 +428,7 @@ func TestAppendGlobalLog(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder, _ []interface{}) {
 				assert.Equal(t, []byte("\"\""), resp.Body.Bytes())
-
-				lines, err := model.DownloadLogLines(ctx, buildID, "")
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, "")
 				require.NoError(t, err)
 				var lineCount int
 				for range lines {
@@ -471,7 +477,7 @@ func TestAppendGlobalLog(t *testing.T) {
 						})
 					}
 				}
-				lines, err := model.DownloadLogLines(ctx, buildID, "")
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, "")
 				require.NoError(t, err)
 				var storedLines []model.LogLineItem
 				for line := range lines {
@@ -500,6 +506,8 @@ func TestAppendTestLog(t *testing.T) {
 	type payload [][]interface{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	for _, test := range []struct {
 		name               string
 		lk                 *logkeeper
@@ -604,8 +612,7 @@ func TestAppendTestLog(t *testing.T) {
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder, _ []interface{}) {
 				assert.Equal(t, []byte("\"\""), resp.Body.Bytes())
-
-				lines, err := model.DownloadLogLines(ctx, buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
 				var lineCount int
 				for range lines {
@@ -654,7 +661,7 @@ func TestAppendTestLog(t *testing.T) {
 						})
 					}
 				}
-				lines, err := model.DownloadLogLines(ctx, buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
 				var storedLines []model.LogLineItem
 				for line := range lines {
@@ -680,6 +687,8 @@ func TestViewBuild(t *testing.T) {
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	lk := NewLogkeeper(
 		ctx,
 		LogkeeperOptions{
@@ -710,9 +719,9 @@ func TestViewBuild(t *testing.T) {
 			buildID:            buildID,
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(ctx, buildID)
+				build, err := model.FindBuildByID(ctx, tracer, buildID)
 				require.NoError(t, err)
-				tests, err := model.FindTestsForBuild(ctx, buildID)
+				tests, err := model.FindTestsForBuild(ctx, tracer, buildID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -731,9 +740,9 @@ func TestViewBuild(t *testing.T) {
 			params:             "metadata=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(ctx, buildID)
+				build, err := model.FindBuildByID(ctx, tracer, buildID)
 				require.NoError(t, err)
-				tests, err := model.FindTestsForBuild(ctx, buildID)
+				tests, err := model.FindTestsForBuild(ctx, tracer, buildID)
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(struct {
@@ -760,6 +769,8 @@ func TestViewAllLogs(t *testing.T) {
 	buildID := "5a75f537726934e4b62833ab6d5dca41"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	lk := NewLogkeeper(
 		ctx,
 		LogkeeperOptions{
@@ -801,7 +812,7 @@ func TestViewAllLogs(t *testing.T) {
 			params:             "raw=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(ctx, buildID, "")
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, "")
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -818,7 +829,7 @@ func TestViewAllLogs(t *testing.T) {
 			headers:            map[string]string{"Accept": "text/plain"},
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(ctx, buildID, "")
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, "")
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -835,9 +846,9 @@ func TestViewAllLogs(t *testing.T) {
 			params:             "html=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(ctx, buildID)
+				build, err := model.FindBuildByID(ctx, tracer, buildID)
 				require.NoError(t, err)
-				lines, err := model.DownloadLogLines(ctx, buildID, "")
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, "")
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -860,7 +871,7 @@ func TestViewAllLogs(t *testing.T) {
 			params:             "metadata=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(ctx, buildID)
+				build, err := model.FindBuildByID(ctx, tracer, buildID)
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(build, "", "  ")
@@ -885,6 +896,8 @@ func TestViewTestLogs(t *testing.T) {
 	testID := "17046404de18d0000000000000000000"
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	lk := NewLogkeeper(
 		ctx,
 		LogkeeperOptions{
@@ -943,7 +956,7 @@ func TestViewTestLogs(t *testing.T) {
 			params:             "raw=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(ctx, buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -961,7 +974,7 @@ func TestViewTestLogs(t *testing.T) {
 			headers:            map[string]string{"Accept": "text/plain"},
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				lines, err := model.DownloadLogLines(ctx, buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -979,11 +992,11 @@ func TestViewTestLogs(t *testing.T) {
 			params:             "html=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				build, err := model.FindBuildByID(ctx, buildID)
+				build, err := model.FindBuildByID(ctx, tracer, buildID)
 				require.NoError(t, err)
-				test, err := model.FindTestByID(ctx, buildID, testID)
+				test, err := model.FindTestByID(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
-				lines, err := model.DownloadLogLines(ctx, buildID, testID)
+				lines, err := model.DownloadLogLines(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut := &bytes.Buffer{}
@@ -1006,7 +1019,7 @@ func TestViewTestLogs(t *testing.T) {
 			params:             "metadata=true",
 			expectedStatusCode: http.StatusOK,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				test, err := model.FindTestByID(ctx, buildID, testID)
+				test, err := model.FindTestByID(ctx, tracer, buildID, testID)
 				require.NoError(t, err)
 
 				expectedOut, err := json.MarshalIndent(test, "", "  ")

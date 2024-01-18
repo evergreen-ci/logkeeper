@@ -7,10 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
 	"github.com/evergreen-ci/logkeeper/env"
 	"github.com/evergreen-ci/pail"
 	"github.com/pkg/errors"
+	otelTrace "go.opentelemetry.io/otel/trace"
 )
 
 const metadataFilename = "metadata.json"
@@ -26,12 +26,13 @@ type Build struct {
 
 // UploadMetadata uploads metadata for a new build to the pail-backed
 // offline storage.
-func (b *Build) UploadMetadata(ctx context.Context) error {
+func (b *Build) UploadMetadata(ctx context.Context, tracer otelTrace.Tracer) error {
+	_, span := tracer.Start(ctx, "UploadMetadata")
+	defer span.End()
 	data, err := b.toJSON()
 	if err != nil {
 		return err
 	}
-
 	return errors.Wrapf(env.Bucket().Put(ctx, b.key(), bytes.NewReader(data)), "uploading metadata for build '%s'", b.ID)
 }
 
@@ -58,7 +59,11 @@ func buildPrefix(buildID string) string {
 
 // NewBuildID generates a new build ID based on the hash of the given builder
 // and build number.
-func NewBuildID(builder string, buildNum int) (string, error) {
+func NewBuildID(ctx context.Context, builder string, buildNum int) (string, error) {
+	defer func() {
+		span := otelTrace.SpanFromContext(ctx)
+		span.AddEvent("NewBuildID")
+	}()
 	hasher := md5.New()
 
 	// This depends on the fact that Go's JSON implementation sorts JSON
@@ -80,7 +85,9 @@ func NewBuildID(builder string, buildNum int) (string, error) {
 
 // FindBuildByID returns the build metadata for the given ID from the pail-backed
 // offline storage.
-func FindBuildByID(ctx context.Context, id string) (*Build, error) {
+func FindBuildByID(ctx context.Context, tracer otelTrace.Tracer, id string) (*Build, error) {
+	_, span := tracer.Start(ctx, "FindBuildByID")
+	defer span.End()
 	reader, err := env.Bucket().Get(ctx, metadataKeyForBuild(id))
 	if pail.IsKeyNotFoundError(err) {
 		return nil, nil
@@ -98,15 +105,17 @@ func FindBuildByID(ctx context.Context, id string) (*Build, error) {
 }
 
 // CheckBuildMetadata returns whether the metadata file exists for the given build.
-func CheckBuildMetadata(ctx context.Context, id string) (bool, error) {
-	return checkMetadata(ctx, id, "")
+func CheckBuildMetadata(ctx context.Context, tracer otelTrace.Tracer, id string) (bool, error) {
+	return checkMetadata(ctx, tracer, id, "")
 }
 
 // checkMetadata returns whether the metadata file exists for the given build
 // or test. If the test ID is not empty, the metadata of the test for the given
 // build is checked, otherwise the top-level build metadata is checked. A build
 // ID is required in both cases.
-func checkMetadata(ctx context.Context, buildID string, testID string) (bool, error) {
+func checkMetadata(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (bool, error) {
+	_, span := tracer.Start(ctx, "CheckMetadata")
+	defer span.End()
 	var key string
 	if testID == "" {
 		key = metadataKeyForBuild(buildID)
@@ -123,7 +132,9 @@ func checkMetadata(ctx context.Context, buildID string, testID string) (bool, er
 }
 
 // getBuildKeys returns the all the keys contained within the build prefix.
-func getBuildKeys(ctx context.Context, buildID string) ([]string, error) {
+func getBuildKeys(ctx context.Context, tracer otelTrace.Tracer, buildID string) ([]string, error) {
+	_, span := tracer.Start(ctx, "GetBuildKeys")
+	defer span.End()
 	iter, err := env.Bucket().List(ctx, buildPrefix(buildID))
 	if err != nil {
 		return nil, errors.Wrapf(err, "listing keys for build '%s'", buildID)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	"io"
 	"strings"
 	"testing"
@@ -18,21 +19,25 @@ import (
 )
 
 func TestUnmarshalLogJSON(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	t.Run("NoInput", func(t *testing.T) {
-		lines, err := UnmarshalLogJSON(strings.NewReader(""))
+		lines, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader(""))
 		assert.Error(t, err)
 		require.Len(t, lines, 0)
 	})
 
 	t.Run("EmptyLines", func(t *testing.T) {
-		lines, err := UnmarshalLogJSON(strings.NewReader("[]"))
+		lines, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader("[]"))
 		assert.NoError(t, err)
 		require.Len(t, lines, 0)
 	})
 
 	t.Run("WellFormedLines", func(t *testing.T) {
 		logLineJSON := "[[1257894000, \"message0\"],[1257894001, \"message1\"]]"
-		lines, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
+		lines, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader(logLineJSON))
 		assert.NoError(t, err)
 		require.Len(t, lines, 2)
 		assert.Equal(t, "message0", lines[0].Data)
@@ -43,25 +48,25 @@ func TestUnmarshalLogJSON(t *testing.T) {
 
 	t.Run("MalformedJSON", func(t *testing.T) {
 		logLineJSON := "[[1257894000, \"message0\"]}"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
+		_, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader(logLineJSON))
 		assert.Error(t, err)
 	})
 
 	t.Run("UnexpectedTimestampType", func(t *testing.T) {
 		logLineJSON := "[[\"not a date\", \"message0\"]]"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
+		_, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader(logLineJSON))
 		assert.Error(t, err)
 	})
 
 	t.Run("UnexpectedDataType", func(t *testing.T) {
 		logLineJSON := "[[1257894000, true]]"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
+		_, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader(logLineJSON))
 		assert.Error(t, err)
 	})
 
 	t.Run("UnexpectedExtraArray", func(t *testing.T) {
 		logLineJSON := "[[1257894000, \"message0\"]], [\"unexpected\"]"
-		_, err := UnmarshalLogJSON(strings.NewReader(logLineJSON))
+		_, err := UnmarshalLogJSON(ctx, tracer, strings.NewReader(logLineJSON))
 		assert.Error(t, err)
 	})
 }
@@ -125,6 +130,10 @@ func TestMakeLogLineString(t *testing.T) {
 }
 
 func TestDownloadLogLines(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	for _, test := range []struct {
 		name          string
 		storagePath   string
@@ -320,7 +329,7 @@ func TestDownloadLogLines(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			defer testutil.SetBucket(t, test.storagePath)()
 
-			logLines, err := DownloadLogLines(context.Background(), test.buildID, test.testID)
+			logLines, err := DownloadLogLines(ctx, tracer, test.buildID, test.testID)
 			if test.errorExpected {
 				assert.Error(t, err)
 			} else {
@@ -339,6 +348,8 @@ func TestDownloadLogLines(t *testing.T) {
 func TestInsertLogLines(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 
 	testLines := []LogLineItem{
 		{
@@ -412,12 +423,12 @@ func TestInsertLogLines(t *testing.T) {
 
 	t.Run("Global", func(t *testing.T) {
 		defer testutil.SetBucket(t, "nolines")()
-		require.NoError(t, InsertLogLines(ctx, buildID, "", globalLines, 4*1024*1024))
+		require.NoError(t, InsertLogLines(ctx, tracer, buildID, "", globalLines, 4*1024*1024))
 		verifyDataStorage(t, fmt.Sprintf("/builds/%s/", buildID), expectedStorage)
 
-		logsChannel, err := DownloadLogLines(ctx, buildID, "")
+		logsChannel, err := DownloadLogLines(ctx, tracer, buildID, "")
 		require.NoError(t, err)
-		result := []LogLineItem{}
+		var result []LogLineItem
 		for item := range logsChannel {
 			result = append(result, *item)
 		}
@@ -430,14 +441,14 @@ func TestInsertLogLines(t *testing.T) {
 		require.NoError(t, (&Test{
 			ID:      testID,
 			BuildID: "5a75f537726934e4b62833ab6d5dca41",
-		}).UploadTestMetadata(ctx))
-		require.NoError(t, InsertLogLines(context.Background(), buildID, testID, testLines, 4*1024*1024))
+		}).UploadTestMetadata(ctx, tracer))
+		require.NoError(t, InsertLogLines(ctx, tracer, buildID, testID, testLines, 4*1024*1024))
 
 		verifyDataStorage(t, fmt.Sprintf("/builds/%s/tests/%s/", buildID, testID), expectedStorage)
 
-		logsChannel, err := DownloadLogLines(context.Background(), buildID, testID)
+		logsChannel, err := DownloadLogLines(ctx, tracer, buildID, testID)
 		require.NoError(t, err)
-		result := []LogLineItem{}
+		var result []LogLineItem
 		for item := range logsChannel {
 			result = append(result, *item)
 		}
@@ -467,10 +478,14 @@ func verifyDataStorage(t *testing.T, prefix string, expectedStorage expectedChun
 }
 
 func benchmarkReadLogJSON(lineCount, lineSize int, b *testing.B) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	sampleJSON := makeJSONSample(lineCount, lineSize)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := UnmarshalLogJSON(bytes.NewReader(sampleJSON))
+		_, err := UnmarshalLogJSON(ctx, tracer, bytes.NewReader(sampleJSON))
 		if err != nil {
 			b.Fatalf("unmarshal encountered error: '%s'", err)
 		}

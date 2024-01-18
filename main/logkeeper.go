@@ -72,7 +72,8 @@ func main() {
 		catcher.Add(listenServeAndHandleErrs(lkService))
 	}()
 
-	pprofService := getService("127.0.0.1:2285", logkeeper.GetHandlerPprof(ctx))
+	pprofsvc := logkeeper.NewPProfSvc(ctx, *traceCollectorEndpoint)
+	pprofService := getService("127.0.0.1:2285", pprofsvc.GetHandlerPprof(ctx))
 	serviceWait.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("pprof service")

@@ -5,6 +5,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/mongodb/grip"
+	"github.com/mongodb/grip/message"
+	otelTrace "go.opentelemetry.io/otel/trace"
+	"google.golang.org/grpc"
 	"html/template"
 	"io"
 	"log"
@@ -22,23 +26,42 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 )
 
+type pprofsvc struct {
+	tracer       otelTrace.Tracer
+	otelGrpcConn *grpc.ClientConn
+	closers      []closerOp
+}
+
+func NewPProfSvc(ctx context.Context, collectorEndpoint string) *pprofsvc {
+	var p pprofsvc
+	o, err := initOtel(ctx, "pprof", collectorEndpoint)
+	p.tracer = *o.Tracer
+	if err != nil {
+		grip.Error(message.WrapError(err, "error initializing otel"))
+	} else {
+		p.otelGrpcConn = o.OtelGrpcConn
+		p.closers = o.Closers
+	}
+	return &p
+}
+
 // GetHandlerPprof returns a handler for pprof endpoints.
-func GetHandlerPprof(ctx context.Context) http.Handler {
+func (p *pprofsvc) GetHandlerPprof(ctx context.Context) http.Handler {
 	router := mux.NewRouter()
 	router.Use(NewLogger(ctx).Middleware)
 	router.Use(otelmux.Middleware("logkeeper"))
 
 	root := router.PathPrefix("/debug/pprof").Subrouter()
-	root.HandleFunc("/", index)
-	root.HandleFunc("/heap", index)
-	root.HandleFunc("/block", index)
-	root.HandleFunc("/goroutine", index)
-	root.HandleFunc("/mutex", index)
-	root.HandleFunc("/threadcreate", index)
-	root.HandleFunc("/cmdline", cmdline)
-	root.HandleFunc("/profile", profile)
-	root.HandleFunc("/symbol", symbol)
-	root.HandleFunc("/trace", trace)
+	root.HandleFunc("/", p.index)
+	root.HandleFunc("/heap", p.index)
+	root.HandleFunc("/block", p.index)
+	root.HandleFunc("/goroutine", p.index)
+	root.HandleFunc("/mutex", p.index)
+	root.HandleFunc("/threadcreate", p.index)
+	root.HandleFunc("/cmdline", p.cmdline)
+	root.HandleFunc("/profile", p.profile)
+	root.HandleFunc("/symbol", p.symbol)
+	root.HandleFunc("/trace", p.trace)
 
 	n := negroni.New()
 	n.UseHandler(router)
@@ -54,13 +77,14 @@ func GetHandlerPprof(ctx context.Context) http.Handler {
 // cmdline responds with the running program's
 // command line, with arguments separated by NUL bytes.
 // The package initialization registers it as /debug/pprof/cmdline.
-func cmdline(w http.ResponseWriter, r *http.Request) {
+func (p *pprofsvc) cmdline(w http.ResponseWriter, r *http.Request) {
+	_, span := p.tracer.Start(r.Context(), "index")
+	defer span.End()
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprintf(w, strings.Join(os.Args, "\x00"))
 }
 
-func sleep(r *http.Request, d time.Duration) {
-	ctx := r.Context()
+func sleep(ctx context.Context, d time.Duration) {
 	select {
 	case <-time.After(d):
 	case <-ctx.Done():
@@ -69,7 +93,9 @@ func sleep(r *http.Request, d time.Duration) {
 
 // profile responds with the pprof-formatted cpu profile.
 // The package initialization registers it as /debug/pprof/profile.
-func profile(w http.ResponseWriter, r *http.Request) {
+func (p *pprofsvc) profile(w http.ResponseWriter, r *http.Request) {
+	ctx, span := p.tracer.Start(r.Context(), "index")
+	defer span.End()
 	sec, _ := strconv.ParseInt(r.FormValue("seconds"), 10, 64)
 	if sec == 0 {
 		sec = 30
@@ -87,14 +113,16 @@ func profile(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not enable CPU profiling: %s\n", err)
 		return
 	}
-	sleep(r, time.Duration(sec)*time.Second)
+	sleep(ctx, time.Duration(sec)*time.Second)
 	pprof.StopCPUProfile()
 }
 
 // trace responds with the execution trace in binary form.
 // Tracing lasts for duration specified in seconds GET parameter, or for 1 second if not specified.
 // The package initialization registers it as /debug/pprof/trace.
-func trace(w http.ResponseWriter, r *http.Request) {
+func (p *pprofsvc) trace(w http.ResponseWriter, r *http.Request) {
+	ctx, span := p.tracer.Start(r.Context(), "index")
+	defer span.End()
 	sec, err := strconv.ParseFloat(r.FormValue("seconds"), 64)
 	if sec <= 0 || err != nil {
 		sec = 1
@@ -111,14 +139,16 @@ func trace(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "Could not enable tracing: %s\n", err)
 		return
 	}
-	sleep(r, time.Duration(sec*float64(time.Second)))
+	sleep(ctx, time.Duration(sec*float64(time.Second)))
 	runtimeTrace.Stop()
 }
 
 // symbol looks up the program counters listed in the request,
 // responding with a table mapping program counters to function names.
 // The package initialization registers it as /debug/pprof/symbol.
-func symbol(w http.ResponseWriter, r *http.Request) {
+func (p *pprofsvc) symbol(w http.ResponseWriter, r *http.Request) {
+	_, span := p.tracer.Start(r.Context(), "index")
+	defer span.End()
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 
 	// We have to read the whole POST body before
@@ -185,7 +215,9 @@ func (name pprofHandler) serveHTTP(w http.ResponseWriter, r *http.Request) {
 // For example, "/debug/pprof/heap" serves the "heap" profile.
 // Index responds to a request for "/debug/pprof/" with an HTML page
 // listing the available profiles.
-func index(w http.ResponseWriter, r *http.Request) {
+func (p *pprofsvc) index(w http.ResponseWriter, r *http.Request) {
+	_, span := p.tracer.Start(r.Context(), "index")
+	defer span.End()
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof/") {
 		name := strings.TrimPrefix(r.URL.Path, "/debug/pprof/")
 		if name != "" {

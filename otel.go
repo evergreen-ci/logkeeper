@@ -9,9 +9,11 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	otelTrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -20,30 +22,46 @@ const (
 	packageName = "github.com/evergreen-ci/logkeeper"
 )
 
-func (lk *logkeeper) initOtel(ctx context.Context) error {
-	if lk.opts.TraceCollectorEndpoint == "" {
+type Otel struct {
+	Tracer       *otelTrace.Tracer
+	OtelGrpcConn *grpc.ClientConn
+	Closers      []closerOp
+}
+
+func initOtel(ctx context.Context, name string, collectorEndpoint string) (Otel, error) {
+	var (
+		o            Otel
+		otelGrpcConn *grpc.ClientConn
+		tracer       = otel.GetTracerProvider().Tracer("noop_tracer") // default noop
+		closers      []closerOp
+	)
+	if collectorEndpoint == "" {
 		// defaults to NoopTracerProvider
-		lk.tracer = otel.GetTracerProvider().Tracer(packageName)
-		return nil
+		tracer = otel.GetTracerProvider().Tracer(packageName)
+		o.Tracer = &tracer
+		return o, nil
 	}
 
-	r, err := serviceResource(ctx)
+	r, err := serviceResource(ctx, name)
 	if err != nil {
-		return errors.Wrap(err, "making host resource")
+		o.Tracer = &tracer
+		return o, errors.Wrap(err, "making host resource")
 	}
 
-	lk.otelGrpcConn, err = grpc.DialContext(ctx,
-		lk.opts.TraceCollectorEndpoint,
+	otelGrpcConn, err = grpc.DialContext(ctx,
+		collectorEndpoint,
 		grpc.WithTransportCredentials(credentials.NewTLS(nil)),
 	)
 	if err != nil {
-		return errors.Wrapf(err, "opening gRPC connection to '%s'", lk.opts.TraceCollectorEndpoint)
+		o.Tracer = &tracer
+		return o, errors.Wrapf(err, "opening gRPC connection to '%s'", collectorEndpoint)
 	}
 
-	client := otlptracegrpc.NewClient(otlptracegrpc.WithGRPCConn(lk.otelGrpcConn))
+	client := otlptracegrpc.NewClient()
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
-		return errors.Wrap(err, "initializing otel exporter")
+		o.Tracer = &tracer
+		return o, errors.Wrap(err, "initializing otel exporter")
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
@@ -54,27 +72,31 @@ func (lk *logkeeper) initOtel(ctx context.Context) error {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		grip.Error(errors.Wrap(err, "otel error"))
 	}))
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
-	lk.tracer = tp.Tracer(packageName)
+	tracer = tp.Tracer(packageName)
 
-	lk.closers = append(lk.closers, closerOp{
+	closers = append(closers, closerOp{
 		name: "tracer provider shutdown",
 		closerFn: func(ctx context.Context) error {
 			catcher := grip.NewBasicCatcher()
 			catcher.Wrap(tp.Shutdown(ctx), "trace provider shutdown")
 			catcher.Wrap(traceExporter.Shutdown(ctx), "trace exporter shutdown")
-			catcher.Wrap(lk.otelGrpcConn.Close(), "closing gRPC connection")
+			catcher.Wrap(otelGrpcConn.Close(), "closing gRPC connection")
 
 			return catcher.Resolve()
 		},
 	})
 
-	return nil
+	o.Tracer = &tracer
+	o.OtelGrpcConn = otelGrpcConn
+	o.Closers = closers
+	return o, nil
 }
 
-func (lk *logkeeper) Close(ctx context.Context) {
+func closeOtel(ctx context.Context, closers []closerOp) {
 	catcher := grip.NewBasicCatcher()
-	for idx, closer := range lk.closers {
+	for idx, closer := range closers {
 		if closer.closerFn == nil {
 			continue
 		}
@@ -89,12 +111,12 @@ func (lk *logkeeper) Close(ctx context.Context) {
 	}
 
 	grip.Error(message.WrapError(catcher.Resolve(), message.Fields{
-		"message": "calling logkeeper closers",
+		"message": "calling closers",
 	}))
 }
 
-func serviceResource(ctx context.Context) (*resource.Resource, error) {
+func serviceResource(ctx context.Context, name string) (*resource.Resource, error) {
 	return resource.New(ctx,
-		resource.WithAttributes(semconv.ServiceName("logkeeper")),
+		resource.WithAttributes(semconv.ServiceName(name)),
 	)
 }
