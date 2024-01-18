@@ -45,15 +45,17 @@ func main() {
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
 
+	tracer, err := logkeeper.InitOtel(ctx, *traceCollectorEndpoint)
+	defer logkeeper.Close(ctx)
+
 	lk := logkeeper.NewLogkeeper(
 		ctx,
 		logkeeper.LogkeeperOptions{
-			URL:                    fmt.Sprintf("http://localhost:%v", *httpPort),
-			MaxRequestSize:         *maxRequestSize,
-			TraceCollectorEndpoint: *traceCollectorEndpoint,
+			URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
+			MaxRequestSize: *maxRequestSize,
 		},
+		tracer,
 	)
-	defer lk.Close(ctx)
 	go logkeeper.BackgroundLogging(ctx)
 
 	catcher := grip.NewBasicCatcher()
@@ -72,7 +74,8 @@ func main() {
 		catcher.Add(listenServeAndHandleErrs(lkService))
 	}()
 
-	pprofsvc := logkeeper.NewPProfSvc(ctx, *traceCollectorEndpoint)
+	pprofsvc := logkeeper.NewPProfSvc(tracer)
+
 	pprofService := getService("127.0.0.1:2285", pprofsvc.GetHandlerPprof(ctx))
 	serviceWait.Add(1)
 	go func() {

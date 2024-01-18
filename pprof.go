@@ -5,8 +5,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/mongodb/grip"
-	"github.com/mongodb/grip/message"
 	otelTrace "go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"html/template"
@@ -32,17 +30,8 @@ type pprofsvc struct {
 	closers      []closerOp
 }
 
-func NewPProfSvc(ctx context.Context, collectorEndpoint string) *pprofsvc {
-	var p pprofsvc
-	o, err := initOtel(ctx, "pprof", collectorEndpoint)
-	p.tracer = *o.Tracer
-	if err != nil {
-		grip.Error(message.WrapError(err, "error initializing otel"))
-	} else {
-		p.otelGrpcConn = o.OtelGrpcConn
-		p.closers = o.Closers
-	}
-	return &p
+func NewPProfSvc(tracer otelTrace.Tracer) *pprofsvc {
+	return &pprofsvc{tracer: tracer}
 }
 
 // GetHandlerPprof returns a handler for pprof endpoints.

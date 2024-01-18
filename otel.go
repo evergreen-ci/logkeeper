@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
@@ -22,30 +21,24 @@ const (
 	packageName = "github.com/evergreen-ci/logkeeper"
 )
 
-type Otel struct {
-	Tracer       *otelTrace.Tracer
-	OtelGrpcConn *grpc.ClientConn
-	Closers      []closerOp
-}
+var closers []closerOp
 
-func initOtel(ctx context.Context, name string, collectorEndpoint string) (Otel, error) {
+func InitOtel(ctx context.Context, collectorEndpoint string) (otelTrace.Tracer, error) {
 	var (
-		o            Otel
+		err          error
 		otelGrpcConn *grpc.ClientConn
-		tracer       = otel.GetTracerProvider().Tracer("noop_tracer") // default noop
-		closers      []closerOp
+		tracer       = otel.GetTracerProvider().Tracer("noop_tracer") // default
+		r            *resource.Resource
 	)
 	if collectorEndpoint == "" {
 		// defaults to NoopTracerProvider
 		tracer = otel.GetTracerProvider().Tracer(packageName)
-		o.Tracer = &tracer
-		return o, nil
+		return tracer, nil
 	}
 
-	r, err := serviceResource(ctx, name)
+	r, err = serviceResource(ctx)
 	if err != nil {
-		o.Tracer = &tracer
-		return o, errors.Wrap(err, "making host resource")
+		return tracer, errors.Wrap(err, "making host resource")
 	}
 
 	otelGrpcConn, err = grpc.DialContext(ctx,
@@ -53,15 +46,13 @@ func initOtel(ctx context.Context, name string, collectorEndpoint string) (Otel,
 		grpc.WithTransportCredentials(credentials.NewTLS(nil)),
 	)
 	if err != nil {
-		o.Tracer = &tracer
-		return o, errors.Wrapf(err, "opening gRPC connection to '%s'", collectorEndpoint)
+		return tracer, errors.Wrapf(err, "opening gRPC connection to '%s'", collectorEndpoint)
 	}
 
-	client := otlptracegrpc.NewClient()
+	client := otlptracegrpc.NewClient(otlptracegrpc.WithGRPCConn(otelGrpcConn))
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
-		o.Tracer = &tracer
-		return o, errors.Wrap(err, "initializing otel exporter")
+		return tracer, errors.Wrap(err, "initializing otel exporter")
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
@@ -72,7 +63,6 @@ func initOtel(ctx context.Context, name string, collectorEndpoint string) (Otel,
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
 		grip.Error(errors.Wrap(err, "otel error"))
 	}))
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 
 	tracer = tp.Tracer(packageName)
 
@@ -88,13 +78,10 @@ func initOtel(ctx context.Context, name string, collectorEndpoint string) (Otel,
 		},
 	})
 
-	o.Tracer = &tracer
-	o.OtelGrpcConn = otelGrpcConn
-	o.Closers = closers
-	return o, nil
+	return tracer, nil
 }
 
-func closeOtel(ctx context.Context, closers []closerOp) {
+func Close(ctx context.Context) {
 	catcher := grip.NewBasicCatcher()
 	for idx, closer := range closers {
 		if closer.closerFn == nil {
@@ -111,12 +98,12 @@ func closeOtel(ctx context.Context, closers []closerOp) {
 	}
 
 	grip.Error(message.WrapError(catcher.Resolve(), message.Fields{
-		"message": "calling closers",
+		"message": "calling logkeeper closers",
 	}))
 }
 
-func serviceResource(ctx context.Context, name string) (*resource.Resource, error) {
+func serviceResource(ctx context.Context) (*resource.Resource, error) {
 	return resource.New(ctx,
-		resource.WithAttributes(semconv.ServiceName(name)),
+		resource.WithAttributes(semconv.ServiceName("logkeeper")),
 	)
 }

@@ -94,12 +94,10 @@ type LogkeeperOptions struct {
 	URL string
 	// MaxRequestSize is the maximum allowable request size.
 	MaxRequestSize int
-	// TraceCollectorEndpoint is the Otel Collector endpoint
-	TraceCollectorEndpoint string
 }
 
 // NewLogkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(ctx context.Context, opts LogkeeperOptions) *logkeeper {
+func NewLogkeeper(ctx context.Context, opts LogkeeperOptions, tracer otelTrace.Tracer) *logkeeper {
 	r := render.New(render.Options{
 		Directory: "templates",
 		HtmlFuncs: template.FuncMap{
@@ -115,20 +113,7 @@ func NewLogkeeper(ctx context.Context, opts LogkeeperOptions) *logkeeper {
 		},
 	})
 
-	lk := &logkeeper{render: r, opts: opts}
-	o, err := initOtel(ctx, "logkeeper", lk.opts.TraceCollectorEndpoint)
-	lk.tracer = *o.Tracer
-	if err != nil {
-		grip.Error(message.WrapError(err, "error initializing otel"))
-	} else {
-		lk.otelGrpcConn = o.OtelGrpcConn
-		lk.closers = o.Closers
-	}
-	return lk
-}
-
-func (lk *logkeeper) Close(ctx context.Context) {
-	closeOtel(ctx, lk.closers)
+	return &logkeeper{render: r, opts: opts, tracer: tracer}
 }
 
 // checkContentLength returns an API error if the content length specified by
