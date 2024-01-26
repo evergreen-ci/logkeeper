@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	otelTrace "go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
 	"html/template"
 	"io"
 	"log"
@@ -25,12 +24,12 @@ import (
 )
 
 type pprofsvc struct {
-	tracer       otelTrace.Tracer
-	otelGrpcConn *grpc.ClientConn
-	closers      []closerOp
+	tracer  otelTrace.Tracer
+	closers []closerOp
 }
 
-func NewPProfSvc(tracer otelTrace.Tracer) *pprofsvc {
+func NewPProfSvc() *pprofsvc {
+	tracer := initTracer("pprof")
 	return &pprofsvc{tracer: tracer}
 }
 

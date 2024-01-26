@@ -95,7 +95,9 @@ func FindTestByID(ctx context.Context, tracer otelTrace.Tracer, buildID string, 
 
 // CheckTestMetadata returns whether the metadata file exists for the given test.
 func CheckTestMetadata(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (bool, error) {
-	return checkMetadata(ctx, tracer, buildID, testID)
+	spanCtx, span := tracer.Start(ctx, "CheckTestMetadata")
+	defer span.End()
+	return checkMetadata(spanCtx, buildID, testID)
 }
 
 // FindTestsForBuild returns all of the test metadata for the given build ID

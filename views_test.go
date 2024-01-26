@@ -83,7 +83,6 @@ func TestCreateBuild(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: 10,
 				},
-				tracer,
 			),
 			input: &payload{
 				Builder:       "builder",
@@ -106,7 +105,6 @@ func TestCreateBuild(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			input:              "not JSON",
 			expectedStatusCode: http.StatusBadRequest,
@@ -124,7 +122,6 @@ func TestCreateBuild(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			input: &payload{
 				Builder:       "builder",
@@ -158,7 +155,6 @@ func TestCreateBuild(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			input: &payload{
 				Builder:       "existing",
@@ -233,7 +229,6 @@ func TestCreateTest(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: 10,
 				},
-				tracer,
 			),
 			buildID: buildID,
 			input: &payload{
@@ -258,7 +253,6 @@ func TestCreateTest(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			input:              "not JSON",
@@ -277,7 +271,6 @@ func TestCreateTest(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID: "DNE",
 			input: &payload{
@@ -302,7 +295,6 @@ func TestCreateTest(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID: buildID,
 			input: &payload{
@@ -364,7 +356,6 @@ func TestAppendGlobalLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: 10,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			chunks:             []interface{}{payload{{now.Unix(), "Global log line."}}},
@@ -383,7 +374,6 @@ func TestAppendGlobalLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			chunks:             []interface{}{"invalid"},
@@ -402,7 +392,6 @@ func TestAppendGlobalLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            "DNE",
 			chunks:             []interface{}{payload{{now.Unix(), "Global log line."}}},
@@ -421,7 +410,6 @@ func TestAppendGlobalLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			chunks:             []interface{}{payload{}},
@@ -444,7 +432,6 @@ func TestAppendGlobalLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID: buildID,
 			chunks: []interface{}{
@@ -524,7 +511,6 @@ func TestAppendTestLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: 10,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			testID:             testID,
@@ -544,7 +530,6 @@ func TestAppendTestLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			testID:             testID,
@@ -564,7 +549,6 @@ func TestAppendTestLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            "DNE",
 			testID:             testID,
@@ -584,7 +568,6 @@ func TestAppendTestLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			testID:             "DNE",
@@ -604,7 +587,6 @@ func TestAppendTestLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID:            buildID,
 			testID:             testID,
@@ -628,7 +610,6 @@ func TestAppendTestLog(t *testing.T) {
 					URL:            "https://logkeeper.com",
 					MaxRequestSize: testMaxReqSize,
 				},
-				tracer,
 			),
 			buildID: buildID,
 			testID:  testID,
@@ -694,7 +675,6 @@ func TestViewBuild(t *testing.T) {
 			URL:            "https://logkeeper.com",
 			MaxRequestSize: testMaxReqSize,
 		},
-		tracer,
 	)
 	for _, test := range []struct {
 		name               string
@@ -776,7 +756,6 @@ func TestViewAllLogs(t *testing.T) {
 			URL:            "https://logkeeper.com",
 			MaxRequestSize: testMaxReqSize,
 		},
-		tracer,
 	)
 	for _, test := range []struct {
 		name               string
@@ -903,7 +882,6 @@ func TestViewTestLogs(t *testing.T) {
 			URL:            "https://logkeeper.com",
 			MaxRequestSize: testMaxReqSize,
 		},
-		tracer,
 	)
 	for _, test := range []struct {
 		name               string

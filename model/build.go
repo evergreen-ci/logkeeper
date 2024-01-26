@@ -106,16 +106,16 @@ func FindBuildByID(ctx context.Context, tracer otelTrace.Tracer, id string) (*Bu
 
 // CheckBuildMetadata returns whether the metadata file exists for the given build.
 func CheckBuildMetadata(ctx context.Context, tracer otelTrace.Tracer, id string) (bool, error) {
-	return checkMetadata(ctx, tracer, id, "")
+	spanCtx, span := tracer.Start(ctx, "CheckBuildMetadata")
+	defer span.End()
+	return checkMetadata(spanCtx, id, "")
 }
 
 // checkMetadata returns whether the metadata file exists for the given build
 // or test. If the test ID is not empty, the metadata of the test for the given
 // build is checked, otherwise the top-level build metadata is checked. A build
 // ID is required in both cases.
-func checkMetadata(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (bool, error) {
-	_, span := tracer.Start(ctx, "CheckMetadata")
-	defer span.End()
+func checkMetadata(ctx context.Context, buildID string, testID string) (bool, error) {
 	var key string
 	if testID == "" {
 		key = metadataKeyForBuild(buildID)

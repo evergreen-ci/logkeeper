@@ -6,7 +6,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"google.golang.org/grpc"
 	"html/template"
 	"net/http"
 	"os"
@@ -80,11 +79,10 @@ type closerOp struct {
 
 // logkeeper serves the Logkeeper REST API.
 type logkeeper struct {
-	render       *render.Render
-	opts         LogkeeperOptions
-	tracer       otelTrace.Tracer
-	otelGrpcConn *grpc.ClientConn
-	closers      []closerOp
+	render  *render.Render
+	opts    LogkeeperOptions
+	tracer  otelTrace.Tracer
+	closers []closerOp
 }
 
 // LogkeeperOptions represents the set of options for creating a new Logkeeper
@@ -97,7 +95,7 @@ type LogkeeperOptions struct {
 }
 
 // NewLogkeeper returns a new Logkeeper REST service with the given options.
-func NewLogkeeper(opts LogkeeperOptions, tracer otelTrace.Tracer) *logkeeper {
+func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
 	r := render.New(render.Options{
 		Directory: "templates",
 		HtmlFuncs: template.FuncMap{
@@ -112,7 +110,7 @@ func NewLogkeeper(opts LogkeeperOptions, tracer otelTrace.Tracer) *logkeeper {
 			},
 		},
 	})
-
+	tracer := initTracer("logkeeper")
 	return &logkeeper{render: r, opts: opts, tracer: tracer}
 }
 
@@ -190,13 +188,13 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 
 	recordAttributes(
 		ctx,
-		attribute.String("builder", payload.Builder),
-		attribute.Int("buildernum", payload.BuildNum),
-		attribute.String("task_id", payload.TaskID),
-		attribute.Int("execution", payload.TaskExecution),
+		attribute.String("evergreen.builder", payload.Builder),
+		attribute.Int("evergreen.buildernum", payload.BuildNum),
+		attribute.String("evergreen.task_id", payload.TaskID),
+		attribute.Int("evergreen.execution", payload.TaskExecution),
 	)
 	id, err := model.NewBuildID(ctx, payload.Builder, payload.BuildNum)
-	recordAttributes(ctx, attribute.String("id", id))
+	recordAttributes(ctx, attribute.String("evergreen.build_id", id))
 	if err != nil {
 		logErrorf(ctx, "creating new build ID: %v", err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "creating new build ID"})
@@ -241,7 +239,7 @@ func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	buildID := mux.Vars(r)["build_id"]
 
-	recordAttributes(ctx, attribute.String("build_id", buildID))
+	recordAttributes(ctx, attribute.String("evergreen.build_id", buildID))
 	if err := lk.checkContentLength(r); err != nil {
 		logErrorf(ctx, "content length limit exceeded for create test: %s", err.Err)
 		lk.render.WriteJSON(w, err.code, err)
@@ -263,11 +261,11 @@ func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 
 	recordAttributes(
 		ctx,
-		attribute.String("test_filename", payload.TestFilename),
-		attribute.String("command", payload.Command),
-		attribute.String("phase", payload.Phase),
-		attribute.String("task_id", payload.TaskID),
-		attribute.Int("execution", payload.TaskExecution),
+		attribute.String("evergreen.test_filename", payload.TestFilename),
+		attribute.String("evergreen.command", payload.Command),
+		attribute.String("evergreen.phase", payload.Phase),
+		attribute.String("evergreen.task_id", payload.TaskID),
+		attribute.Int("evergreen.execution", payload.TaskExecution),
 	)
 	exists, err := model.CheckBuildMetadata(ctx, lk.tracer, buildID)
 	if err != nil {
@@ -289,7 +287,7 @@ func (lk *logkeeper) createTest(w http.ResponseWriter, r *http.Request) {
 		Phase:         payload.Phase,
 		Command:       payload.Command,
 	}
-	recordAttributes(ctx, attribute.String("id", test.ID))
+	recordAttributes(ctx, attribute.String("evergreen.test_id", test.ID))
 	if err = test.UploadTestMetadata(ctx, lk.tracer); err != nil {
 		logErrorf(ctx, "uploading test metadata for build '%s': %v", buildID, err)
 		lk.render.WriteJSON(w, http.StatusInternalServerError, apiError{Err: "uploading test metadata"})
@@ -311,7 +309,7 @@ func (lk *logkeeper) appendGlobalLog(w http.ResponseWriter, r *http.Request) {
 	defer span.End()
 	buildID := mux.Vars(r)["build_id"]
 
-	recordAttributes(ctx, attribute.String("build_id", buildID))
+	recordAttributes(ctx, attribute.String("evergreen.build_id", buildID))
 	if err := lk.checkContentLength(r); err != nil {
 		logWarningf(ctx, "content length limit exceeded for append log lines to build '%s': %s", buildID, err.Err)
 		lk.render.WriteJSON(w, err.code, err)
@@ -371,8 +369,8 @@ func (lk *logkeeper) appendTestLog(w http.ResponseWriter, r *http.Request) {
 
 	recordAttributes(
 		ctx,
-		attribute.String("build_id", buildID),
-		attribute.String("test_id", testID),
+		attribute.String("evergreen.build_id", buildID),
+		attribute.String("evergreen.test_id", testID),
 	)
 
 	if err := lk.checkContentLength(r); err != nil {
@@ -432,7 +430,7 @@ func (lk *logkeeper) viewBuild(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
 
-	recordAttributes(ctx, attribute.String("build_id", buildID))
+	recordAttributes(ctx, attribute.String("evergreen.build_id", buildID))
 
 	var (
 		build    *model.Build
@@ -514,7 +512,7 @@ func (lk *logkeeper) viewAllLogs(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	buildID := vars["build_id"]
 
-	recordAttributes(ctx, attribute.String("build_id", buildID))
+	recordAttributes(ctx, attribute.String("evergreen.build_id", buildID))
 
 	if lobsterRedirect(r) {
 		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/all", buildID), http.StatusFound)
@@ -567,7 +565,11 @@ func (lk *logkeeper) viewTestLogs(w http.ResponseWriter, r *http.Request) {
 	buildID := vars["build_id"]
 	testID := vars["test_id"]
 
-	recordAttributes(ctx, attribute.String("build_id", buildID), attribute.String("test_id", testID))
+	recordAttributes(
+		ctx,
+		attribute.String("evergreen.build_id", buildID),
+		attribute.String("evergreen.test_id", testID),
+	)
 
 	if lobsterRedirect(r) {
 		http.Redirect(w, r, fmt.Sprintf("/lobster/build/%s/test/%s", buildID, testID), http.StatusFound)
