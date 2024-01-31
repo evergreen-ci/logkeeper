@@ -14,7 +14,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	otelTrace "go.opentelemetry.io/otel/trace"
-	"sync"
 )
 
 const (
@@ -24,8 +23,6 @@ const (
 
 var (
 	closers       []closerOp
-	creator       sync.Once
-	closer        sync.Once
 	useCustomName bool
 )
 
@@ -35,7 +32,8 @@ func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint 
 	}
 	r, err := serviceResource(ctx)
 	if err != nil {
-		grip.EmergencyFatal(errors.Wrap(err, "making host resource"))
+		grip.Error(errors.Wrap(err, "making host resource"))
+		return
 	}
 	var opts []otlptracegrpc.Option
 	if useInsecure {
@@ -88,26 +86,24 @@ func initTracer(name string) otelTrace.Tracer {
 }
 
 func Close(ctx context.Context) {
-	closer.Do(func() {
-		catcher := grip.NewBasicCatcher()
-		for idx, closer := range closers {
-			if closer.closerFn == nil {
-				continue
-			}
-
-			grip.Info(message.Fields{
-				"message": "calling closer",
-				"index":   idx,
-				"closer":  closer.name,
-			})
-
-			catcher.Add(closer.closerFn(ctx))
+	catcher := grip.NewBasicCatcher()
+	for idx, closer := range closers {
+		if closer.closerFn == nil {
+			continue
 		}
 
-		grip.Error(message.WrapError(catcher.Resolve(), message.Fields{
-			"message": "calling logkeeper closers",
-		}))
-	})
+		grip.Info(message.Fields{
+			"message": "calling closer",
+			"index":   idx,
+			"closer":  closer.name,
+		})
+
+		catcher.Add(closer.closerFn(ctx))
+	}
+
+	grip.Error(message.WrapError(catcher.Resolve(), message.Fields{
+		"message": "calling logkeeper closers",
+	}))
 }
 
 func serviceResource(ctx context.Context) (*resource.Resource, error) {

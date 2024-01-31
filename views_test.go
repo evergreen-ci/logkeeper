@@ -131,7 +131,7 @@ func TestCreateBuild(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusCreated,
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				expectedID, err := model.NewBuildID(ctx, "builder", 10)
+				expectedID, err := model.NewBuildID(ctx, tracer, "builder", 10)
 				require.NoError(t, err)
 
 				var out createdResponse
@@ -164,7 +164,7 @@ func TestCreateBuild(t *testing.T) {
 			},
 			expectedStatusCode: http.StatusOK,
 			setup: func(t *testing.T) {
-				id, err := model.NewBuildID(ctx, "existing", 150)
+				id, err := model.NewBuildID(ctx, tracer, "existing", 150)
 				require.NoError(t, err)
 				build := model.Build{
 					ID:            id,
@@ -176,7 +176,7 @@ func TestCreateBuild(t *testing.T) {
 				require.NoError(t, build.UploadMetadata(ctx, tracer))
 			},
 			test: func(t *testing.T, resp *httptest.ResponseRecorder) {
-				expectedID, err := model.NewBuildID(ctx, "existing", 150)
+				expectedID, err := model.NewBuildID(ctx, tracer, "existing", 150)
 				require.NoError(t, err)
 
 				var out createdResponse

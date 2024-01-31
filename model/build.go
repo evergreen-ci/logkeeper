@@ -59,11 +59,10 @@ func buildPrefix(buildID string) string {
 
 // NewBuildID generates a new build ID based on the hash of the given builder
 // and build number.
-func NewBuildID(ctx context.Context, builder string, buildNum int) (string, error) {
-	defer func() {
-		span := otelTrace.SpanFromContext(ctx)
-		span.AddEvent("NewBuildID")
-	}()
+func NewBuildID(ctx context.Context, tracer otelTrace.Tracer, builder string, buildNum int) (string, error) {
+	ctx, span := tracer.Start(ctx, "DownloadLogLines")
+	defer span.End()
+
 	hasher := md5.New()
 
 	// This depends on the fact that Go's JSON implementation sorts JSON

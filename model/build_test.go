@@ -15,23 +15,25 @@ import (
 func TestNewBuildID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	result, err := NewBuildID(ctx, "A", 123)
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
+
+	result, err := NewBuildID(ctx, tracer, "A", 123)
 	require.NoError(t, err)
 	assert.Equal(t, "1e7747b3e13274f0bee0de868c8314c9", result)
 
-	result, err = NewBuildID(ctx, "", -10000)
+	result, err = NewBuildID(ctx, tracer, "", -10000)
 	require.NoError(t, err)
 	assert.Equal(t, "7d2e3a33d801c1ac74f062b41c977104", result)
 
-	result, err = NewBuildID(ctx, `{"builder": "builder", "buildNum": "1000"}`, 0)
+	result, err = NewBuildID(ctx, tracer, `{"builder": "builder", "buildNum": "1000"}`, 0)
 	require.NoError(t, err)
 	assert.Equal(t, "ed39e8e7310193625e521204242e80c4", result)
 
-	result, err = NewBuildID(ctx, "10", 100)
+	result, err = NewBuildID(ctx, tracer, "10", 100)
 	require.NoError(t, err)
 	assert.Equal(t, "f4088565508a32f3e6ff9205408bcce9", result)
 
-	result, err = NewBuildID(ctx, "100", 10)
+	result, err = NewBuildID(ctx, tracer, "100", 10)
 	require.NoError(t, err)
 	assert.Equal(t, "b2f7b29a7f76e38abe38fc8145c0cf98", result)
 }

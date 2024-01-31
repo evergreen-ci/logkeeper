@@ -193,7 +193,7 @@ func (lk *logkeeper) createBuild(w http.ResponseWriter, r *http.Request) {
 		attribute.String("evergreen.task_id", payload.TaskID),
 		attribute.Int("evergreen.execution", payload.TaskExecution),
 	)
-	id, err := model.NewBuildID(ctx, payload.Builder, payload.BuildNum)
+	id, err := model.NewBuildID(ctx, lk.tracer, payload.Builder, payload.BuildNum)
 	recordAttributes(ctx, attribute.String("evergreen.build_id", id))
 	if err != nil {
 		logErrorf(ctx, "creating new build ID: %v", err)

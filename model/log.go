@@ -125,7 +125,7 @@ func (item *LogLineItem) OneSecondNewer(previousItem interface{}) bool {
 // DownloadLogLines returns log lines for a given build ID and test ID. If the
 // test ID is empty, this will return all logs lines in the build.
 func DownloadLogLines(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (chan *LogLineItem, error) {
-	_, span := tracer.Start(ctx, "DownloadLogLines")
+	ctx, span := tracer.Start(ctx, "DownloadLogLines")
 	defer span.End()
 	buildKeys, err := getBuildKeys(ctx, tracer, buildID)
 	if err != nil {
