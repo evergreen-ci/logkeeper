@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel"
 	otelTrace "go.opentelemetry.io/otel/trace"
 	"html/template"
 	"io"
@@ -29,7 +30,7 @@ type pprofsvc struct {
 }
 
 func NewPProfSvc() *pprofsvc {
-	tracer := initTracer("pprof")
+	tracer := otel.GetTracerProvider().Tracer("github.com/evergreen-ci/logkeeper/pprof")
 	return &pprofsvc{tracer: tracer}
 }
 

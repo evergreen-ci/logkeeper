@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"html/template"
@@ -110,7 +111,7 @@ func NewLogkeeper(opts LogkeeperOptions) *logkeeper {
 			},
 		},
 	})
-	tracer := initTracer("logkeeper")
+	tracer := otel.GetTracerProvider().Tracer("github.com/evergreen-ci/logkeeper/logkeeper")
 	return &logkeeper{render: r, opts: opts, tracer: tracer}
 }
 

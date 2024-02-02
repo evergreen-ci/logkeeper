@@ -2,7 +2,6 @@ package logkeeper
 
 import (
 	"context"
-	"fmt"
 	"github.com/evergreen-ci/utility"
 	"github.com/mongodb/grip"
 	"github.com/mongodb/grip/message"
@@ -13,18 +12,9 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
-	otelTrace "go.opentelemetry.io/otel/trace"
 )
 
-const (
-	packageName = "github.com/evergreen-ci/logkeeper/%s"
-	defaultName = "noop_tracer"
-)
-
-var (
-	closers       []closerOp
-	useCustomName bool
-)
+var closers []closerOp
 
 func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint string, sampleRatio float64) {
 	if collectorEndpoint == "" {
@@ -72,17 +62,6 @@ func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint 
 			return catcher.Resolve()
 		},
 	})
-	useCustomName = true
-}
-
-func initTracer(name string) otelTrace.Tracer {
-	var tracerName string
-	if useCustomName {
-		tracerName = fmt.Sprintf(packageName, name)
-	} else {
-		tracerName = defaultName
-	}
-	return otel.GetTracerProvider().Tracer(tracerName)
 }
 
 func Close(ctx context.Context) {
