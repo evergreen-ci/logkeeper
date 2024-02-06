@@ -46,7 +46,9 @@ func main() {
 	bucket, err := makeBucket(localPath)
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
-	logkeeper.LoadTraceProvider(ctx, *useInsecure, *traceCollectorEndpoint, *sampleRatio)
+	if err = logkeeper.LoadTraceProvider(ctx, *useInsecure, *traceCollectorEndpoint, *sampleRatio); err != nil {
+		grip.Warning(err)
+	}
 	lk := logkeeper.NewLogkeeper(
 		logkeeper.LogkeeperOptions{
 			URL:            fmt.Sprintf("http://localhost:%v", *httpPort),

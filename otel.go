@@ -16,14 +16,13 @@ import (
 
 var closers []closerOp
 
-func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint string, sampleRatio float64) {
+func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint string, sampleRatio float64) error {
 	if collectorEndpoint == "" {
-		return
+		return nil
 	}
 	r, err := serviceResource(ctx)
 	if err != nil {
-		grip.Error(errors.Wrap(err, "making host resource"))
-		return
+		return errors.Wrap(err, "making otel host resource")
 	}
 	var opts []otlptracegrpc.Option
 	if useInsecure {
@@ -34,7 +33,7 @@ func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint 
 
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
-		grip.EmergencyFatal(errors.Wrap(err, "initializing otel exporter"))
+		return errors.Wrap(err, "initializing otel exporter")
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
@@ -62,6 +61,7 @@ func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint 
 			return catcher.Resolve()
 		},
 	})
+	return nil
 }
 
 func Close(ctx context.Context) {
