@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"go.opentelemetry.io/otel"
 	"io"
 	"testing"
 
@@ -12,23 +13,27 @@ import (
 )
 
 func TestNewBuildID(t *testing.T) {
-	result, err := NewBuildID("A", 123)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
+
+	result, err := NewBuildID(ctx, tracer, "A", 123)
 	require.NoError(t, err)
 	assert.Equal(t, "1e7747b3e13274f0bee0de868c8314c9", result)
 
-	result, err = NewBuildID("", -10000)
+	result, err = NewBuildID(ctx, tracer, "", -10000)
 	require.NoError(t, err)
 	assert.Equal(t, "7d2e3a33d801c1ac74f062b41c977104", result)
 
-	result, err = NewBuildID(`{"builder": "builder", "buildNum": "1000"}`, 0)
+	result, err = NewBuildID(ctx, tracer, `{"builder": "builder", "buildNum": "1000"}`, 0)
 	require.NoError(t, err)
 	assert.Equal(t, "ed39e8e7310193625e521204242e80c4", result)
 
-	result, err = NewBuildID("10", 100)
+	result, err = NewBuildID(ctx, tracer, "10", 100)
 	require.NoError(t, err)
 	assert.Equal(t, "f4088565508a32f3e6ff9205408bcce9", result)
 
-	result, err = NewBuildID("100", 10)
+	result, err = NewBuildID(ctx, tracer, "100", 10)
 	require.NoError(t, err)
 	assert.Equal(t, "b2f7b29a7f76e38abe38fc8145c0cf98", result)
 }
@@ -36,6 +41,7 @@ func TestNewBuildID(t *testing.T) {
 func TestUploadBuildMetadata(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 
 	defer testutil.SetBucket(t, "")()
 	build := Build{
@@ -46,7 +52,7 @@ func TestUploadBuildMetadata(t *testing.T) {
 	}
 	expectedData, err := build.toJSON()
 	require.NoError(t, err)
-	require.NoError(t, build.UploadMetadata(ctx))
+	require.NoError(t, build.UploadMetadata(ctx, tracer))
 
 	r, err := env.Bucket().Get(ctx, "/builds/5a75f537726934e4b62833ab6d5dca41/metadata.json")
 	require.NoError(t, err)
@@ -85,14 +91,15 @@ func TestCheckBuildMetadata(t *testing.T) {
 	defer cancel()
 
 	defer testutil.SetBucket(t, "../testdata/simple")()
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 
 	t.Run("MetadataExists", func(t *testing.T) {
-		exists, err := CheckBuildMetadata(ctx, "5a75f537726934e4b62833ab6d5dca41")
+		exists, err := CheckBuildMetadata(ctx, tracer, "5a75f537726934e4b62833ab6d5dca41")
 		require.NoError(t, err)
 		assert.True(t, exists)
 	})
 	t.Run("NonexistentBuild", func(t *testing.T) {
-		exists, err := CheckBuildMetadata(ctx, "DOA")
+		exists, err := CheckBuildMetadata(ctx, tracer, "DOA")
 		require.NoError(t, err)
 		assert.False(t, exists)
 	})
@@ -103,6 +110,8 @@ func TestFindBuildByID(t *testing.T) {
 	defer cancel()
 
 	defer testutil.SetBucket(t, "../testdata/simple")()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	t.Run("Exists", func(t *testing.T) {
 		expected := &Build{
 			ID:       "5a75f537726934e4b62833ab6d5dca41",
@@ -110,12 +119,12 @@ func TestFindBuildByID(t *testing.T) {
 			BuildNum: 157865445,
 			TaskID:   "mongodb_mongo_master_enterprise_f98b3361fbab4e02683325cc0e6ebaa69d6af1df_22_07_22_11_24_37",
 		}
-		actual, err := FindBuildByID(ctx, "5a75f537726934e4b62833ab6d5dca41")
+		actual, err := FindBuildByID(ctx, tracer, "5a75f537726934e4b62833ab6d5dca41")
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
 	t.Run("DNE", func(t *testing.T) {
-		build, err := FindBuildByID(ctx, "DNE")
+		build, err := FindBuildByID(ctx, tracer, "DNE")
 		require.NoError(t, err)
 		assert.Nil(t, build)
 	})

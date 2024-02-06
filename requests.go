@@ -39,7 +39,7 @@ func readJSON(body io.Reader, maxSize int, out interface{}) *apiError {
 	decoder := json.NewDecoder(&LimitedReader{body, maxSize})
 
 	err := decoder.Decode(out)
-	if err == ErrReadSizeLimitExceeded {
+	if errors.Is(err, ErrReadSizeLimitExceeded) {
 		return &apiError{
 			Err:     err.Error(),
 			MaxSize: maxSize,
@@ -66,8 +66,8 @@ func setCtxRequestId(reqID int, r *http.Request) *http.Request {
 	return r.WithContext(context.WithValue(r.Context(), requestIDKey, reqID))
 }
 
-func getCtxRequestId(r *http.Request) int {
-	if val := r.Context().Value(requestIDKey); val != nil {
+func getCtxRequestId(ctx context.Context) int {
+	if val := ctx.Value(requestIDKey); val != nil {
 		if id, ok := val.(int); ok {
 			return id
 		}

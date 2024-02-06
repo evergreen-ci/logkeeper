@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	otelTrace "go.opentelemetry.io/otel/trace"
 	"io"
 	"math"
 	"regexp"
@@ -29,7 +30,10 @@ type LogLineItem struct {
 
 // UnmarshalLogJSON unmarshals log lines from JSON into a slice of LogLineItem.
 // Unmarshalling directly is more efficient than implementing the Unmarshaller interface.
-func UnmarshalLogJSON(r io.Reader) ([]LogLineItem, error) {
+func UnmarshalLogJSON(ctx context.Context, tracer otelTrace.Tracer, r io.Reader) ([]LogLineItem, error) {
+	ctx, span := tracer.Start(ctx, "UnmarshalLogJSON")
+	defer span.End()
+
 	var lines []LogLineItem
 
 	dec := json.NewDecoder(r)
@@ -120,8 +124,10 @@ func (item *LogLineItem) OneSecondNewer(previousItem interface{}) bool {
 
 // DownloadLogLines returns log lines for a given build ID and test ID. If the
 // test ID is empty, this will return all logs lines in the build.
-func DownloadLogLines(ctx context.Context, buildID string, testID string) (chan *LogLineItem, error) {
-	buildKeys, err := getBuildKeys(ctx, buildID)
+func DownloadLogLines(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (chan *LogLineItem, error) {
+	ctx, span := tracer.Start(ctx, "DownloadLogLines")
+	defer span.End()
+	buildKeys, err := getBuildKeys(ctx, tracer, buildID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "getting keys for build '%s'", buildID)
 	}
@@ -187,7 +193,9 @@ func groupLines(lines []LogLineItem, maxSize int) ([]LogChunk, error) {
 // pail-backed offline storage. If the test ID is not empty, the logs are
 // appended to the test for the given build, otherwise the logs are appended to
 // the top-level build. A build ID is required in both cases.
-func InsertLogLines(ctx context.Context, buildID string, testID string, lines []LogLineItem, maxSize int) error {
+func InsertLogLines(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string, lines []LogLineItem, maxSize int) error {
+	_, span := tracer.Start(ctx, "InsertLogLines")
+	defer span.End()
 	if len(lines) == 0 {
 		return nil
 	}

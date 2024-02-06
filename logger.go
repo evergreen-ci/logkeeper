@@ -251,9 +251,9 @@ func sliceStats(sample, histogramBins []float64) message.Fields {
 	}
 	sort.Float64s(sample)
 
-	min := sample[0]
-	max := sample[len(sample)-1]
-	if len(histogramBins) == 0 || histogramBins[0] > min || histogramBins[len(histogramBins)-1] <= max {
+	minimum := sample[0]
+	maximum := sample[len(sample)-1]
+	if len(histogramBins) == 0 || histogramBins[0] > minimum || histogramBins[len(histogramBins)-1] <= maximum {
 		return message.Fields{}
 	}
 
@@ -268,8 +268,8 @@ func sliceStats(sample, histogramBins []float64) message.Fields {
 
 	return message.Fields{
 		"sum":       floats.Sum(sample),
-		"min":       min,
-		"max":       max,
+		"min":       minimum,
+		"max":       maximum,
 		"mean":      stat.Mean(sample, nil),
 		"std_dev":   stdDev,
 		"histogram": stat.Histogram(nil, histogramBins, sample, nil),

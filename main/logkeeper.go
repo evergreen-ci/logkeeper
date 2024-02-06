@@ -30,6 +30,8 @@ func main() {
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
 	traceCollectorEndpoint := flag.String("traceCollectorEndpoint", "", "OTEL Collector URL")
+	useInsecure := flag.Bool("useInsecure", false, "Use Internal DNS")
+	sampleRatio := flag.Float64("sampleRatio", 1.0, "Otel Trace Sample ratio")
 	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
@@ -44,17 +46,17 @@ func main() {
 	bucket, err := makeBucket(localPath)
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
-
+	if err = logkeeper.LoadTraceProvider(ctx, *useInsecure, *traceCollectorEndpoint, *sampleRatio); err != nil {
+		grip.Warning(err)
+	}
 	lk := logkeeper.NewLogkeeper(
-		ctx,
 		logkeeper.LogkeeperOptions{
-			URL:                    fmt.Sprintf("http://localhost:%v", *httpPort),
-			MaxRequestSize:         *maxRequestSize,
-			TraceCollectorEndpoint: *traceCollectorEndpoint,
+			URL:            fmt.Sprintf("http://localhost:%v", *httpPort),
+			MaxRequestSize: *maxRequestSize,
 		},
 	)
-	defer lk.Close(ctx)
 	go logkeeper.BackgroundLogging(ctx)
+	defer logkeeper.Close(ctx)
 
 	catcher := grip.NewBasicCatcher()
 	router := lk.NewRouter()
@@ -72,7 +74,9 @@ func main() {
 		catcher.Add(listenServeAndHandleErrs(lkService))
 	}()
 
-	pprofService := getService("127.0.0.1:2285", logkeeper.GetHandlerPprof(ctx))
+	pprofsvc := logkeeper.NewPProfSvc()
+
+	pprofService := getService("127.0.0.1:2285", pprofsvc.GetHandlerPprof(ctx))
 	serviceWait.Add(1)
 	go func() {
 		defer recovery.LogStackTraceAndContinue("pprof service")

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	otelTrace "go.opentelemetry.io/otel/trace"
 	"sort"
 	"strings"
 	"sync"
@@ -60,7 +61,9 @@ func (t *Test) toJSON() ([]byte, error) {
 
 // UploadTestMetadata uploads metadata for a new test to the pail-backed
 // offline storage.
-func (t *Test) UploadTestMetadata(ctx context.Context) error {
+func (t *Test) UploadTestMetadata(ctx context.Context, tracer otelTrace.Tracer) error {
+	_, span := tracer.Start(ctx, "UploadTestMetadata")
+	defer span.End()
 	data, err := t.toJSON()
 	if err != nil {
 		return nil
@@ -71,7 +74,9 @@ func (t *Test) UploadTestMetadata(ctx context.Context) error {
 
 // FindTestByID returns the test metadata for the given build ID and test ID
 // from the pail-backed offline storage.
-func FindTestByID(ctx context.Context, buildID string, testID string) (*Test, error) {
+func FindTestByID(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (*Test, error) {
+	_, span := tracer.Start(ctx, "FindTestByID")
+	defer span.End()
 	reader, err := env.Bucket().Get(ctx, metadataKeyForTest(buildID, testID))
 	if pail.IsKeyNotFoundError(err) {
 		return nil, nil
@@ -88,14 +93,19 @@ func FindTestByID(ctx context.Context, buildID string, testID string) (*Test, er
 	return test, nil
 }
 
-// CheckBuildMetadata returns whether the metadata file exists for the given test.
-func CheckTestMetadata(ctx context.Context, buildID string, testID string) (bool, error) {
-	return checkMetadata(ctx, buildID, testID)
+// CheckTestMetadata returns whether the metadata file exists for the given test.
+func CheckTestMetadata(ctx context.Context, tracer otelTrace.Tracer, buildID string, testID string) (bool, error) {
+	spanCtx, span := tracer.Start(ctx, "CheckTestMetadata")
+	defer span.End()
+	return checkMetadata(spanCtx, buildID, testID)
 }
 
 // FindTestsForBuild returns all of the test metadata for the given build ID
 // from the pail-backed offline storage.
-func FindTestsForBuild(ctx context.Context, buildID string) ([]Test, error) {
+func FindTestsForBuild(ctx context.Context, tracer otelTrace.Tracer, buildID string) ([]Test, error) {
+	_, span := tracer.Start(ctx, "FindTestsForBuild")
+	defer span.End()
+
 	iterator, err := env.Bucket().List(ctx, buildTestsPrefix(buildID))
 	if err != nil {
 		return nil, errors.Wrapf(err, "listing test keys for build '%s'", buildID)
@@ -123,7 +133,7 @@ func FindTestsForBuild(ctx context.Context, buildID string) ([]Test, error) {
 			defer recovery.LogStackTraceAndContinue("finding test metadata for build from bucket")
 			defer wg.Done()
 
-			test, err := FindTestByID(ctx, buildID, testID)
+			test, err := FindTestByID(ctx, tracer, buildID, testID)
 			if err != nil {
 				catcher.Add(err)
 				return
@@ -147,12 +157,12 @@ func testIDTimestamp(id string) time.Time {
 		return bson.ObjectIdHex(id).Time()
 	}
 
-	bytes, err := hex.DecodeString(id)
+	decoded, err := hex.DecodeString(id)
 	if err != nil {
 		return time.Time{}
 	}
 
-	nSecs := binary.BigEndian.Uint64(bytes)
+	nSecs := binary.BigEndian.Uint64(decoded)
 	return time.Unix(0, int64(nSecs))
 }
 

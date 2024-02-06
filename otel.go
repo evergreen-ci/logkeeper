@@ -12,41 +12,38 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
-const (
-	packageName = "github.com/evergreen-ci/logkeeper"
-)
+var closers []closerOp
 
-func (lk *logkeeper) initOtel(ctx context.Context) error {
-	if lk.opts.TraceCollectorEndpoint == "" {
-		// defaults to NoopTracerProvider
-		lk.tracer = otel.GetTracerProvider().Tracer(packageName)
+func LoadTraceProvider(ctx context.Context, useInsecure bool, collectorEndpoint string, sampleRatio float64) error {
+	if collectorEndpoint == "" {
 		return nil
 	}
-
 	r, err := serviceResource(ctx)
 	if err != nil {
-		return errors.Wrap(err, "making host resource")
+		return errors.Wrap(err, "making otel host resource")
 	}
-
-	lk.otelGrpcConn, err = grpc.DialContext(ctx,
-		lk.opts.TraceCollectorEndpoint,
-		grpc.WithTransportCredentials(credentials.NewTLS(nil)),
-	)
-	if err != nil {
-		return errors.Wrapf(err, "opening gRPC connection to '%s'", lk.opts.TraceCollectorEndpoint)
+	var opts []otlptracegrpc.Option
+	if useInsecure {
+		opts = append(opts, otlptracegrpc.WithInsecure())
 	}
+	opts = append(opts, otlptracegrpc.WithEndpoint(collectorEndpoint))
+	client := otlptracegrpc.NewClient(opts...)
 
-	client := otlptracegrpc.NewClient(otlptracegrpc.WithGRPCConn(lk.otelGrpcConn))
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {
 		return errors.Wrap(err, "initializing otel exporter")
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExporter),
+		sdktrace.WithSampler(
+			sdktrace.ParentBased(
+				// default if no parent span received
+				sdktrace.TraceIDRatioBased(sampleRatio),
+				// if parent span received, always sample
+				sdktrace.WithRemoteParentNotSampled(sdktrace.AlwaysSample()),
+				sdktrace.WithLocalParentSampled(sdktrace.AlwaysSample()))),
 		sdktrace.WithResource(r),
 	)
 	tp.RegisterSpanProcessor(utility.NewAttributeSpanProcessor())
@@ -55,26 +52,21 @@ func (lk *logkeeper) initOtel(ctx context.Context) error {
 		grip.Error(errors.Wrap(err, "otel error"))
 	}))
 
-	lk.tracer = tp.Tracer(packageName)
-
-	lk.closers = append(lk.closers, closerOp{
+	closers = append(closers, closerOp{
 		name: "tracer provider shutdown",
 		closerFn: func(ctx context.Context) error {
 			catcher := grip.NewBasicCatcher()
 			catcher.Wrap(tp.Shutdown(ctx), "trace provider shutdown")
 			catcher.Wrap(traceExporter.Shutdown(ctx), "trace exporter shutdown")
-			catcher.Wrap(lk.otelGrpcConn.Close(), "closing gRPC connection")
-
 			return catcher.Resolve()
 		},
 	})
-
 	return nil
 }
 
-func (lk *logkeeper) Close(ctx context.Context) {
+func Close(ctx context.Context) {
 	catcher := grip.NewBasicCatcher()
-	for idx, closer := range lk.closers {
+	for idx, closer := range closers {
 		if closer.closerFn == nil {
 			continue
 		}

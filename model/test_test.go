@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"go.opentelemetry.io/otel"
 	"io"
 	"strings"
 	"testing"
@@ -37,6 +38,8 @@ func TestUploadTestMetadata(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
+
 	defer testutil.SetBucket(t, "")()
 	test := Test{
 		ID:            "62dba0159041307f697e6ccc",
@@ -49,7 +52,7 @@ func TestUploadTestMetadata(t *testing.T) {
 	}
 	expectedData, err := test.toJSON()
 	require.NoError(t, err)
-	require.NoError(t, test.UploadTestMetadata(ctx))
+	require.NoError(t, test.UploadTestMetadata(ctx, tracer))
 
 	r, err := env.Bucket().Get(ctx, "/builds/5a75f537726934e4b62833ab6d5dca41/tests/62dba0159041307f697e6ccc/metadata.json")
 	require.NoError(t, err)
@@ -90,6 +93,8 @@ func TestCheckTestMetadata(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
+
 	defer testutil.SetBucket(t, "../testdata/simple")()
 
 	for _, test := range []struct {
@@ -128,7 +133,7 @@ func TestCheckTestMetadata(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			actual, err := CheckTestMetadata(ctx, test.buildID, test.testID)
+			actual, err := CheckTestMetadata(ctx, tracer, test.buildID, test.testID)
 			require.NoError(t, err)
 			assert.Equal(t, test.expected, actual)
 		})
@@ -138,6 +143,8 @@ func TestCheckTestMetadata(t *testing.T) {
 func TestFindTestByID(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 
 	defer testutil.SetBucket(t, "../testdata/simple")()
 	t.Run("Exists", func(t *testing.T) {
@@ -150,23 +157,27 @@ func TestFindTestByID(t *testing.T) {
 			Phase:         "phase0",
 			Command:       "command0",
 		}
-		actual, err := FindTestByID(ctx, "5a75f537726934e4b62833ab6d5dca41", "17046404de18d0000000000000000000")
+		actual, err := FindTestByID(ctx, tracer, "5a75f537726934e4b62833ab6d5dca41", "17046404de18d0000000000000000000")
 		require.NoError(t, err)
 		assert.Equal(t, expected, actual)
 	})
 	t.Run("BuildDNE", func(t *testing.T) {
-		test, err := FindTestByID(ctx, "DNE", "17046404de18d0000000000000000000")
+		test, err := FindTestByID(ctx, tracer, "DNE", "17046404de18d0000000000000000000")
 		require.NoError(t, err)
 		assert.Nil(t, test)
 	})
 	t.Run("TestDNE", func(t *testing.T) {
-		test, err := FindTestByID(ctx, "5a75f537726934e4b62833ab6d5dca41", "DNE")
+		test, err := FindTestByID(ctx, tracer, "5a75f537726934e4b62833ab6d5dca41", "DNE")
 		require.NoError(t, err)
 		assert.Nil(t, test)
 	})
 }
 
 func TestFindTestsForBuild(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	tracer := otel.GetTracerProvider().Tracer("noop_tracer") // default noop
 	defer testutil.SetBucket(t, "../testdata/between")()
 
 	expected := []Test{
@@ -189,7 +200,7 @@ func TestFindTestsForBuild(t *testing.T) {
 			Phase:         "phase1",
 		},
 	}
-	testResponse, err := FindTestsForBuild(context.Background(), "5a75f537726934e4b62833ab6d5dca41")
+	testResponse, err := FindTestsForBuild(ctx, tracer, "5a75f537726934e4b62833ab6d5dca41")
 	require.NoError(t, err)
 	assert.Equal(t, expected, testResponse)
 }
