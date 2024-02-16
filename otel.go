@@ -24,8 +24,7 @@ func LoadTraceProvider(ctx context.Context, collectorEndpoint string, sampleRati
 	if err != nil {
 		return errors.Wrap(err, "making otel host resource")
 	}
-	opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpoint(collectorEndpoint)}
-	client := otlptracegrpc.NewClient(opts...)
+	client := otlptracegrpc.NewClient(otlptracegrpc.WithEndpoint(collectorEndpoint))
 
 	traceExporter, err := otlptrace.New(ctx, client)
 	if err != nil {

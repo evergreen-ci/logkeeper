@@ -38,17 +38,16 @@ func main() {
 
 	var (
 		err                    error
-		traceCollectorEndpoint string
-		sampleRatio            float64
+		traceCollectorEndpoint = ""
+		sampleRatio            = 1.0
 	)
 
 	if value, ok := os.LookupEnv("LK_COLLECTOR_ENDPOINT"); ok {
 		traceCollectorEndpoint = value
 	}
 	if value, ok := os.LookupEnv("LK_TRACE_RATIO"); ok {
-		var err error
 		if sampleRatio, err = strconv.ParseFloat(value, 64); err != nil {
-			sampleRatio = 1.0
+			grip.Warning(errors.Wrap(err, "using default trace ratio"))
 		}
 	}
 
