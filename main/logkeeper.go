@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -29,14 +30,27 @@ func main() {
 	logPath := flag.String("logpath", "logkeeperapp.log", "path to log file")
 	maxRequestSize := flag.Int("maxRequestSize", 1024*1024*32,
 		"maximum size for a request in bytes, defaults to 32 MB (in bytes)")
-	traceCollectorEndpoint := flag.String("traceCollectorEndpoint", "", "OTEL Collector URL")
-	useInsecure := flag.Bool("useInsecure", false, "Use Internal DNS")
-	sampleRatio := flag.Float64("sampleRatio", 1.0, "Otel Trace Sample ratio")
 	_ = flag.String("dbhost", "", "LEGACY: this option is ignored")
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	var (
+		err                    error
+		traceCollectorEndpoint = ""
+		sampleRatio            = 1.0
+	)
+
+	if value, ok := os.LookupEnv("LK_COLLECTOR_ENDPOINT"); ok {
+		traceCollectorEndpoint = value
+	}
+	if value, ok := os.LookupEnv("LK_TRACE_RATIO"); ok {
+		var ratio float64
+		if ratio, err = strconv.ParseFloat(value, 64); err == nil {
+			sampleRatio = ratio
+		}
+	}
 
 	sender, err := logkeeper.GetSender(ctx, *logPath)
 	grip.EmergencyFatal(err)
@@ -46,7 +60,7 @@ func main() {
 	bucket, err := makeBucket(localPath)
 	grip.EmergencyFatal(errors.Wrap(err, "getting bucket"))
 	grip.EmergencyFatal(errors.Wrap(env.SetBucket(&bucket), "setting bucket in env"))
-	if err = logkeeper.LoadTraceProvider(ctx, *useInsecure, *traceCollectorEndpoint, *sampleRatio); err != nil {
+	if err = logkeeper.LoadTraceProvider(ctx, traceCollectorEndpoint, sampleRatio); err != nil {
 		grip.Warning(err)
 	}
 	lk := logkeeper.NewLogkeeper(
