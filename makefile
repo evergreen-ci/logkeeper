@@ -122,10 +122,6 @@ $(buildDir)/output.%.coverage: .FORCE
 	@-[ -f $@ ] && go tool cover -func=$@ | sed 's%$(projectPath)/%%' | column -t
 $(buildDir)/output.%.coverage.html:$(buildDir)/output.%.coverage
 	go tool cover -html=$< -o $@
-$(buildDir)/output.smoke.test: $(buildDir)/$(name)
-	./$< --localPath $(tempStorageDir) &
-	PORT=8080 go test $(testArgs) -v ./smoke/smoke_test.go | tee $(buildDir)/output.smoke.test || (pkill -f $<; exit 1)
-	pkill -f $<
 # end test and coverage artifacts
 
 
