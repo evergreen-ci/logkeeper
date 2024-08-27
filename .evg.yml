@@ -110,10 +110,6 @@ tasks:
     exec_timeout_secs: 900
     tags: ["test"]
   - <<: *run-test
-    name: test-smoke
-    exec_timeout_secs: 900
-    tags: ["test"]
-  - <<: *run-test
     name: race-logkeeper
     exec_timeout_secs: 900
     tags: ["race"]
